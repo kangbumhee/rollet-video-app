@@ -10,7 +10,7 @@ service cloud.firestore {
     // ── 헬퍼 함수 ──
     function isAuth() { return request.auth != null; }
     function isOwner(uid) { return isAuth() && request.auth.uid == uid; }
-    function isAdmin() { return isAuth() && request.auth.uid == 'ADMIN_UID를_여기에_입력'; }
+    function isAdmin() { return isAuth() && request.auth.uid == 'SrSBMkZaehdjEKzAUesOpekbR1j2'; }
     function isRoomOwner(roomData) { return isAuth() && request.auth.uid == roomData.ownerId; }
 
     // ── 유저 ──
@@ -71,6 +71,30 @@ service cloud.firestore {
     // ── 광고 로그 ──
     match /adLogs/{logId} {
       allow read: if isAdmin();
+    }
+
+    // ── 스케줄 설정 (관리자만) ──
+    match /scheduleConfigs/{date} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ── 스케줄 슬롯 ──
+    match /scheduleSlots/{slotId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ── 게임 세션 ──
+    match /gameSessions/{sessionId} {
+      allow read: if isAuth();
+      allow write: if isAuth();
+    }
+
+    // ── 사이클 로그 ──
+    match /cycleLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
   }
 }

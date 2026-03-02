@@ -83,21 +83,21 @@ exports.gameCycle = (0, scheduler_1.onSchedule)({
             return;
         }
         await slotDoc.ref.update({ status: 'LIVE', updatedAt: now });
-        const roomDoc = await db.doc(`prizeRooms/${roomId}`).get();
+        const roomDoc = await db.doc(`rooms/${roomId}`).get();
         if (!roomDoc.exists) {
             await slotDoc.ref.update({ status: 'DISABLED', enabled: false, updatedAt: now });
             return;
         }
         const room = roomDoc.data();
-        await db.doc(`prizeRooms/${roomId}`).update({ status: 'LIVE', updatedAt: now });
+        await db.doc(`rooms/${roomId}`).update({ status: 'LIVE', updatedAt: now });
         let phaseStartTime = now;
         for (const phaseConfig of PHASES) {
             const phaseEndTime = phaseStartTime + phaseConfig.duration * 1000;
             await rtdb.ref('cycle/main').update({
                 currentPhase: phaseConfig.phase,
                 currentRoomId: roomId,
-                currentPrizeTitle: room.prizeTitle || null,
-                currentPrizeImage: room.prizeImageURL || null,
+                currentPrizeTitle: (room.prize && room.prize.title) || room.prizeTitle || null,
+                currentPrizeImage: (room.prize && room.prize.imageURL) || room.prizeImageURL || null,
                 currentGameType: room.gameType || null,
                 entryType: room.entryType || 'AD',
                 videoURL: room.videoURL || null,
@@ -106,7 +106,7 @@ exports.gameCycle = (0, scheduler_1.onSchedule)({
                 nextSlot: calcNextSlot(now + 30 * 60 * 1000),
             });
             if (phaseConfig.phase === 'ANNOUNCING') {
-                await sendBotChat(rtdb, roomId, `🎁 이번 경품은 "${room.prizeTitle || ''}"입니다! 예상 가치: ${Number(room.estimatedValue || 0).toLocaleString()}원!`);
+                await sendBotChat(rtdb, roomId, `🎁 이번 경품은 "${(room.prize && room.prize.title) || room.prizeTitle || ''}"입니다! 예상 가치: ${Number((room.prize && room.prize.estimatedValue) || room.estimatedValue || 0).toLocaleString()}원!`);
             }
             if (phaseConfig.phase === 'ENTRY_GATE') {
                 const entryMsg = room.entryType === 'VIDEO' ? '📹 제품 영상을 시청하고 참가 티켓을 받으세요!' : '📺 광고를 시청하고 참가 티켓을 받으세요!';
@@ -127,7 +127,7 @@ exports.gameCycle = (0, scheduler_1.onSchedule)({
             roomId,
             slot: calcNextSlot(now - 1000),
             startedAt: now,
-            prizeTitle: room.prizeTitle || '',
+            prizeTitle: (room.prize && room.prize.title) || room.prizeTitle || '',
             gameType: room.gameType || 'rps',
             completedAt: Date.now(),
         });
