@@ -138,8 +138,8 @@ export default function RoomPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col">
-      <header className="sticky top-0 z-50 bg-gray-900/95 backdrop-blur border-b border-gray-800">
+    <div className="h-[100dvh] flex flex-col bg-gray-950 overflow-hidden">
+      <header className="shrink-0 sticky top-0 z-50 bg-gray-900/95 backdrop-blur border-b border-gray-800">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <button onClick={() => router.push('/')} className="text-gray-400 hover:text-white">
@@ -159,13 +159,15 @@ export default function RoomPage() {
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col lg:flex-row">
-        <div className="flex-1 flex flex-col">{renderMainContent()}</div>
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
+        <main className="flex-1 overflow-y-auto min-h-0">
+          <div className="flex-1 flex flex-col">{renderMainContent()}</div>
+        </main>
 
-        <div className="lg:w-80 h-[40vh] lg:h-auto border-t lg:border-t-0 lg:border-l border-gray-800">
+        <aside className="h-[40vh] lg:h-auto lg:w-80 shrink-0 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-800">
           <ChatWindow messages={messages} onSendMessage={(msg) => void sendMessage(msg)} currentUid={user?.uid || ''} />
-        </div>
-      </main>
+        </aside>
+      </div>
     </div>
   );
 }
