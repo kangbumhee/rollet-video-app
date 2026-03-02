@@ -1,5 +1,4 @@
 'use client';
-
 import { useState } from 'react';
 
 interface Props {
@@ -10,67 +9,59 @@ export default function CoinFlip({ onResult }: Props) {
   const [result, setResult] = useState<'heads' | 'tails' | null>(null);
   const [guess, setGuess] = useState<'heads' | 'tails' | null>(null);
   const [flipping, setFlipping] = useState(false);
-  const [score, setScore] = useState({ wins: 0, total: 0 });
+  const [wins, setWins] = useState(0);
+  const [total, setTotal] = useState(0);
 
-  const flip = (myGuess: 'heads' | 'tails') => {
+  const flip = (g: 'heads' | 'tails') => {
     if (flipping) return;
-    setGuess(myGuess);
+    setGuess(g);
     setFlipping(true);
     setResult(null);
 
     setTimeout(() => {
-      const coin = Math.random() < 0.5 ? 'heads' : 'tails';
-      const won = coin === myGuess;
-      setResult(coin);
+      const r = Math.random() < 0.5 ? 'heads' : 'tails';
+      setResult(r);
       setFlipping(false);
-      setScore((prev) => ({
-        wins: prev.wins + (won ? 1 : 0),
-        total: prev.total + 1,
-      }));
-      if (won) {
-        onResult?.(`🪙 동전 던지기 성공! ${myGuess === 'heads' ? '앞면' : '뒷면'} 적중!`);
-      }
-    }, 1000);
+      const won = r === g;
+      if (won) setWins((p) => p + 1);
+      setTotal((p) => p + 1);
+      const label = r === 'heads' ? '앞면' : '뒷면';
+      onResult?.(
+        won
+          ? `🪙 동전 ${label}! 맞췄다! (${wins + 1}/${total + 1})`
+          : `🪙 동전 ${label}! 아쉽~ (${wins}/${total + 1})`
+      );
+    }, 800);
   };
 
-  const won = result && guess && result === guess;
-
   return (
-    <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-5 text-center">
-      <p className="text-sm text-gray-400 mb-4">동전 던지기 🪙</p>
-
-      <div className={`text-6xl my-6 ${flipping ? 'animate-spin' : ''}`}>
-        {flipping ? '🪙' : result === 'heads' ? '😀' : result === 'tails' ? '🌟' : '🪙'}
+    <div className="flex flex-col items-center gap-4 p-4 bg-gray-800 rounded-xl">
+      <h3 className="text-white font-bold text-lg">🪙 동전 던지기</h3>
+      <div className={`text-6xl transition-transform duration-500 ${flipping ? 'animate-spin' : ''}`}>
+        {result === null ? '🪙' : result === 'heads' ? '😀' : '🌙'}
       </div>
-
-      {result && !flipping && (
-        <p className={`text-lg font-bold mb-4 ${won ? 'text-green-400' : 'text-red-400'}`}>
-          {result === 'heads' ? '앞면!' : '뒷면!'} {won ? '맞았어요! 🎉' : '틀렸어요 😢'}
+      {result && (
+        <p className={`text-lg font-bold ${result === guess ? 'text-green-400' : 'text-red-400'}`}>
+          {result === 'heads' ? '앞면' : '뒷면'}! {result === guess ? '정답!' : '오답!'}
         </p>
       )}
-
-      <div className="flex gap-3 justify-center mb-4">
+      <div className="flex gap-3">
         <button
           onClick={() => flip('heads')}
           disabled={flipping}
-          className="px-6 py-2.5 bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 rounded-xl
-                     hover:bg-yellow-500/30 active:scale-95 disabled:opacity-50 transition-all text-sm font-medium"
+          className="px-6 py-3 bg-yellow-600 text-white rounded-lg font-bold hover:bg-yellow-500 disabled:opacity-50 transition"
         >
           😀 앞면
         </button>
         <button
           onClick={() => flip('tails')}
           disabled={flipping}
-          className="px-6 py-2.5 bg-purple-500/20 text-purple-400 border border-purple-500/50 rounded-xl
-                     hover:bg-purple-500/30 active:scale-95 disabled:opacity-50 transition-all text-sm font-medium"
+          className="px-6 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-500 disabled:opacity-50 transition"
         >
-          🌟 뒷면
+          뒷면 🌙
         </button>
       </div>
-
-      <p className="text-xs text-gray-500">
-        {score.total}전 {score.wins}승
-      </p>
+      <p className="text-gray-400 text-sm">전적: {wins}승 / {total}전</p>
     </div>
   );
 }

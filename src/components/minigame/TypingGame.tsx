@@ -1,30 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 const WORDS = [
-  '경품',
-  '당첨',
-  '행운',
-  '축하',
-  '이벤트',
-  '선물',
-  '참여',
-  '응모',
-  '도전',
-  '기회',
-  '파이팅',
-  '최고',
-  '대박',
-  '화이팅',
-  '사랑',
-  '감사',
-  '즐거움',
-  '행복',
-  '성공',
-  '희망',
-  '용기',
-  '노력',
+  '사과', '바나나', '컴퓨터', '대한민국', '프로그래밍', '치킨', '피자', '햄버거',
+  '아이스크림', '초콜릿', '자동차', '비행기', '기차', '학교', '도서관', '병원',
+  '소방서', '경찰서', '우체국', '백화점', '마트', '공원', '운동장', '수영장',
+  '영화관', '노래방', '카페', '식당', '약국', '미용실', '편의점', '주유소',
 ];
 
 interface Props {
@@ -33,43 +15,50 @@ interface Props {
 
 export default function TypingGame({ onResult }: Props) {
   const [playing, setPlaying] = useState(false);
-  const [currentWord, setCurrentWord] = useState('');
+  const [word, setWord] = useState('');
   const [input, setInput] = useState('');
   const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(15);
   const [bestScore, setBestScore] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(15);
   const inputRef = useRef<HTMLInputElement>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const nextWord = () => {
-    setCurrentWord(WORDS[Math.floor(Math.random() * WORDS.length)]);
+  const nextWord = useCallback(() => {
+    setWord(WORDS[Math.floor(Math.random() * WORDS.length)]);
     setInput('');
-  };
+  }, []);
 
   const startGame = () => {
-    setPlaying(true);
-    setScore(0);
-    setTimeLeft(15);
+    setPlaying(true); setScore(0); setTimeLeft(15);
     nextWord();
     inputRef.current?.focus();
+    timerRef.current = setInterval(() => {
+      setTimeLeft((t) => {
+        if (t <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          setPlaying(false);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
   };
 
   useEffect(() => {
-    if (!playing) return;
-    if (timeLeft <= 0) {
-      setPlaying(false);
-      if (score > bestScore) setBestScore(score);
-      if (score >= 5) {
-        onResult?.(`⌨️ 타자 게임 ${score}단어 완료! 손가락이 불탄다!`);
-      }
-      return;
+    if (!playing && score > 0) {
+      const nb = Math.max(bestScore, score);
+      setBestScore(nb);
+      onResult?.(`⌨️ 타자 게임 ${score}점! (최고: ${nb}점)`);
     }
-    const timer = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [playing, timeLeft, score, bestScore, onResult]);
+  }, [playing]);
+
+  useEffect(() => () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+  }, []);
 
   const handleInput = (value: string) => {
     setInput(value);
-    if (value === currentWord) {
+    if (value.trim() === word) {
       setScore((s) => s + 1);
       nextWord();
     }
@@ -77,44 +66,37 @@ export default function TypingGame({ onResult }: Props) {
 
   if (!playing) {
     return (
-      <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-5 text-center">
-        <p className="text-sm text-gray-400 mb-2">타자 게임 ⌨️</p>
-        {score > 0 && <p className="text-lg font-bold text-yellow-400 mb-2">{score}단어 완료!</p>}
-        {bestScore > 0 && <p className="text-xs text-gray-500 mb-4">최고: {bestScore}단어</p>}
-        <button
-          onClick={startGame}
-          className="px-8 py-2.5 bg-green-500/20 text-green-400 border border-green-500/50 rounded-xl
-                     hover:bg-green-500/30 active:scale-95 transition-all text-sm font-medium"
-        >
-          {score > 0 ? '다시 도전' : '시작하기'} (15초)
-        </button>
+      <div className="flex flex-col items-center gap-4 p-4 bg-gray-800 rounded-xl">
+        <h3 className="text-white font-bold text-lg">⌨️ 타자 게임</h3>
+        <div className="text-center">
+          {score > 0 && <p className="text-green-400 font-bold text-xl mb-2">결과: {score}점</p>}
+          <button
+            onClick={startGame}
+            className="px-8 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-500 transition"
+          >
+            {score > 0 ? '다시하기' : '시작하기'}
+          </button>
+          {bestScore > 0 && <p className="text-yellow-400 text-sm mt-2">최고: {bestScore}점</p>}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-5 text-center">
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-gray-400">타자 게임 ⌨️</p>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-yellow-400 font-bold">{score}단어</span>
-          <span className={`text-xs font-bold ${timeLeft <= 5 ? 'text-red-400 animate-pulse' : 'text-gray-400'}`}>{timeLeft}초</span>
-        </div>
+    <div className="flex flex-col items-center gap-4 p-4 bg-gray-800 rounded-xl">
+      <h3 className="text-white font-bold text-lg">⌨️ 타자 게임</h3>
+      <div className="flex justify-between w-full text-sm">
+        <span className="text-green-400 font-bold">점수: {score}</span>
+        <span className={`font-bold ${timeLeft <= 5 ? 'text-red-400' : 'text-white'}`}>⏱ {timeLeft}초</span>
       </div>
-
-      <div className="bg-gray-900/50 border border-gray-600 rounded-xl py-4 mb-4">
-        <p className="text-2xl font-bold text-white">{currentWord}</p>
-      </div>
-
+      <p className="text-3xl text-white font-bold py-4">{word}</p>
       <input
         ref={inputRef}
-        type="text"
         value={input}
         onChange={(e) => handleInput(e.target.value)}
-        className="w-full bg-gray-900 border border-gray-600 rounded-xl px-4 py-2.5 text-center text-white
-                   focus:outline-none focus:border-yellow-500/50 text-lg"
+        className="w-full p-3 rounded-lg bg-gray-700 text-white text-center text-lg outline-none focus:ring-2 focus:ring-purple-500"
         autoFocus
-        placeholder="여기에 입력..."
+        placeholder="여기에 입력하세요"
       />
     </div>
   );

@@ -2,87 +2,68 @@
 
 import { useState } from 'react';
 
-const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-
 interface Props {
   onResult?: (msg: string) => void;
 }
 
+const DICE = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+
 export default function DiceGame({ onResult }: Props) {
-  const [myDice, setMyDice] = useState<number | null>(null);
-  const [botDice, setBotDice] = useState<number | null>(null);
+  const [myDice, setMyDice] = useState(0);
+  const [botDice, setBotDice] = useState(0);
   const [rolling, setRolling] = useState(false);
-  const [score, setScore] = useState({ wins: 0, losses: 0, draws: 0 });
+  const [record, setRecord] = useState({ w: 0, l: 0, d: 0 });
 
   const roll = () => {
     if (rolling) return;
     setRolling(true);
-    setMyDice(null);
-    setBotDice(null);
-
     setTimeout(() => {
-      const my = Math.floor(Math.random() * 6) + 1;
-      const bot = Math.floor(Math.random() * 6) + 1;
-      setMyDice(my);
-      setBotDice(bot);
+      const m = Math.floor(Math.random() * 6) + 1;
+      const b = Math.floor(Math.random() * 6) + 1;
+      setMyDice(m);
+      setBotDice(b);
       setRolling(false);
 
-      if (my > bot) setScore((p) => ({ ...p, wins: p.wins + 1 }));
-      else if (my < bot) setScore((p) => ({ ...p, losses: p.losses + 1 }));
-      else setScore((p) => ({ ...p, draws: p.draws + 1 }));
-
-      if (my > bot) {
-        onResult?.(`🎲 주사위 ${my} vs ${bot}! 승리!`);
-      } else if (my === 6 && bot === 6) {
-        onResult?.('🎲 더블 6! 둘 다 최고!');
+      const nr = { ...record };
+      let res = '';
+      if (m > b) {
+        nr.w++;
+        res = '승리!';
+      } else if (m < b) {
+        nr.l++;
+        res = '패배!';
+      } else {
+        nr.d++;
+        res = '무승부!';
       }
-    }, 800);
+      setRecord(nr);
+      onResult?.(`🎲 주사위 ${m} vs ${b}! ${res} (${nr.w}승 ${nr.l}패 ${nr.d}무)`);
+    }, 600);
   };
-
-  const getResult = () => {
-    if (!myDice || !botDice) return null;
-    if (myDice > botDice) return { text: '승리! 🎉', color: 'text-green-400' };
-    if (myDice < botDice) return { text: '패배 😢', color: 'text-red-400' };
-    return { text: '무승부 🤝', color: 'text-yellow-400' };
-  };
-
-  const result = getResult();
 
   return (
-    <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-5 text-center">
-      <p className="text-sm text-gray-400 mb-4">주사위 대결 🎲</p>
-
-      <div className="flex items-center justify-center gap-8 my-6">
+    <div className="flex flex-col items-center gap-4 p-4 bg-gray-800 rounded-xl">
+      <h3 className="text-white font-bold text-lg">🎲 주사위 대결</h3>
+      <div className="flex gap-8 text-5xl">
         <div className="text-center">
-          <p className="text-xs text-gray-500 mb-1">나</p>
-          <span className={`text-5xl ${rolling ? 'animate-bounce' : ''}`}>
-            {rolling ? '🎲' : myDice ? DICE_FACES[myDice - 1] : '🎲'}
-          </span>
-          {myDice && <p className="text-sm text-white mt-1 font-bold">{myDice}</p>}
+          <p className="text-sm text-gray-400 mb-1">나</p>
+          <span className={rolling ? 'animate-bounce' : ''}>{DICE[myDice - 1] || '🎲'}</span>
         </div>
-        <span className="text-gray-600 text-lg">VS</span>
+        <span className="text-white self-center font-bold">VS</span>
         <div className="text-center">
-          <p className="text-xs text-gray-500 mb-1">상대</p>
-          <span className={`text-5xl ${rolling ? 'animate-bounce' : ''}`}>
-            {rolling ? '🎲' : botDice ? DICE_FACES[botDice - 1] : '🎲'}
-          </span>
-          {botDice && <p className="text-sm text-white mt-1 font-bold">{botDice}</p>}
+          <p className="text-sm text-gray-400 mb-1">봇</p>
+          <span className={rolling ? 'animate-bounce' : ''}>{DICE[botDice - 1] || '🎲'}</span>
         </div>
       </div>
-
-      {result && <p className={`text-lg font-bold mb-4 ${result.color}`}>{result.text}</p>}
-
       <button
         onClick={roll}
         disabled={rolling}
-        className="px-8 py-2.5 bg-blue-500/20 text-blue-400 border border-blue-500/50 rounded-xl
-                   hover:bg-blue-500/30 active:scale-95 disabled:opacity-50 transition-all text-sm font-medium"
+        className="px-8 py-3 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-500 disabled:opacity-50 transition"
       >
-        {rolling ? '굴리는 중...' : '🎲 주사위 굴리기'}
+        {rolling ? '굴리는 중...' : '주사위 굴리기'}
       </button>
-
-      <p className="text-xs text-gray-500 mt-3">
-        {score.wins}승 {score.losses}패 {score.draws}무
+      <p className="text-gray-400 text-sm">
+        {record.w}승 {record.l}패 {record.d}무
       </p>
     </div>
   );

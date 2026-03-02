@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef } from 'react';
 
 type Phase = 'ready' | 'waiting' | 'click' | 'result' | 'tooearly';
 
@@ -10,10 +10,10 @@ interface Props {
 
 export default function ReactionTest({ onResult }: Props) {
   const [phase, setPhase] = useState<Phase>('ready');
-  const [reactionTime, setReactionTime] = useState(0);
-  const [bestTime, setBestTime] = useState(Infinity);
+  const [ms, setMs] = useState(0);
+  const [best, setBest] = useState(9999);
   const startRef = useRef(0);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const start = () => {
     setPhase('waiting');
@@ -24,83 +24,45 @@ export default function ReactionTest({ onResult }: Props) {
     }, delay);
   };
 
-  const handleClick = useCallback(() => {
+  const handleClick = () => {
     if (phase === 'waiting') {
-      clearTimeout(timerRef.current);
+      if (timerRef.current) clearTimeout(timerRef.current);
       setPhase('tooearly');
-    } else if (phase === 'click') {
-      const time = Date.now() - startRef.current;
-      setReactionTime(time);
-      if (time < bestTime) setBestTime(time);
-      if (time < 200) {
-        onResult?.(`⚡ 반응속도 ${time}ms! 번개급!`);
-      } else if (time < 300) {
-        onResult?.(`⚡ 반응속도 ${time}ms! 꽤 빠르다!`);
-      }
-      setPhase('result');
+      return;
     }
-  }, [phase, bestTime, onResult]);
-
-  const getGrade = (ms: number) => {
-    if (ms < 200) return { text: '번개급! ⚡', color: 'text-yellow-400' };
-    if (ms < 300) return { text: '빠르다! 🔥', color: 'text-green-400' };
-    if (ms < 500) return { text: '평균 👍', color: 'text-blue-400' };
-    return { text: '느림보 🐢', color: 'text-gray-400' };
+    if (phase === 'click') {
+      const elapsed = Date.now() - startRef.current;
+      setMs(elapsed);
+      const nb = Math.min(best, elapsed);
+      setBest(nb);
+      setPhase('result');
+      onResult?.(`⚡ 반응속도 ${elapsed}ms! (최고: ${nb}ms)`);
+    }
   };
 
+  const bg =
+    phase === 'waiting'
+      ? 'bg-red-600'
+      : phase === 'click'
+        ? 'bg-green-500'
+        : phase === 'tooearly'
+          ? 'bg-orange-500'
+          : 'bg-gray-700';
+
   return (
-    <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-5 text-center">
-      <p className="text-sm text-gray-400 mb-4">반응속도 테스트 ⚡</p>
-
-      {phase === 'ready' && (
-        <button
-          onClick={start}
-          className="w-full py-12 bg-blue-500/20 border border-blue-500/50 rounded-xl text-blue-400 hover:bg-blue-500/30 transition-all"
-        >
-          <p className="text-lg font-bold">시작하기</p>
-          <p className="text-xs mt-1">초록색이 되면 클릭!</p>
-        </button>
-      )}
-
-      {phase === 'waiting' && (
-        <button onClick={handleClick} className="w-full py-12 bg-red-500/20 border border-red-500/50 rounded-xl text-red-400">
-          <p className="text-lg font-bold">기다려...</p>
-          <p className="text-xs mt-1">아직 누르지 마세요!</p>
-        </button>
-      )}
-
-      {phase === 'click' && (
-        <button
-          onClick={handleClick}
-          className="w-full py-12 bg-green-500/30 border border-green-500/50 rounded-xl text-green-400 animate-pulse"
-        >
-          <p className="text-2xl font-bold">지금 클릭!</p>
-        </button>
-      )}
-
-      {phase === 'tooearly' && (
-        <div>
-          <div className="py-8 bg-red-500/10 border border-red-500/30 rounded-xl mb-4">
-            <p className="text-red-400 text-lg font-bold">너무 빨리 눌렀어요! 😅</p>
-          </div>
-          <button onClick={() => setPhase('ready')} className="text-xs text-gray-400 hover:text-white">
-            다시 시도
-          </button>
-        </div>
-      )}
-
-      {phase === 'result' && (
-        <div>
-          <div className="py-8 bg-gray-900/50 border border-gray-600 rounded-xl mb-4">
-            <p className={`text-3xl font-bold ${getGrade(reactionTime).color}`}>{reactionTime}ms</p>
-            <p className={`text-sm mt-1 ${getGrade(reactionTime).color}`}>{getGrade(reactionTime).text}</p>
-          </div>
-          {bestTime < Infinity && <p className="text-xs text-gray-500 mb-3">최고 기록: {bestTime}ms</p>}
-          <button onClick={() => setPhase('ready')} className="text-xs text-blue-400 hover:text-blue-300">
-            다시 도전
-          </button>
-        </div>
-      )}
+    <div className="flex flex-col items-center gap-4 p-4 bg-gray-800 rounded-xl">
+      <h3 className="text-white font-bold text-lg">⚡ 반응속도 테스트</h3>
+      <button
+        onClick={phase === 'ready' || phase === 'result' || phase === 'tooearly' ? start : handleClick}
+        className={`w-full h-40 rounded-xl text-white font-bold text-xl transition-colors ${bg}`}
+      >
+        {phase === 'ready' && '클릭하여 시작'}
+        {phase === 'waiting' && '초록색이 되면 클릭!'}
+        {phase === 'click' && '지금 클릭!'}
+        {phase === 'result' && `${ms}ms! 클릭하여 재시도`}
+        {phase === 'tooearly' && '너무 빨리 눌렀어요! 클릭하여 재시도'}
+      </button>
+      {best < 9999 && <p className="text-yellow-400 text-sm">최고 기록: {best}ms</p>}
     </div>
   );
 }

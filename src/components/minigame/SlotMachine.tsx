@@ -2,14 +2,14 @@
 
 import { useState } from 'react';
 
-const SYMBOLS = ['🍒', '🍋', '🍊', '🍇', '💎', '7️⃣', '🔔', '⭐'];
-
 interface Props {
   onResult?: (msg: string) => void;
 }
 
+const SYMBOLS = ['🍒', '🍋', '🍊', '🍇', '⭐', '💎', '7️⃣'];
+
 export default function SlotMachine({ onResult }: Props) {
-  const [reels, setReels] = useState(['❓', '❓', '❓']);
+  const [reels, setReels] = useState(['🎰', '🎰', '🎰']);
   const [spinning, setSpinning] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -17,73 +17,40 @@ export default function SlotMachine({ onResult }: Props) {
     if (spinning) return;
     setSpinning(true);
     setMessage('');
-
-    const intervals = reels.map((_, i) =>
-      setInterval(() => {
-        setReels((prev) => {
-          const next = [...prev];
-          next[i] = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
-          return next;
-        });
-      }, 80)
-    );
-
-    setTimeout(() => clearInterval(intervals[0]), 600);
-    setTimeout(() => clearInterval(intervals[1]), 1000);
     setTimeout(() => {
-      clearInterval(intervals[2]);
+      const r = [0, 1, 2].map(() => SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]);
+      setReels(r);
       setSpinning(false);
-
-      setReels((final) => {
-        if (final[0] === final[1] && final[1] === final[2]) {
-          setMessage(final[0] === '7️⃣' ? '🎊 JACKPOT! 대박!' : '🎉 3개 일치! 대단해요!');
-          onResult?.(`🎰 슬롯머신 ${final[0]}${final[1]}${final[2]} 대박!!!`);
-        } else if (final[0] === final[1] || final[1] === final[2] || final[0] === final[2]) {
-          setMessage('👍 2개 일치! 아깝다!');
-        } else {
-          setMessage('😅 다시 도전!');
-        }
-        return final;
-      });
-    }, 1400);
+      let msg = '';
+      if (r[0] === r[1] && r[1] === r[2]) {
+        msg = r[0] === '7️⃣' ? '🎰 JACKPOT!!! 7️⃣7️⃣7️⃣ 대박!' : `🎰 ${r[0]}${r[1]}${r[2]} 3연속! 대단해!`;
+      } else if (r[0] === r[1] || r[1] === r[2] || r[0] === r[2]) {
+        msg = `🎰 ${r.join('')} 2개 일치! 아쉽~`;
+      } else {
+        msg = `🎰 ${r.join('')} 꽝!`;
+      }
+      setMessage(msg);
+      onResult?.(msg);
+    }, 1000);
   };
 
   return (
-    <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-5 text-center">
-      <p className="text-sm text-gray-400 mb-4">슬롯머신 🎰</p>
-
-      <div className="flex justify-center gap-3 my-6">
-        {reels.map((symbol, i) => (
-          <div
-            key={i}
-            className="w-16 h-16 bg-gray-900 border-2 border-yellow-500/30 rounded-xl flex items-center justify-center text-3xl"
-          >
-            {symbol}
+    <div className="flex flex-col items-center gap-4 p-4 bg-gray-800 rounded-xl">
+      <h3 className="text-white font-bold text-lg">🎰 슬롯머신</h3>
+      <div className="flex gap-2 bg-gray-900 p-4 rounded-xl">
+        {reels.map((s, i) => (
+          <div key={i} className={`text-5xl w-16 h-16 flex items-center justify-center bg-gray-700 rounded-lg ${spinning ? 'animate-pulse' : ''}`}>
+            {s}
           </div>
         ))}
       </div>
-
-      {message && (
-        <p
-          className={`text-sm font-bold mb-4 ${
-            message.includes('JACKPOT') || message.includes('3개')
-              ? 'text-yellow-400'
-              : message.includes('2개')
-                ? 'text-blue-400'
-                : 'text-gray-400'
-          }`}
-        >
-          {message}
-        </p>
-      )}
-
+      {message && <p className="text-yellow-400 font-bold">{message}</p>}
       <button
         onClick={spin}
         disabled={spinning}
-        className="px-8 py-2.5 bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 rounded-xl
-                   hover:bg-yellow-500/30 active:scale-95 disabled:opacity-50 transition-all text-sm font-medium"
+        className="px-8 py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-500 disabled:opacity-50 transition"
       >
-        {spinning ? '돌리는 중...' : '🎰 SPIN!'}
+        {spinning ? '돌리는 중...' : 'SPIN!'}
       </button>
     </div>
   );
