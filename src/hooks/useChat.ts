@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { ref, push, onChildAdded, query, orderByChild, startAt } from 'firebase/database';
 import { realtimeDb } from '@/lib/firebase/config';
 import type { ChatMessage } from '@/types/chat';
+import { soundManager } from '@/lib/sounds/SoundManager';
 
 interface ChatSender {
   uid: string;
@@ -47,6 +48,10 @@ export function useChat(roomId: string, sender?: ChatSender) {
         isSystem: data.type === 'system' || data.isSystem || false,
       };
 
+      if (message.uid !== (sender?.uid || '')) {
+        soundManager.play('chat-pop');
+      }
+
       setMessages((prev) => {
         // 중복 방지
         if (prev.some((m) => m.id === message.id)) return prev;
@@ -59,7 +64,7 @@ export function useChat(roomId: string, sender?: ChatSender) {
     return () => {
       unsubscribe();
     };
-  }, [roomId]);
+  }, [roomId, sender?.uid]);
 
   const sendMessage = useCallback(
     async (...args: [string] | [string, string, string, string?, number?]) => {

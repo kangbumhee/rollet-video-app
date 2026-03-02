@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { usePresence } from '@/hooks/usePresence';
 import { useChat } from '@/hooks/useChat';
 import { useCycle } from '@/hooks/useCycle';
+import { useGameSounds } from '@/hooks/useGameSounds';
 import { ChatWindow } from '@/components/chat/ChatWindow';
 import { LiveBadge } from '@/components/room/LiveBadge';
 import { LevelBadge } from '@/components/user/LevelBadge';
@@ -14,6 +15,7 @@ import { GameContainer } from '@/components/game/GameContainer';
 import { AdGate } from '@/components/ad/AdGate';
 import { ForcedVideoPlayer } from '@/components/video/ForcedVideoPlayer';
 import { Badge } from '@/components/ui/badge';
+import { SoundToggle } from '@/components/ui/SoundToggle';
 import Image from 'next/image';
 
 export default function RoomPage() {
@@ -30,6 +32,7 @@ export default function RoomPage() {
     level: profile?.level || 1,
   });
   const { cycle, isLive } = useCycle(roomId);
+  useGameSounds(cycle?.currentPhase);
 
   const [hasTicket, setHasTicket] = useState(false);
 
@@ -149,6 +152,7 @@ export default function RoomPage() {
             <Badge variant="outline" className="text-xs">
               👥 {onlineCount}
             </Badge>
+            <SoundToggle />
             {hasTicket && <Badge className="bg-green-600 text-white text-xs">🎫 티켓</Badge>}
             {profile && <LevelBadge level={profile.level} size="sm" />}
           </div>

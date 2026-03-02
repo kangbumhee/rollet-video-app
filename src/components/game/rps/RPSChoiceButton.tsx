@@ -4,6 +4,7 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 import type { RPSChoice } from "@/types/game";
+import { soundManager } from "@/lib/sounds/SoundManager";
 
 const CHOICE_MAP: Record<RPSChoice, { emoji: string; label: string; color: string }> = {
   rock: { emoji: "✊", label: "바위", color: "from-red-500 to-red-700" },
@@ -21,9 +22,14 @@ interface RPSChoiceButtonProps {
 export function RPSChoiceButton({ choice, onClick, disabled, isSelected }: RPSChoiceButtonProps) {
   const info = CHOICE_MAP[choice];
 
+  const handleClick = () => {
+    soundManager.play("rps-select");
+    onClick();
+  };
+
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
       disabled={disabled}
       className={cn(
         "flex flex-col items-center justify-center w-24 h-28 rounded-2xl transition-all duration-200",
