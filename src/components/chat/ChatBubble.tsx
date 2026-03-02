@@ -109,10 +109,10 @@ export default function ChatBubble({ message, isMe, canManage, onKick }: ChatBub
         {showMenu && canManage && (
           <div
             ref={menuRef}
-            className="absolute z-50 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[140px]"
+            className="absolute z-50 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[160px]"
             style={{ left: isMe ? 'auto' : 0, right: isMe ? 0 : 'auto' }}
           >
-            {/* 관리자만: 운영자 지정/해제 */}
+            {/* 관리자만: 운영자 지정/해제 (대상이 관리자가 아닐 때만) */}
             {profile?.isAdmin && !message.isAdmin && (
               <button
                 onClick={async () => {
@@ -122,12 +122,13 @@ export default function ChatBubble({ message, isMe, canManage, onKick }: ChatBub
                   try {
                     const { auth } = await import('@/lib/firebase/config');
                     const token = await auth.currentUser?.getIdToken();
-                    await fetch('/api/admin/moderate', {
+                    const res = await fetch('/api/admin/moderate', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                       body: JSON.stringify({ action, targetUid: message.uid, targetDisplayName: message.displayName }),
                     });
-                    alert(`${message.displayName}님 ${label} 완료`);
+                    const data = (await res.json()) as { message?: string; error?: string };
+                    alert(data.message || data.error || '완료');
                   } catch {
                     alert('실패');
                   }
@@ -138,39 +139,55 @@ export default function ChatBubble({ message, isMe, canManage, onKick }: ChatBub
                 {message.isModerator ? '🔓 운영자 해제' : '🛡️ 운영자 지정'}
               </button>
             )}
-            {/* 채팅 금지 */}
-            <button
-              onClick={async () => {
-                if (!confirm(`${message.displayName}님을 10분간 채팅 금지하시겠습니까?`)) return;
-                try {
-                  const { auth } = await import('@/lib/firebase/config');
-                  const token = await auth.currentUser?.getIdToken();
-                  const res = await fetch('/api/admin/moderate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                    body: JSON.stringify({ action: 'mute', targetUid: message.uid, targetDisplayName: message.displayName }),
-                  });
-                  const data = (await res.json()) as { message?: string; error?: string };
-                  alert(data.message || data.error || '실패');
-                } catch {
-                  alert('실패');
-                }
-                setShowMenu(false);
-              }}
-              className="w-full text-left px-3 py-1.5 text-xs text-orange-400 hover:bg-orange-500/10 transition-colors"
-            >
-              🔇 채팅 금지 (10분)
-            </button>
-            {/* 강퇴 */}
-            <button
-              onClick={() => {
-                onKick?.(message.uid, message.displayName);
-                setShowMenu(false);
-              }}
-              className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
-            >
-              🚫 강퇴하기 (30분)
-            </button>
+            {/* 채팅 금지 — 매니저는 관리자/다른 매니저에게 불가 */}
+            {!(
+              !profile?.isAdmin && (message.isAdmin || message.isModerator)
+            ) && (
+              <button
+                onClick={async () => {
+                  if (!confirm(`${message.displayName}님을 10분간 채팅 금지하시겠습니까?`)) return;
+                  try {
+                    const { auth } = await import('@/lib/firebase/config');
+                    const token = await auth.currentUser?.getIdToken();
+                    const res = await fetch('/api/admin/moderate', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ action: 'mute', targetUid: message.uid, targetDisplayName: message.displayName }),
+                    });
+                    const data = (await res.json()) as { message?: string; error?: string };
+                    alert(data.message || data.error || '완료');
+                  } catch {
+                    alert('실패');
+                  }
+                  setShowMenu(false);
+                }}
+                className="w-full text-left px-3 py-1.5 text-xs text-orange-400 hover:bg-orange-500/10 transition-colors"
+              >
+                🔇 채팅 금지 (10분)
+              </button>
+            )}
+
+            {/* 강퇴 — 매니저는 관리자/다른 매니저에게 불가 */}
+            {!(
+              !profile?.isAdmin && (message.isAdmin || message.isModerator)
+            ) && (
+              <button
+                onClick={() => {
+                  onKick?.(message.uid, message.displayName);
+                  setShowMenu(false);
+                }}
+                className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+              >
+                🚫 강퇴하기 (30분)
+              </button>
+            )}
+
+            {/* 매니저가 관리자/매니저를 클릭했을 때 아무 버튼도 안 보이면 안내 */}
+            {!profile?.isAdmin && (message.isAdmin || message.isModerator) && (
+              <p className="px-3 py-2 text-[10px] text-gray-500">
+                {message.isAdmin ? '관리자에게는 제재할 수 없습니다' : '운영자 제재는 관리자만 가능합니다'}
+              </p>
+            )}
           </div>
         )}
 

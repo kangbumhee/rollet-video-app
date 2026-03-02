@@ -17,11 +17,21 @@ async function checkAdminOrMod(token: string) {
   };
 }
 
-async function sendBotMessage(rtdb: ReturnType<typeof getDatabase>, message: string) {
-  await rtdb.ref('chat/main/messages').push({
+async function isTargetAdmin(targetUid: string): Promise<boolean> {
+  const doc = await adminFirestore.collection('users').doc(targetUid).get();
+  return Boolean(doc.data()?.isAdmin);
+}
+
+async function isTargetModerator(targetUid: string): Promise<boolean> {
+  const doc = await adminFirestore.collection('users').doc(targetUid).get();
+  return Boolean(doc.data()?.isModerator);
+}
+
+async function sendBotMessage(rtdb: ReturnType<typeof getDatabase>, roomId: string, message: string) {
+  await rtdb.ref(`chat/${roomId}/messages`).push({
     uid: 'BOT_HOST',
     displayName: '🎪 방장봇',
-    text: message,
+    message,
     level: 99,
     timestamp: Date.now(),
     type: 'bot',
@@ -29,24 +39,33 @@ async function sendBotMessage(rtdb: ReturnType<typeof getDatabase>, message: str
   });
 }
 
-function getKickBotMessage(name: string): string {
+async function sendBotToAllRooms(rtdb: ReturnType<typeof getDatabase>, message: string) {
+  await sendBotMessage(rtdb, 'main', message);
+  const roomsSnap = await rtdb.ref('rooms').get();
+  if (roomsSnap.exists()) {
+    const rooms = roomsSnap.val() as Record<string, unknown>;
+    for (const roomId of Object.keys(rooms)) {
+      if (roomId !== 'main') {
+        await sendBotMessage(rtdb, roomId, message);
+      }
+    }
+  }
+}
+
+function getKickBotMessage(targetName: string, callerName: string): string {
   const msgs = [
-    `🚨 ${name}님이 퇴장당했습니다! 규칙을 지켜주세요~`,
-    `👋 ${name}님 안녕히 가세요~ 30분 후에 다시 만나요!`,
-    `⚠️ ${name}님이 강퇴되었습니다. 건전한 참여 부탁드립니다!`,
-    `🚪 ${name}님이 방에서 내보내졌습니다! 다음엔 함께해요~`,
-    `😤 규칙 위반! ${name}님은 잠시 쉬다 오세요~`,
+    `🚨 ${targetName}님이 ${callerName}에 의해 강퇴되었습니다! (30분)`,
+    `👋 ${targetName}님이 퇴장당했습니다! 처리자: ${callerName}`,
+    `⚠️ ${targetName}님 강퇴! (${callerName}) 30분 후 재입장 가능`,
   ];
   return msgs[Math.floor(Math.random() * msgs.length)];
 }
 
-function getMuteBotMessage(name: string): string {
+function getMuteBotMessage(targetName: string, callerName: string): string {
   const msgs = [
-    `🔇 ${name}님 잠시 조용히~ 10분간 채팅이 금지됩니다!`,
-    `🤫 쉿! ${name}님은 10분간 채팅 쿨타임이에요~`,
-    `📢 ${name}님 채팅 잠시 멈춤! 10분 후에 다시 수다 떨어요~`,
-    `🙊 ${name}님 입에 지퍼! 10분만 참아주세요~`,
-    `⏸️ ${name}님 채팅 일시정지! 잠시 후 돌아와요~`,
+    `🔇 ${targetName}님이 ${callerName}에 의해 10분간 채팅 금지!`,
+    `🤫 ${targetName}님 채팅 정지! (${callerName}) 10분 후 해제`,
+    `🙊 ${targetName}님 10분 채금! 처리자: ${callerName}`,
   ];
   return msgs[Math.floor(Math.random() * msgs.length)];
 }
@@ -64,19 +83,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '권한이 없습니다' }, { status: 403 });
     }
 
-    const { action, targetUid, targetDisplayName } = await req.json();
+    const { action, targetUid, targetDisplayName, roomId } = await req.json();
     if (!targetUid || !targetDisplayName) {
       return NextResponse.json({ error: '필수 파라미터 누락' }, { status: 400 });
     }
 
     const rtdb = getDatabase();
+    const chatRoomId = roomId || 'main';
 
     if (action === 'setModerator') {
       if (!caller.isAdmin) {
         return NextResponse.json({ error: '관리자만 운영자를 지정할 수 있습니다' }, { status: 403 });
       }
+      if (await isTargetAdmin(targetUid)) {
+        return NextResponse.json({ error: '관리자는 운영자로 지정할 수 없습니다' }, { status: 400 });
+      }
       await adminFirestore.collection('users').doc(targetUid).set({ isModerator: true }, { merge: true });
-      await sendBotMessage(rtdb, `🛡️ ${targetDisplayName}님이 운영자로 임명되었습니다! 앞으로 잘 부탁드려요~ 👏`);
+      await sendBotToAllRooms(rtdb, `🛡️ ${targetDisplayName}님이 운영자로 임명되었습니다! 👏 (임명자: ${caller.displayName})`);
       return NextResponse.json({ success: true, message: `${targetDisplayName}님을 운영자로 지정했습니다` });
     }
 
@@ -85,17 +108,25 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: '관리자만 운영자를 해제할 수 있습니다' }, { status: 403 });
       }
       await adminFirestore.collection('users').doc(targetUid).set({ isModerator: false }, { merge: true });
-      await sendBotMessage(rtdb, `🔓 ${targetDisplayName}님의 운영자 권한이 해제되었습니다.`);
+      await sendBotToAllRooms(rtdb, `🔓 ${targetDisplayName}님의 운영자 권한이 해제되었습니다. (처리자: ${caller.displayName})`);
       return NextResponse.json({ success: true, message: `${targetDisplayName}님의 운영자를 해제했습니다` });
     }
 
     if (action === 'kick') {
+      if (!caller.isAdmin && (await isTargetAdmin(targetUid))) {
+        return NextResponse.json({ error: '관리자는 강퇴할 수 없습니다' }, { status: 403 });
+      }
+      if (!caller.isAdmin && (await isTargetModerator(targetUid))) {
+        return NextResponse.json({ error: '운영자는 관리자만 강퇴할 수 있습니다' }, { status: 403 });
+      }
+
       await adminFirestore.collection('kickLogs').add({
         targetUid,
         targetDisplayName,
         kickedBy: caller.uid,
         kickedByName: caller.displayName,
         kickedAt: Date.now(),
+        roomId: chatRoomId,
       });
 
       await adminFirestore.collection('bannedUsers').doc(targetUid).set({
@@ -105,26 +136,34 @@ export async function POST(req: NextRequest) {
         bannedByName: caller.displayName,
         bannedAt: Date.now(),
         expiresAt: Date.now() + 30 * 60 * 1000,
-        reason: 'kicked_by_moderator',
+        reason: 'kicked',
         type: 'kick',
       });
 
+      await rtdb.ref(`rooms/${chatRoomId}/presence/${targetUid}`).remove();
       await rtdb.ref(`rooms/main/tickets/${targetUid}`).remove();
 
-      await rtdb.ref('chat/main/messages').push({
+      await rtdb.ref(`chat/${chatRoomId}/messages`).push({
         uid: 'SYSTEM',
         displayName: '시스템',
-        text: `${targetDisplayName}님이 강퇴되었습니다.`,
+        message: `${targetDisplayName}님이 강퇴되었습니다.`,
         timestamp: Date.now(),
         type: 'system',
         isSystem: true,
       });
-      await sendBotMessage(rtdb, getKickBotMessage(targetDisplayName));
+      await sendBotMessage(rtdb, chatRoomId, getKickBotMessage(targetDisplayName, caller.displayName));
 
       return NextResponse.json({ success: true, message: `${targetDisplayName}님을 강퇴했습니다 (30분)` });
     }
 
     if (action === 'mute') {
+      if (!caller.isAdmin && (await isTargetAdmin(targetUid))) {
+        return NextResponse.json({ error: '관리자는 채금할 수 없습니다' }, { status: 403 });
+      }
+      if (!caller.isAdmin && (await isTargetModerator(targetUid))) {
+        return NextResponse.json({ error: '운영자는 관리자만 채금할 수 있습니다' }, { status: 403 });
+      }
+
       const duration = 10 * 60 * 1000;
       await adminFirestore.collection('mutedUsers').doc(targetUid).set({
         uid: targetUid,
@@ -135,33 +174,29 @@ export async function POST(req: NextRequest) {
         expiresAt: Date.now() + duration,
       });
 
-      await rtdb.ref('chat/main/messages').push({
+      await rtdb.ref(`chat/${chatRoomId}/messages`).push({
         uid: 'SYSTEM',
         displayName: '시스템',
-        text: `${targetDisplayName}님이 10분간 채팅 금지되었습니다.`,
+        message: `${targetDisplayName}님이 10분간 채팅 금지되었습니다.`,
         timestamp: Date.now(),
         type: 'system',
         isSystem: true,
       });
-      await sendBotMessage(rtdb, getMuteBotMessage(targetDisplayName));
+      await sendBotMessage(rtdb, chatRoomId, getMuteBotMessage(targetDisplayName, caller.displayName));
 
       return NextResponse.json({ success: true, message: `${targetDisplayName}님 채팅 금지 (10분)` });
     }
 
     if (action === 'unmute') {
       await adminFirestore.collection('mutedUsers').doc(targetUid).delete();
+      await sendBotMessage(rtdb, chatRoomId, `🔊 ${targetDisplayName}님의 채팅 금지가 해제되었습니다! (처리자: ${caller.displayName}) 🎉`);
+      return NextResponse.json({ success: true, message: `${targetDisplayName}님 채금 해제` });
+    }
 
-      await rtdb.ref('chat/main/messages').push({
-        uid: 'SYSTEM',
-        displayName: '시스템',
-        text: `${targetDisplayName}님의 채팅 금지가 해제되었습니다.`,
-        timestamp: Date.now(),
-        type: 'system',
-        isSystem: true,
-      });
-      await sendBotMessage(rtdb, `🔊 ${targetDisplayName}님의 채팅 금지가 해제되었습니다! 다시 대화에 참여해주세요~ 🎉`);
-
-      return NextResponse.json({ success: true, message: `${targetDisplayName}님 채팅 금지 해제` });
+    if (action === 'unban') {
+      await adminFirestore.collection('bannedUsers').doc(targetUid).delete();
+      await sendBotMessage(rtdb, chatRoomId, `✅ ${targetDisplayName}님의 강퇴가 해제되었습니다! (처리자: ${caller.displayName})`);
+      return NextResponse.json({ success: true, message: `${targetDisplayName}님 밴 해제` });
     }
 
     return NextResponse.json({ error: '알 수 없는 액션' }, { status: 400 });
@@ -170,4 +205,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '서버 오류' }, { status: 500 });
   }
 }
-

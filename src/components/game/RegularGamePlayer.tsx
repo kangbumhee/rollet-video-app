@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { ref, onValue, set, get, push } from 'firebase/database';
+import { ref, onValue, set, get, push, update } from 'firebase/database';
 import { realtimeDb } from '@/lib/firebase/config';
 import DrawingCanvas from '@/components/game/canvas/DrawingCanvas';
 import LineRunnerGame from '@/components/game/canvas/LineRunnerGame';
+import { soundManager } from '@/lib/sounds/SoundManager';
 
 interface GameCurrent {
   gameType: string;
   gameName: string;
   phase: string;
+  introStartedAt?: number;
   round: number;
   totalRounds: number;
   totalPlayers: number;
@@ -17,6 +19,7 @@ interface GameCurrent {
   nameMap: Record<string, string>;
   alive: Record<string, boolean>;
   startedAt: number;
+  startedBy?: string;
   config?: Record<string, unknown>;
 }
 
@@ -56,6 +59,10 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
   const [liarPhase, setLiarPhase] = useState<'discuss' | 'vote' | 'reveal'>('discuss');
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const finalSoundPlayedRef = useRef(false);
+  const lineRunSoundRoundRef = useRef('');
+  const liarRevealSoundRoundRef = useRef('');
+  const bombTickSoundKeyRef = useRef('');
 
   useEffect(() => {
     const unsub = onValue(ref(realtimeDb, `games/${roomId}/current`), (snap) => {
@@ -116,6 +123,62 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [roundData, current?.round]);
 
+  // game_intro -> round_waiting phase is handled on client
+  useEffect(() => {
+    if (!current || !uid) return;
+    if (current.phase !== 'game_intro') return;
+    if (!current.startedBy || current.startedBy !== uid) return;
+
+    const elapsed = Date.now() - (current.introStartedAt || Date.now());
+    const remaining = Math.max(0, 3000 - elapsed);
+
+    const timer = setTimeout(async () => {
+      try {
+        const phaseSnap = await get(ref(realtimeDb, `games/${roomId}/current/phase`));
+        if (phaseSnap.val() !== 'game_intro') return;
+
+        await update(ref(realtimeDb, `games/${roomId}/current`), {
+          phase: 'round_waiting',
+          round: 1,
+        });
+      } catch (err) {
+        console.error('[RegularGamePlayer] Intro transition error:', err);
+      }
+    }, remaining);
+
+    return () => clearTimeout(timer);
+  }, [current?.phase, current?.startedBy, current?.introStartedAt, uid, roomId]);
+
+  // round_result -> next round_waiting/final_result transition is handled on client
+  useEffect(() => {
+    if (!current || !uid) return;
+    if (current.phase !== 'round_result') return;
+    if (!current.startedBy || current.startedBy !== uid) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const phaseSnap = await get(ref(realtimeDb, `games/${roomId}/current/phase`));
+        if (phaseSnap.val() !== 'round_result') return;
+
+        if (current.round >= current.totalRounds) {
+          await update(ref(realtimeDb, `games/${roomId}/current`), {
+            phase: 'final_result',
+          });
+          return;
+        }
+
+        await update(ref(realtimeDb, `games/${roomId}/current`), {
+          phase: 'round_waiting',
+          round: current.round + 1,
+        });
+      } catch (err) {
+        console.error('[RegularGamePlayer] Round transition error:', err);
+      }
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [current?.phase, current?.round, current?.totalRounds, current?.startedBy, uid, roomId]);
+
   useEffect(() => {
     if (!current?.scores || !current?.nameMap) return;
     const sorted = Object.entries(current.scores)
@@ -123,6 +186,51 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
       .sort((a, b) => b.score - a.score);
     setRankings(sorted);
   }, [current?.scores, current?.nameMap]);
+
+  useEffect(() => {
+    if (!current) return;
+    if (current.phase === 'final_result') {
+      if (!finalSoundPlayedRef.current) {
+        finalSoundPlayedRef.current = true;
+        soundManager.play('win-fanfare');
+        soundManager.playBGM('bgm-winner');
+      }
+      return;
+    }
+    finalSoundPlayedRef.current = false;
+  }, [current?.phase, current]);
+
+  useEffect(() => {
+    if (!current || current.gameType !== 'lineRunner') return;
+    const key = `${current.gameType}-${current.round}`;
+    if (lineRunSoundRoundRef.current === key) return;
+    lineRunSoundRoundRef.current = key;
+    soundManager.play('line-run');
+  }, [current?.gameType, current?.round, current]);
+
+  useEffect(() => {
+    if (!current || current.gameType !== 'liarVote') return;
+    if (liarPhase !== 'reveal') return;
+    const key = `${current.gameType}-${current.round}-${liarPhase}`;
+    if (liarRevealSoundRoundRef.current === key) return;
+    liarRevealSoundRoundRef.current = key;
+    soundManager.play('liar-reveal');
+  }, [current?.gameType, current?.round, liarPhase, current]);
+
+  useEffect(() => {
+    if (!current || current.gameType !== 'bombPass') return;
+    if (currentBombHolder !== uid) return;
+    const key = `${current.gameType}-${current.round}-${currentBombHolder}`;
+    if (bombTickSoundKeyRef.current === key) return;
+    bombTickSoundKeyRef.current = key;
+    soundManager.play('bomb-tick');
+  }, [current?.gameType, current?.round, currentBombHolder, uid, current]);
+
+  useEffect(() => {
+    if (tapCount > 0 && tapCount % 10 === 0) {
+      soundManager.play('tap-frenzy');
+    }
+  }, [tapCount]);
 
   useEffect(() => {
     if (!current || current.gameType !== 'drawGuess' || current.round < 1) return;
@@ -161,8 +269,15 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     const timers: NodeJS.Timeout[] = [];
     targets.forEach((t, i) => {
       const timer = setTimeout(() => {
+        soundManager.play('target-appear');
         setActiveTarget({ x: t.x, y: t.y, id: i });
-        setTimeout(() => setActiveTarget((prev) => (prev?.id === i ? null : prev)), 1000);
+        setTimeout(() => setActiveTarget((prev) => {
+          if (prev?.id === i) {
+            soundManager.play('target-miss');
+            return null;
+          }
+          return prev;
+        }), 1000);
       }, t.delay);
       timers.push(timer);
     });
@@ -180,6 +295,8 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
   const submitScore = async (points: number) => {
     if (myChoice !== null) return;
     setMyChoice('done');
+    if (points > 0) soundManager.play('correct');
+    else if (points < 0) soundManager.play('wrong');
     const scoreRef = ref(realtimeDb, `games/${roomId}/current/scores/${uid}`);
     const snap = await get(scoreRef);
     const cur = snap.exists() ? (snap.val() as number) : 0;
@@ -211,6 +328,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     const caught = topVoted && topVoted[0] === liarId;
 
     if (caught) {
+      soundManager.play('liar-caught');
       const aliveIds = Object.keys(current.alive).filter((id) => current.alive[id] && id !== liarId);
       for (const id of aliveIds) {
         const sRef = ref(realtimeDb, `games/${roomId}/current/scores/${id}`);
@@ -229,13 +347,8 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
 
   const advanceRound = useCallback(async () => {
     if (!current) return;
-    setTimeout(async () => {
-      if (current.round >= current.totalRounds) {
-        await set(ref(realtimeDb, `games/${roomId}/current/phase`), 'final_result');
-      } else {
-        await set(ref(realtimeDb, `games/${roomId}/current/round`), current.round + 1);
-      }
-    }, 3000);
+    soundManager.play('whoosh');
+    await set(ref(realtimeDb, `games/${roomId}/current/phase`), 'round_result');
   }, [current, roomId]);
 
   const handleTimeUp = useCallback(async () => {
@@ -264,6 +377,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
       await submitChoice('timeout');
     } else if (gt === 'bombPass') {
       if (currentBombHolder === uid) {
+        soundManager.play('explosion');
         await submitScore(-50);
       }
     } else if (gt === 'drawGuess' && !myChoice) {

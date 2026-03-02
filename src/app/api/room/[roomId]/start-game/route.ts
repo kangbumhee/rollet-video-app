@@ -257,6 +257,7 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
         gameType,
         gameName,
         phase: "game_intro",
+        introStartedAt: Date.now(),
         totalPlayers: allPlayerIds.length,
         totalRounds: TOTAL_ROUNDS,
         round: 0,
@@ -282,17 +283,6 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
       isSystem: false,
       type: "bot",
     });
-
-    setTimeout(async () => {
-      try {
-        await adminRealtimeDb.ref(`games/${roomId}/current`).update({
-          phase: "round_waiting",
-          round: 1,
-        });
-      } catch (e) {
-        console.error("Phase update error:", e);
-      }
-    }, 3000);
 
     return NextResponse.json({
       success: true,

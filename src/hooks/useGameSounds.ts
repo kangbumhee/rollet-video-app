@@ -2,16 +2,15 @@
 import { useEffect, useRef } from 'react';
 import { soundManager } from '@/lib/sounds/SoundManager';
 
-export function useGameSounds(phase?: string) {
+export function useGameSounds(phase?: string, gameType?: string) {
   const prevPhase = useRef<string>('');
   const unlocked = useRef(false);
 
-  // 첫 클릭 시 unlock
+  // 첫 인터랙션에서 unlock
   useEffect(() => {
     const handleInteraction = () => {
       if (!unlocked.current) {
         unlocked.current = true;
-        // IDLE이면 lobby BGM 시작
         if (!prevPhase.current || prevPhase.current === 'IDLE' || prevPhase.current === 'COOLDOWN') {
           soundManager.playBGM('bgm-lobby');
         }
@@ -40,7 +39,6 @@ export function useGameSounds(phase?: string) {
         break;
       case 'ENTRY_GATE':
         soundManager.play('ticket-get');
-        soundManager.playBGM('bgm-lobby');
         break;
       case 'GAME_LOBBY':
         soundManager.playBGM('bgm-battle');
@@ -60,6 +58,24 @@ export function useGameSounds(phase?: string) {
         soundManager.play('win-fanfare');
         soundManager.playBGM('bgm-winner');
         break;
+
+      // ── 정규게임 phase ──
+      case 'game_intro':
+        soundManager.play('game-start');
+        // 게임 종류별 BGM
+        if (gameType === 'bombPass' || gameType === 'liarVote') {
+          soundManager.playBGM('bgm-tension');
+        } else {
+          soundManager.playBGM('bgm-battle');
+        }
+        break;
+      case 'round_waiting':
+        soundManager.play('whoosh');
+        break;
+      case 'final_result':
+        soundManager.stopBGM();
+        soundManager.play('win-fanfare');
+        break;
     }
-  }, [phase]);
+  }, [phase, gameType]);
 }
