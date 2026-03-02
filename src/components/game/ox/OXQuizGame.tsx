@@ -56,12 +56,24 @@ function OXQuizGame({ participantMap }: GameComponentProps) {
   useEffect(() => {
     if (gameOver || showResult) return;
     if (timeLeft <= 0) {
-      handleSelect(null);
+      // 시간초과 - 자동으로 오답 처리
+      setSelected(null);
+      setShowResult(true);
+      setTimeout(() => {
+        if (questionIndex + 1 >= QUIZ_QUESTIONS.length) {
+          setGameOver(true);
+        } else {
+          setQuestionIndex((i) => i + 1);
+          setSelected(null);
+          setShowResult(false);
+          setTimeLeft(10);
+        }
+      }, 2000);
       return;
     }
     const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
     return () => clearInterval(timer);
-  }, [timeLeft, gameOver, showResult]);
+  }, [timeLeft, gameOver, showResult, questionIndex]);
 
   if (gameOver) {
     return (

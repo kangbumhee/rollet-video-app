@@ -1,5 +1,5 @@
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
-import { app } from "./config";
+import app from "./config";
 
 let messagingInstance: ReturnType<typeof getMessaging> | null = null;
 

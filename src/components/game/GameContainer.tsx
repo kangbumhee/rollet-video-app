@@ -40,12 +40,12 @@ export interface GameComponentProps {
 
 // ─── 동적 게임 컴포넌트 매핑 ───
 // 새 게임 추가 시 여기에 dynamic import만 추가하면 됨
-const GAME_COMPONENTS: Record<string, ReturnType<typeof dynamic>> = {
-  rps: dynamic(() => import("./rps/RPSGame"), { loading: () => <GameLoadingSpinner />, ssr: false }),
-  roulette: dynamic(() => import("./roulette/RouletteGame"), { loading: () => <GameLoadingSpinner />, ssr: false }),
-  oxQuiz: dynamic(() => import("./ox/OXQuizGame"), { loading: () => <GameLoadingSpinner />, ssr: false }),
-  numberGuess: dynamic(() => import("./number/NumberGuessGame"), { loading: () => <GameLoadingSpinner />, ssr: false }),
-  speedClick: dynamic(() => import("./speed/SpeedClickGame"), { loading: () => <GameLoadingSpinner />, ssr: false }),
+const GAME_COMPONENTS: Record<GameType, React.ComponentType<GameComponentProps>> = {
+  rps: dynamic<GameComponentProps>(() => import("./rps/RPSGame"), { loading: () => <GameLoadingSpinner />, ssr: false }),
+  roulette: dynamic<GameComponentProps>(() => import("./roulette/RouletteGame"), { loading: () => <GameLoadingSpinner />, ssr: false }),
+  oxQuiz: dynamic<GameComponentProps>(() => import("./ox/OXQuizGame"), { loading: () => <GameLoadingSpinner />, ssr: false }),
+  numberGuess: dynamic<GameComponentProps>(() => import("./number/NumberGuessGame"), { loading: () => <GameLoadingSpinner />, ssr: false }),
+  speedClick: dynamic<GameComponentProps>(() => import("./speed/SpeedClickGame"), { loading: () => <GameLoadingSpinner />, ssr: false }),
 };
 
 export function GameContainer({ roomId, uid, displayName, photoURL, level }: GameContainerProps) {
@@ -104,7 +104,7 @@ export function GameContainer({ roomId, uid, displayName, photoURL, level }: Gam
 
     case "playing":
     case "round_result": {
-      const GameComponent = GAME_COMPONENTS[gameState.gameType as GameType];
+      const GameComponent = GAME_COMPONENTS[gameState.gameType];
       if (!GameComponent) {
         return (
           <PlaceholderGame
