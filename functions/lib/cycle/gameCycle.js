@@ -66,6 +66,26 @@ exports.gameCycle = (0, scheduler_1.onSchedule)({
     const now = Date.now();
     firebase_functions_1.logger.info('Game cycle started', { timestamp: new Date().toISOString() });
     try {
+        // ── 과거 미실행 슬롯 자동 정리 ──
+        const staleQuery = await db
+            .collection('scheduleSlots')
+            .where('enabled', '==', true)
+            .where('status', '==', 'ASSIGNED')
+            .where('scheduledAt', '<', now - 10 * 60 * 1000)
+            .get();
+        if (!staleQuery.empty) {
+            const batch = db.batch();
+            for (const staleDoc of staleQuery.docs) {
+                firebase_functions_1.logger.warn(`Marking stale slot as EXPIRED: ${staleDoc.id}`);
+                batch.update(staleDoc.ref, {
+                    status: 'EXPIRED',
+                    updatedAt: now,
+                    expiredReason: 'missed_execution',
+                });
+            }
+            await batch.commit();
+            firebase_functions_1.logger.info(`Expired ${staleQuery.size} stale slots`);
+        }
         const slotQuery = await db
             .collection('scheduleSlots')
             .where('enabled', '==', true)
