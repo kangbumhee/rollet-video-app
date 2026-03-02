@@ -60,6 +60,7 @@ export default function RoomPage() {
   const [showFreePlay, setShowFreePlay] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [showGameLauncher, setShowGameLauncher] = useState(false);
+  const [startingGame, setStartingGame] = useState(false);
   const canSeeUserList = profile?.isAdmin || profile?.isModerator || false;
   const canStartGame = profile?.isAdmin || profile?.isModerator || false;
 
@@ -98,6 +99,48 @@ export default function RoomPage() {
       alert('네트워크 오류');
     }
   }, [user]);
+
+  const handleStartRegularGame = async (gameId: string, gameName: string) => {
+    if (!user || startingGame) return;
+    if (onlineCount < 2) {
+      alert("최소 2명 이상 접속해야 게임을 시작할 수 있습니다.");
+      return;
+    }
+    const confirmed = window.confirm(
+      `${gameName} 게임을 시작하시겠습니까?\n\n현재 ${onlineCount}명 접속 중\n10라운드 점수 누적전이 시작됩니다.`
+    );
+    if (!confirmed) return;
+
+    setStartingGame(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/room/${roomId}/start-game`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ gameType: gameId }),
+      });
+      const data = (await res.json()) as {
+        success?: boolean;
+        error?: string;
+        gameName?: string;
+        totalPlayers?: number;
+        totalRounds?: number;
+      };
+      if (data.success) {
+        alert(`🎮 ${data.gameName} 시작!\n${data.totalPlayers}명 참가, ${data.totalRounds}라운드`);
+        setShowGameLauncher(false);
+      } else {
+        alert(data.error || "게임 시작 실패");
+      }
+    } catch {
+      alert("네트워크 오류");
+    } finally {
+      setStartingGame(false);
+    }
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -284,13 +327,17 @@ export default function RoomPage() {
                 {REGULAR_GAMES.map((game) => (
                   <button
                     key={game.id}
-                    onClick={() => alert(`[준비중] ${game.name} 게임 시작 기능은 서버 배포 후 활성화됩니다.\n\n현재 ${onlineCount}명 접속 중`)}
-                    className="flex flex-col items-center gap-1 p-2 bg-gray-800 rounded-xl border border-gray-700 hover:border-purple-500/50 hover:bg-gray-700 transition"
+                    onClick={() => void handleStartRegularGame(game.id, game.name)}
+                    disabled={startingGame || onlineCount < 2}
+                    className="flex flex-col items-center gap-1 p-2 bg-gray-800 rounded-xl border border-gray-700 hover:border-purple-500/50 hover:bg-gray-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <span className="text-xl">{game.emoji}</span>
                     <span className="text-[9px] text-white font-medium text-center leading-tight">{game.name}</span>
                   </button>
                 ))}
+                {onlineCount < 2 && (
+                  <p className="col-span-5 text-center text-red-400 text-xs">최소 2명 접속 시 시작 가능</p>
+                )}
               </div>
             )}
           </div>
