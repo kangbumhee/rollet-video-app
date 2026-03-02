@@ -7,6 +7,7 @@ import { usePresence } from '@/hooks/usePresence';
 import { useChat } from '@/hooks/useChat';
 import { useCycle } from '@/hooks/useCycle';
 import { useGameSounds } from '@/hooks/useGameSounds';
+import { useWakeLock } from '@/hooks/useWakeLock';
 import { ChatWindow } from '@/components/chat/ChatWindow';
 import { LiveBadge } from '@/components/room/LiveBadge';
 import { LevelBadge } from '@/components/user/LevelBadge';
@@ -19,6 +20,7 @@ import { SoundToggle } from '@/components/ui/SoundToggle';
 import Image from 'next/image';
 
 export default function RoomPage() {
+  useWakeLock();
   const params = useParams();
   const router = useRouter();
   const roomId = params.roomId as string;
