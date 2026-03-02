@@ -1,5 +1,17 @@
 {
   "rules": {
+    "chat": {
+      "$roomId": {
+        "messages": {
+          ".read": true,
+          ".indexOn": ["timestamp"],
+          "$messageId": {
+            ".write": "auth != null",
+            ".validate": "newData.hasChildren(['uid', 'displayName', 'text', 'timestamp']) && newData.child('text').isString() && newData.child('text').val().length <= 200"
+          }
+        }
+      }
+    },
     "rooms": {
       "$roomId": {
         "chat": {
