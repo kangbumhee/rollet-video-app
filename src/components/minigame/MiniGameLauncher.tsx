@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { ref, push } from 'firebase/database';
+import { realtimeDb } from '@/lib/firebase/config';
 import { useAuthStore } from '@/stores/authStore';
 import CoinFlip from './CoinFlip';
 import DiceGame from './DiceGame';
@@ -18,12 +20,44 @@ const MINI_GAMES = [
   { id: 'typing', name: '타자 게임', emoji: '⌨️', desc: '빠르게 입력하세요!' },
 ];
 
+const BOT_GAME_MESSAGES: Record<string, string[]> = {
+  coinflip: ['🪙 동전 던지기 시작! 앞면? 뒷면? 운명의 선택!', '🪙 앞이냐 뒤냐! 50:50의 승부!'],
+  dice: ['🎲 주사위 대결이다! 높은 숫자가 이긴다!', '🎲 주사위의 신이여, 6을 주세요!'],
+  slot: ['🎰 슬롯머신 돌립니다! 잭팟을 노려봐요!', '🎰 777! 대박을 기원합니다!'],
+  memory: ['🧠 기억력 테스트! 카드 위치를 기억하세요!', '🧠 두뇌 풀가동! 짝을 맞춰보세요!'],
+  reaction: ['⚡ 반응속도 테스트! 번개보다 빠를 수 있을까?', '⚡ 초록불에 빠르게 클릭! 반사신경 대결!'],
+  typing: ['⌨️ 타자 게임 시작! 손가락이 불타오른다!', '⌨️ 15초 안에 얼마나 많이 칠 수 있을까?'],
+};
+
+function sendBotChat(message: string) {
+  const chatRef = ref(realtimeDb, 'chat/main/messages');
+  void push(chatRef, {
+    uid: 'BOT_HOST',
+    displayName: '🎪 방장봇',
+    text: message,
+    message,
+    level: 99,
+    timestamp: Date.now(),
+    type: 'bot',
+    isBot: true,
+  });
+}
+
 export default function MiniGameLauncher() {
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
   const profile = useAuthStore((s) => s.profile);
   const canAccess = profile?.isAdmin || profile?.isModerator || false;
 
   if (!canAccess) return null;
+
+  const handleSelectGame = (gameId: string) => {
+    setSelectedGame(gameId);
+    const msgs = BOT_GAME_MESSAGES[gameId];
+    if (msgs && msgs.length > 0) {
+      const msg = msgs[Math.floor(Math.random() * msgs.length)];
+      sendBotChat(`${profile?.displayName || '익명'}님이 미니게임 중! ${msg}`);
+    }
+  };
 
   if (selectedGame) {
     return (
@@ -34,12 +68,12 @@ export default function MiniGameLauncher() {
         >
           ← 미니게임 목록
         </button>
-        {selectedGame === 'coinflip' && <CoinFlip />}
-        {selectedGame === 'dice' && <DiceGame />}
-        {selectedGame === 'slot' && <SlotMachine />}
-        {selectedGame === 'memory' && <MemoryGame />}
-        {selectedGame === 'reaction' && <ReactionTest />}
-        {selectedGame === 'typing' && <TypingGame />}
+        {selectedGame === 'coinflip' && <CoinFlip onResult={(msg) => sendBotChat(msg)} />}
+        {selectedGame === 'dice' && <DiceGame onResult={(msg) => sendBotChat(msg)} />}
+        {selectedGame === 'slot' && <SlotMachine onResult={(msg) => sendBotChat(msg)} />}
+        {selectedGame === 'memory' && <MemoryGame onResult={(msg) => sendBotChat(msg)} />}
+        {selectedGame === 'reaction' && <ReactionTest onResult={(msg) => sendBotChat(msg)} />}
+        {selectedGame === 'typing' && <TypingGame onResult={(msg) => sendBotChat(msg)} />}
       </div>
     );
   }
@@ -51,7 +85,7 @@ export default function MiniGameLauncher() {
         {MINI_GAMES.map((game) => (
           <button
             key={game.id}
-            onClick={() => setSelectedGame(game.id)}
+            onClick={() => handleSelectGame(game.id)}
             className="flex flex-col items-center gap-1 p-3 bg-gray-800/50 border border-gray-700 rounded-xl
                        hover:border-yellow-500/50 hover:bg-gray-800 active:scale-95 transition-all"
             title={game.desc}

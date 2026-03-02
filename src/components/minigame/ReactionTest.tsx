@@ -4,7 +4,11 @@ import { useState, useRef, useCallback } from 'react';
 
 type Phase = 'ready' | 'waiting' | 'click' | 'result' | 'tooearly';
 
-export default function ReactionTest() {
+interface Props {
+  onResult?: (msg: string) => void;
+}
+
+export default function ReactionTest({ onResult }: Props) {
   const [phase, setPhase] = useState<Phase>('ready');
   const [reactionTime, setReactionTime] = useState(0);
   const [bestTime, setBestTime] = useState(Infinity);
@@ -28,9 +32,14 @@ export default function ReactionTest() {
       const time = Date.now() - startRef.current;
       setReactionTime(time);
       if (time < bestTime) setBestTime(time);
+      if (time < 200) {
+        onResult?.(`⚡ 반응속도 ${time}ms! 번개급!`);
+      } else if (time < 300) {
+        onResult?.(`⚡ 반응속도 ${time}ms! 꽤 빠르다!`);
+      }
       setPhase('result');
     }
-  }, [phase, bestTime]);
+  }, [phase, bestTime, onResult]);
 
   const getGrade = (ms: number) => {
     if (ms < 200) return { text: '번개급! ⚡', color: 'text-yellow-400' };

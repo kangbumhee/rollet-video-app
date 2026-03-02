@@ -4,7 +4,11 @@ import { useState } from 'react';
 
 const SYMBOLS = ['🍒', '🍋', '🍊', '🍇', '💎', '7️⃣', '🔔', '⭐'];
 
-export default function SlotMachine() {
+interface Props {
+  onResult?: (msg: string) => void;
+}
+
+export default function SlotMachine({ onResult }: Props) {
   const [reels, setReels] = useState(['❓', '❓', '❓']);
   const [spinning, setSpinning] = useState(false);
   const [message, setMessage] = useState('');
@@ -33,6 +37,7 @@ export default function SlotMachine() {
       setReels((final) => {
         if (final[0] === final[1] && final[1] === final[2]) {
           setMessage(final[0] === '7️⃣' ? '🎊 JACKPOT! 대박!' : '🎉 3개 일치! 대단해요!');
+          onResult?.(`🎰 슬롯머신 ${final[0]}${final[1]}${final[2]} 대박!!!`);
         } else if (final[0] === final[1] || final[1] === final[2] || final[0] === final[2]) {
           setMessage('👍 2개 일치! 아깝다!');
         } else {

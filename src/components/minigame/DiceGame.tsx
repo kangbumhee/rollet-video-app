@@ -4,7 +4,11 @@ import { useState } from 'react';
 
 const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 
-export default function DiceGame() {
+interface Props {
+  onResult?: (msg: string) => void;
+}
+
+export default function DiceGame({ onResult }: Props) {
   const [myDice, setMyDice] = useState<number | null>(null);
   const [botDice, setBotDice] = useState<number | null>(null);
   const [rolling, setRolling] = useState(false);
@@ -26,6 +30,12 @@ export default function DiceGame() {
       if (my > bot) setScore((p) => ({ ...p, wins: p.wins + 1 }));
       else if (my < bot) setScore((p) => ({ ...p, losses: p.losses + 1 }));
       else setScore((p) => ({ ...p, draws: p.draws + 1 }));
+
+      if (my > bot) {
+        onResult?.(`🎲 주사위 ${my} vs ${bot}! 승리!`);
+      } else if (my === 6 && bot === 6) {
+        onResult?.('🎲 더블 6! 둘 다 최고!');
+      }
     }, 800);
   };
 

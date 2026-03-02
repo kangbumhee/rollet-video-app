@@ -17,6 +17,40 @@ async function checkAdminOrMod(token: string) {
   };
 }
 
+async function sendBotMessage(rtdb: ReturnType<typeof getDatabase>, message: string) {
+  await rtdb.ref('chat/main/messages').push({
+    uid: 'BOT_HOST',
+    displayName: '🎪 방장봇',
+    text: message,
+    level: 99,
+    timestamp: Date.now(),
+    type: 'bot',
+    isBot: true,
+  });
+}
+
+function getKickBotMessage(name: string): string {
+  const msgs = [
+    `🚨 ${name}님이 퇴장당했습니다! 규칙을 지켜주세요~`,
+    `👋 ${name}님 안녕히 가세요~ 30분 후에 다시 만나요!`,
+    `⚠️ ${name}님이 강퇴되었습니다. 건전한 참여 부탁드립니다!`,
+    `🚪 ${name}님이 방에서 내보내졌습니다! 다음엔 함께해요~`,
+    `😤 규칙 위반! ${name}님은 잠시 쉬다 오세요~`,
+  ];
+  return msgs[Math.floor(Math.random() * msgs.length)];
+}
+
+function getMuteBotMessage(name: string): string {
+  const msgs = [
+    `🔇 ${name}님 잠시 조용히~ 10분간 채팅이 금지됩니다!`,
+    `🤫 쉿! ${name}님은 10분간 채팅 쿨타임이에요~`,
+    `📢 ${name}님 채팅 잠시 멈춤! 10분 후에 다시 수다 떨어요~`,
+    `🙊 ${name}님 입에 지퍼! 10분만 참아주세요~`,
+    `⏸️ ${name}님 채팅 일시정지! 잠시 후 돌아와요~`,
+  ];
+  return msgs[Math.floor(Math.random() * msgs.length)];
+}
+
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
@@ -42,6 +76,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: '관리자만 운영자를 지정할 수 있습니다' }, { status: 403 });
       }
       await adminFirestore.collection('users').doc(targetUid).set({ isModerator: true }, { merge: true });
+      await sendBotMessage(rtdb, `🛡️ ${targetDisplayName}님이 운영자로 임명되었습니다! 앞으로 잘 부탁드려요~ 👏`);
       return NextResponse.json({ success: true, message: `${targetDisplayName}님을 운영자로 지정했습니다` });
     }
 
@@ -50,6 +85,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: '관리자만 운영자를 해제할 수 있습니다' }, { status: 403 });
       }
       await adminFirestore.collection('users').doc(targetUid).set({ isModerator: false }, { merge: true });
+      await sendBotMessage(rtdb, `🔓 ${targetDisplayName}님의 운영자 권한이 해제되었습니다.`);
       return NextResponse.json({ success: true, message: `${targetDisplayName}님의 운영자를 해제했습니다` });
     }
 
@@ -83,6 +119,7 @@ export async function POST(req: NextRequest) {
         type: 'system',
         isSystem: true,
       });
+      await sendBotMessage(rtdb, getKickBotMessage(targetDisplayName));
 
       return NextResponse.json({ success: true, message: `${targetDisplayName}님을 강퇴했습니다 (30분)` });
     }
@@ -106,6 +143,7 @@ export async function POST(req: NextRequest) {
         type: 'system',
         isSystem: true,
       });
+      await sendBotMessage(rtdb, getMuteBotMessage(targetDisplayName));
 
       return NextResponse.json({ success: true, message: `${targetDisplayName}님 채팅 금지 (10분)` });
     }
@@ -121,6 +159,7 @@ export async function POST(req: NextRequest) {
         type: 'system',
         isSystem: true,
       });
+      await sendBotMessage(rtdb, `🔊 ${targetDisplayName}님의 채팅 금지가 해제되었습니다! 다시 대화에 참여해주세요~ 🎉`);
 
       return NextResponse.json({ success: true, message: `${targetDisplayName}님 채팅 금지 해제` });
     }

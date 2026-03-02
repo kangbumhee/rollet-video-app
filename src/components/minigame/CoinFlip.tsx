@@ -2,7 +2,11 @@
 
 import { useState } from 'react';
 
-export default function CoinFlip() {
+interface Props {
+  onResult?: (msg: string) => void;
+}
+
+export default function CoinFlip({ onResult }: Props) {
   const [result, setResult] = useState<'heads' | 'tails' | null>(null);
   const [guess, setGuess] = useState<'heads' | 'tails' | null>(null);
   const [flipping, setFlipping] = useState(false);
@@ -16,12 +20,16 @@ export default function CoinFlip() {
 
     setTimeout(() => {
       const coin = Math.random() < 0.5 ? 'heads' : 'tails';
+      const won = coin === myGuess;
       setResult(coin);
       setFlipping(false);
       setScore((prev) => ({
-        wins: prev.wins + (coin === myGuess ? 1 : 0),
+        wins: prev.wins + (won ? 1 : 0),
         total: prev.total + 1,
       }));
+      if (won) {
+        onResult?.(`🪙 동전 던지기 성공! ${myGuess === 'heads' ? '앞면' : '뒷면'} 적중!`);
+      }
     }, 1000);
   };
 

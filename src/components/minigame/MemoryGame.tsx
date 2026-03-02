@@ -11,7 +11,11 @@ interface Card {
   matched: boolean;
 }
 
-export default function MemoryGame() {
+interface Props {
+  onResult?: (msg: string) => void;
+}
+
+export default function MemoryGame({ onResult }: Props) {
   const [cards, setCards] = useState<Card[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
   const [moves, setMoves] = useState(0);
@@ -54,7 +58,10 @@ export default function MemoryGame() {
           matched[b].matched = true;
           setCards(matched);
           setSelected([]);
-          if (matched.every((c) => c.matched)) setCompleted(true);
+          if (matched.every((c) => c.matched)) {
+            setCompleted(true);
+            onResult?.(`🧠 기억력 게임 ${moves + 1}회 만에 클리어!`);
+          }
         }, 300);
       } else {
         setTimeout(() => {

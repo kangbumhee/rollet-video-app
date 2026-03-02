@@ -27,7 +27,11 @@ const WORDS = [
   '노력',
 ];
 
-export default function TypingGame() {
+interface Props {
+  onResult?: (msg: string) => void;
+}
+
+export default function TypingGame({ onResult }: Props) {
   const [playing, setPlaying] = useState(false);
   const [currentWord, setCurrentWord] = useState('');
   const [input, setInput] = useState('');
@@ -54,11 +58,14 @@ export default function TypingGame() {
     if (timeLeft <= 0) {
       setPlaying(false);
       if (score > bestScore) setBestScore(score);
+      if (score >= 5) {
+        onResult?.(`⌨️ 타자 게임 ${score}단어 완료! 손가락이 불탄다!`);
+      }
       return;
     }
     const timer = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
     return () => clearTimeout(timer);
-  }, [playing, timeLeft, score, bestScore]);
+  }, [playing, timeLeft, score, bestScore, onResult]);
 
   const handleInput = (value: string) => {
     setInput(value);
