@@ -98,6 +98,24 @@ export function useChat(roomId: string, sender?: ChatSender) {
 
       if (!text.trim()) return;
 
+      // 채팅 금지 체크
+      try {
+        const { auth: clientAuth } = await import('@/lib/firebase/config');
+        const token = await clientAuth.currentUser?.getIdToken();
+        if (token) {
+          const muteRes = await fetch('/api/chat/check-mute', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const muteData = (await muteRes.json()) as { muted?: boolean; remainingMinutes?: number };
+          if (muteData.muted) {
+            alert(`채팅이 금지되었습니다. ${muteData.remainingMinutes || 0}분 후 해제됩니다.`);
+            return;
+          }
+        }
+      } catch {
+        // 체크 실패 시 통과
+      }
+
       const chatRef = ref(realtimeDb, `chat/${roomId}/messages`);
       await push(chatRef, {
         uid,

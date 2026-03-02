@@ -89,6 +89,7 @@ export default function ChatBubble({ message, isMe, canManage, onKick }: ChatBub
             className="absolute z-50 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[140px]"
             style={{ left: isMe ? 'auto' : 0, right: isMe ? 0 : 'auto' }}
           >
+            {/* 관리자만: 운영자 지정/해제 */}
             {profile?.isAdmin && !message.isAdmin && (
               <button
                 onClick={async () => {
@@ -114,6 +115,30 @@ export default function ChatBubble({ message, isMe, canManage, onKick }: ChatBub
                 {message.isModerator ? '🔓 운영자 해제' : '🛡️ 운영자 지정'}
               </button>
             )}
+            {/* 채팅 금지 */}
+            <button
+              onClick={async () => {
+                if (!confirm(`${message.displayName}님을 10분간 채팅 금지하시겠습니까?`)) return;
+                try {
+                  const { auth } = await import('@/lib/firebase/config');
+                  const token = await auth.currentUser?.getIdToken();
+                  const res = await fetch('/api/admin/moderate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ action: 'mute', targetUid: message.uid, targetDisplayName: message.displayName }),
+                  });
+                  const data = (await res.json()) as { message?: string; error?: string };
+                  alert(data.message || data.error || '실패');
+                } catch {
+                  alert('실패');
+                }
+                setShowMenu(false);
+              }}
+              className="w-full text-left px-3 py-1.5 text-xs text-orange-400 hover:bg-orange-500/10 transition-colors"
+            >
+              🔇 채팅 금지 (10분)
+            </button>
+            {/* 강퇴 */}
             <button
               onClick={() => {
                 onKick?.(message.uid, message.displayName);
@@ -121,7 +146,7 @@ export default function ChatBubble({ message, isMe, canManage, onKick }: ChatBub
               }}
               className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
             >
-              🚫 강퇴하기
+              🚫 강퇴하기 (30분)
             </button>
           </div>
         )}
