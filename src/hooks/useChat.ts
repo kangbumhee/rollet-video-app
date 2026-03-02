@@ -1,127 +1,110 @@
-// ============================================
-// 파일: src/hooks/useChat.ts
-// 설명: 실시간 채팅 커스텀 훅
-//       Firebase Realtime DB 사용
-// ============================================
+'use client';
 
-"use client";
-
-import { useEffect, useState, useCallback, useRef } from "react";
-import { ref, push, onChildAdded, query, limitToLast, orderByChild, off, DataSnapshot } from "firebase/database";
-import { realtimeDb } from "@/lib/firebase/config";
-import { ChatMessage } from "@/types/chat";
-
-const MAX_MESSAGES = 100; // 화면에 유지할 최대 메시지 수
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { ref, push, onChildAdded, query, orderByChild, startAt } from 'firebase/database';
+import { realtimeDb } from '@/lib/firebase/config';
+import type { ChatMessage } from '@/types/chat';
 
 interface ChatSender {
   uid: string;
   displayName: string;
   photoURL?: string;
-  level: number;
+  level?: number;
 }
 
 export function useChat(roomId: string, sender?: ChatSender) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const listenerRef = useRef<boolean>(false);
+  const joinedAtRef = useRef<number>(Date.now());
 
   useEffect(() => {
-    if (!roomId || listenerRef.current) return;
-    listenerRef.current = true;
+    if (!roomId) return;
 
-    const chatRef = query(ref(realtimeDb, `rooms/${roomId}/chat`), orderByChild("timestamp"), limitToLast(MAX_MESSAGES));
+    // 접속 시점 타임스탬프 기록
+    const joinedAt = Date.now();
+    joinedAtRef.current = joinedAt;
+    setMessages([]);
 
-    const handleNewMessage = (snapshot: DataSnapshot) => {
+    const chatRef = ref(realtimeDb, `chat/${roomId}/messages`);
+    // 접속 시점 이후 메시지만 구독
+    const chatQuery = query(
+      chatRef,
+      orderByChild('timestamp'),
+      startAt(joinedAt)
+    );
+
+    const unsubscribe = onChildAdded(chatQuery, (snapshot) => {
       const data = snapshot.val();
       if (!data) return;
-
-      const msg: ChatMessage = {
-        id: snapshot.key!,
-        uid: data.uid || "",
-        displayName: data.displayName || "익명",
+      
+      const message: ChatMessage = {
+        id: snapshot.key || '',
+        uid: data.uid || '',
+        displayName: data.displayName || '익명',
         level: data.level || 1,
-        message: data.message || "",
-        isBot: data.isBot || false,
-        isSystem: data.isSystem || false,
+        message: data.text || data.message || '',
         timestamp: data.timestamp || Date.now(),
+        isBot: data.type === 'bot' || data.isBot || false,
+        isSystem: data.type === 'system' || data.isSystem || false,
       };
 
       setMessages((prev) => {
-        const updated = [...prev, msg];
-        // 최대 메시지 수 유지
-        if (updated.length > MAX_MESSAGES) {
-          return updated.slice(-MAX_MESSAGES);
-        }
-        return updated;
+        // 중복 방지
+        if (prev.some((m) => m.id === message.id)) return prev;
+        // 최대 100개 유지
+        const updated = [...prev, message];
+        return updated.length > 100 ? updated.slice(-100) : updated;
       });
-    };
-
-    onChildAdded(chatRef, handleNewMessage);
-    setIsConnected(true);
+    });
 
     return () => {
-      off(chatRef, "child_added", handleNewMessage);
-      listenerRef.current = false;
-      setIsConnected(false);
+      unsubscribe();
     };
   }, [roomId]);
 
-  // ── 메시지 전송 ──
   const sendMessage = useCallback(
-    async (...args: [string] | [string, string, number, string]) => {
+    async (...args: [string] | [string, string, string, string?, number?]) => {
       if (!roomId) return;
-      const chatRef = ref(realtimeDb, `rooms/${roomId}/chat`);
 
-      // new style: sendMessage("message")
+      let uid = '';
+      let displayName = '';
+      let text = '';
+      let photoURL: string | undefined;
+      let level = 1;
+
       if (args.length === 1) {
-        const message = args[0];
-        if (!message.trim() || !sender?.uid) return;
-        await push(chatRef, {
-          uid: sender.uid,
-          displayName: sender.displayName,
-          photoURL: sender.photoURL || null,
-          level: sender.level,
-          message: message.trim(),
-          isBot: false,
-          isSystem: false,
-          timestamp: Date.now(),
-        });
-        return;
+        if (!sender?.uid) return;
+        uid = sender.uid;
+        displayName = sender.displayName;
+        text = args[0];
+        photoURL = sender.photoURL;
+        level = sender.level || 1;
+      } else {
+        const [argUid, argDisplayName, argText, argPhotoURL, argLevel] = args;
+        uid = argUid;
+        displayName = argDisplayName;
+        text = argText;
+        photoURL = argPhotoURL;
+        level = argLevel || 1;
       }
 
-      // legacy style: sendMessage(uid, displayName, level, message)
-      const [uid, displayName, level, message] = args;
-      if (!message.trim()) return;
+      if (!text.trim()) return;
+
+      const chatRef = ref(realtimeDb, `chat/${roomId}/messages`);
       await push(chatRef, {
         uid,
         displayName,
-        level,
-        message: message.trim(),
+        photoURL: photoURL || null,
+        level: level || 1,
+        message: text.trim(),
+        text: text.trim(),
+        timestamp: Date.now(),
+        type: 'user',
         isBot: false,
         isSystem: false,
-        timestamp: Date.now(),
       });
     },
     [roomId, sender]
   );
 
-  // ── 시스템 메시지 전송 ──
-  const sendSystemMessage = useCallback(
-    async (message: string) => {
-      if (!roomId) return;
-      const chatRef = ref(realtimeDb, `rooms/${roomId}/chat`);
-      await push(chatRef, {
-        uid: "SYSTEM",
-        displayName: "시스템",
-        level: 0,
-        message,
-        isBot: false,
-        isSystem: true,
-        timestamp: Date.now(),
-      });
-    },
-    [roomId]
-  );
-
-  return { messages, sendMessage, sendSystemMessage, isConnected };
+  return { messages, sendMessage };
 }
