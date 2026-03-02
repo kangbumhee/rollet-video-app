@@ -16,6 +16,7 @@ import { GameContainer } from '@/components/game/GameContainer';
 import { AdGate } from '@/components/ad/AdGate';
 import { ForcedVideoPlayer } from '@/components/video/ForcedVideoPlayer';
 import MiniGameLauncher from '@/components/minigame/MiniGameLauncher';
+import FreePlayLobby from '@/components/game/FreePlayLobby';
 import { Badge } from '@/components/ui/badge';
 import { SoundToggle } from '@/components/ui/SoundToggle';
 import Image from 'next/image';
@@ -42,6 +43,7 @@ export default function RoomPage() {
 
   const [hasTicket, setHasTicket] = useState(false);
   const [showUserList, setShowUserList] = useState(false);
+  const [showFreePlay, setShowFreePlay] = useState(false);
   const canSeeUserList = profile?.isAdmin || profile?.isModerator || false;
 
   const handleKick = useCallback(async (targetUid: string, targetDisplayName: string) => {
@@ -220,6 +222,15 @@ export default function RoomPage() {
               <p className="text-gray-400 text-sm">다음 경품에 도전해 보세요! 💪</p>
             </div>
           )}
+
+          <div className="flex flex-col items-center gap-3 mt-4">
+            <button
+              onClick={() => setShowFreePlay(true)}
+              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover:from-purple-500 hover:to-pink-500 transition-all shadow-lg animate-pulse"
+            >
+              🎮 다른 게임 더 하기!
+            </button>
+          </div>
         </main>
       );
     }
@@ -325,6 +336,18 @@ export default function RoomPage() {
           />
         </aside>
       </div>
+
+      {showFreePlay && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center">
+          <div className="w-full max-w-lg bg-gray-900 rounded-t-2xl p-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-white font-bold text-lg">🎮 자유 게임</h2>
+              <button onClick={() => setShowFreePlay(false)} className="text-gray-400 hover:text-white text-xl">✕</button>
+            </div>
+            <FreePlayLobby roomId={roomId} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

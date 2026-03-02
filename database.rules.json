@@ -54,6 +54,12 @@
       "$sessionId": {
         ".write": "auth != null"
       }
+    },
+    "miniGameRecords": {
+      ".read": true,
+      "$gameId": {
+        ".write": "auth != null"
+      }
     }
   }
 }
