@@ -1,46 +1,6 @@
 {
   "indexes": [
     {
-      "collectionGroup": "prizeRooms",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "scheduledAt", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "prizeRooms",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "prizeRooms",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "ownerId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "prizeRooms",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "scheduledSlot", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "notifications",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "targetUid", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "scheduleSlots",
       "queryScope": "COLLECTION",
       "fields": [
@@ -50,19 +10,11 @@
       ]
     },
     {
-      "collectionGroup": "scheduleSlots",
+      "collectionGroup": "rooms",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "date", "order": "ASCENDING" },
-        { "fieldPath": "roomId", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "scheduleSlots",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "roomId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" }
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     }
   ],

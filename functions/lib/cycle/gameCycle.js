@@ -148,13 +148,19 @@ exports.gameCycle = (0, scheduler_1.onSchedule)({
         // 게임 세션 생성
         const sessionId = generateId();
         const ticketsSnap = await rtdb.ref(`rooms/main/tickets`).get();
-        const ticketUsers = ticketsSnap.exists() ? Object.keys(ticketsSnap.val()) : [];
+        const ticketEntries = ticketsSnap.exists() ? ticketsSnap.val() : {};
+        const ticketUsers = Object.keys(ticketEntries);
         // 티켓 유저가 없으면 봇 2명으로 진행
         const participants = ticketUsers.length > 0
-            ? ticketUsers.map((uid) => ({ uid, eliminated: false, joinedAt: Date.now() }))
+            ? ticketUsers.map((uid) => ({
+                uid,
+                displayName: ticketEntries[uid]?.displayName || uid,
+                eliminated: false,
+                joinedAt: Date.now(),
+            }))
             : [
-                { uid: 'BOT_1', eliminated: false, joinedAt: Date.now() },
-                { uid: 'BOT_2', eliminated: false, joinedAt: Date.now() },
+                { uid: 'BOT_1', displayName: '봇1', eliminated: false, joinedAt: Date.now() },
+                { uid: 'BOT_2', displayName: '봇2', eliminated: false, joinedAt: Date.now() },
             ];
         await db.doc(`gameSessions/${sessionId}`).set({
             id: sessionId,
@@ -179,9 +185,21 @@ exports.gameCycle = (0, scheduler_1.onSchedule)({
         // 참가자 등록
         const participantUpdates = {};
         for (const p of participants) {
+            let displayName = p.displayName || p.uid;
+            let photoURL = null;
+            if (!p.uid.startsWith('BOT')) {
+                try {
+                    const userRecord = await (0, auth_1.getAuth)().getUser(p.uid);
+                    displayName = userRecord.displayName || userRecord.email || p.uid;
+                    photoURL = userRecord.photoURL || null;
+                }
+                catch {
+                    // 유저 조회 실패 시 티켓의 displayName 사용
+                }
+            }
             participantUpdates[p.uid] = {
-                displayName: p.uid.startsWith('BOT') ? `🤖 봇${p.uid.split('_')[1]}` : p.uid,
-                photoURL: null,
+                displayName,
+                photoURL,
                 level: 1,
                 alive: true,
             };
