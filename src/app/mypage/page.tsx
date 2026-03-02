@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import { LevelBadge } from "@/components/user/LevelBadge";
+import { NotificationPermissionButton } from "@/components/notifications/NotificationPermissionButton";
 import Image from "next/image";
 
 export default function MyPage() {
@@ -120,6 +121,8 @@ export default function MyPage() {
             </button>
           )}
         </div>
+
+        <NotificationPermissionButton />
 
         <button
           onClick={handleSignOut}
