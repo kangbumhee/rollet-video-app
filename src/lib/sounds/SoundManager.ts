@@ -37,16 +37,52 @@ class SoundManager {
   private _sfxEnabled = true;
   private _bgmEnabled = true;
   private _masterVolume = 1;
+  private _unlocked = false;
+  private _pendingBGM: SoundName | null = null;
 
   get sfxEnabled() { return this._sfxEnabled; }
   get bgmEnabled() { return this._bgmEnabled; }
+  get isUnlocked() { return this._unlocked; }
 
   constructor() {
     if (typeof window !== 'undefined') {
       this._sfxEnabled = localStorage.getItem('sfxEnabled') !== 'false';
       this._bgmEnabled = localStorage.getItem('bgmEnabled') !== 'false';
       this._masterVolume = parseFloat(localStorage.getItem('masterVolume') || '1');
+      this.setupUnlock();
     }
+  }
+
+  // 사용자 첫 인터랙션 시 오디오 잠금 해제
+  private setupUnlock() {
+    const unlock = () => {
+      if (this._unlocked) return;
+      this._unlocked = true;
+
+      // 무음 재생으로 오디오 컨텍스트 활성화
+      const silent = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
+      silent.volume = 0;
+      silent.play().catch(() => {});
+
+      // 대기 중인 BGM이 있으면 재생
+      if (this._pendingBGM) {
+        this.playBGM(this._pendingBGM);
+        this._pendingBGM = null;
+      }
+
+      // 모든 프리로드된 사운드 활성화
+      this.sounds.forEach((audio) => {
+        audio.load();
+      });
+
+      document.removeEventListener('click', unlock);
+      document.removeEventListener('touchstart', unlock);
+      document.removeEventListener('keydown', unlock);
+    };
+
+    document.addEventListener('click', unlock, { once: false });
+    document.addEventListener('touchstart', unlock, { once: false });
+    document.addEventListener('keydown', unlock, { once: false });
   }
 
   private getOrCreate(name: SoundName): HTMLAudioElement {
@@ -67,23 +103,31 @@ class SoundManager {
     if (isBGM && !this._bgmEnabled) return;
     if (!isBGM && !this._sfxEnabled) return;
 
+    if (!this._unlocked) return; // 잠금 해제 전에는 무시
+
     try {
       const audio = this.getOrCreate(name);
       if (!isBGM) {
         audio.currentTime = 0;
       }
-      void audio.play().catch(() => {});
+      audio.play().catch(() => {});
     } catch {}
   }
 
   playBGM(name: SoundName) {
     if (typeof window === 'undefined' || !this._bgmEnabled) return;
 
+    // 아직 잠금 해제 안 됐으면 대기
+    if (!this._unlocked) {
+      this._pendingBGM = name;
+      return;
+    }
+
     this.stopBGM();
     try {
       const audio = this.getOrCreate(name);
       audio.currentTime = 0;
-      void audio.play().catch(() => {});
+      audio.play().catch(() => {});
       this.currentBGM = audio;
     } catch {}
   }
@@ -94,6 +138,7 @@ class SoundManager {
       this.currentBGM.currentTime = 0;
       this.currentBGM = null;
     }
+    this._pendingBGM = null;
   }
 
   toggleSFX() {
