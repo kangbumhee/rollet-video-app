@@ -5,6 +5,7 @@ exports.gameCycle = void 0;
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const firestore_1 = require("firebase-admin/firestore");
 const database_1 = require("firebase-admin/database");
+const auth_1 = require("firebase-admin/auth");
 const firebase_functions_1 = require("firebase-functions");
 const PHASES = [
     { phase: 'ANNOUNCING', duration: 30 },
@@ -406,10 +407,22 @@ exports.gameCycle = (0, scheduler_1.onSchedule)({
             completedAt: Date.now(),
         });
         if (winnerId && !winnerId.startsWith('BOT')) {
+            let winnerName = winnerId;
+            let winnerPhoto = '';
+            try {
+                const winnerRecord = await (0, auth_1.getAuth)().getUser(winnerId);
+                winnerName = winnerRecord.displayName || winnerRecord.email || winnerId;
+                winnerPhoto = winnerRecord.photoURL || '';
+            }
+            catch {
+                // keep fallback values
+            }
             await db.collection('winners').add({
                 roomId,
                 sessionId,
                 winnerId,
+                winnerName,
+                winnerPhoto,
                 prizeTitle,
                 prizeImageURL,
                 estimatedValue,
@@ -421,12 +434,32 @@ exports.gameCycle = (0, scheduler_1.onSchedule)({
         // ── Phase 7: WINNER_ANNOUNCE ──
         phaseStart = Date.now();
         phaseEnd = phaseStart + PHASES[6].duration * 1000;
+        let winnerName = 'Unknown';
+        let winnerPhoto = '';
+        if (winnerId) {
+            try {
+                const winnerRecord = await (0, auth_1.getAuth)().getUser(winnerId);
+                winnerName = winnerRecord.displayName || winnerRecord.email || winnerId;
+                winnerPhoto = winnerRecord.photoURL || '';
+            }
+            catch {
+                // BOT이거나 유저 조회 실패 시
+                if (winnerId.startsWith('BOT')) {
+                    winnerName = `봇 ${winnerId}`;
+                }
+                else {
+                    winnerName = winnerId;
+                }
+            }
+        }
         await rtdb.ref('cycle/main').update({
             currentPhase: 'WINNER_ANNOUNCE',
             phaseStartedAt: phaseStart,
             phaseEndsAt: phaseEnd,
+            winnerId,
+            winnerName,
+            winnerPhoto,
         });
-        const winnerName = winnerId?.startsWith('BOT') ? `🤖 봇` : (winnerId || '없음');
         await sendBotChat(rtdb, 'main', `🏆 축하합니다! ${winnerName}님이 "${prizeTitle}"을 획득했습니다!`);
         await sleep(PHASES[6].duration * 1000);
         // ── Phase 8: COOLDOWN ──

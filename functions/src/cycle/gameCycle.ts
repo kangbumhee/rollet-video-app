@@ -2,6 +2,7 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getDatabase } from 'firebase-admin/database';
+import { getAuth } from 'firebase-admin/auth';
 import { logger } from 'firebase-functions';
 
 const PHASES = [
@@ -439,10 +440,22 @@ export const gameCycle = onSchedule(
       });
 
       if (winnerId && !winnerId.startsWith('BOT')) {
+        let winnerName = winnerId;
+        let winnerPhoto = '';
+        try {
+          const winnerRecord = await getAuth().getUser(winnerId);
+          winnerName = winnerRecord.displayName || winnerRecord.email || winnerId;
+          winnerPhoto = winnerRecord.photoURL || '';
+        } catch {
+          // keep fallback values
+        }
+
         await db.collection('winners').add({
           roomId,
           sessionId,
           winnerId,
+          winnerName,
+          winnerPhoto,
           prizeTitle,
           prizeImageURL,
           estimatedValue,
@@ -456,12 +469,31 @@ export const gameCycle = onSchedule(
       // ── Phase 7: WINNER_ANNOUNCE ──
       phaseStart = Date.now();
       phaseEnd = phaseStart + PHASES[6].duration * 1000;
+      let winnerName = 'Unknown';
+      let winnerPhoto = '';
+      if (winnerId) {
+        try {
+          const winnerRecord = await getAuth().getUser(winnerId);
+          winnerName = winnerRecord.displayName || winnerRecord.email || winnerId;
+          winnerPhoto = winnerRecord.photoURL || '';
+        } catch {
+          // BOT이거나 유저 조회 실패 시
+          if (winnerId.startsWith('BOT')) {
+            winnerName = `봇 ${winnerId}`;
+          } else {
+            winnerName = winnerId;
+          }
+        }
+      }
+
       await rtdb.ref('cycle/main').update({
         currentPhase: 'WINNER_ANNOUNCE',
         phaseStartedAt: phaseStart,
         phaseEndsAt: phaseEnd,
+        winnerId,
+        winnerName,
+        winnerPhoto,
       });
-      const winnerName = winnerId?.startsWith('BOT') ? `🤖 봇` : (winnerId || '없음');
       await sendBotChat(rtdb, 'main', `🏆 축하합니다! ${winnerName}님이 "${prizeTitle}"을 획득했습니다!`);
       await sleep(PHASES[6].duration * 1000);
 

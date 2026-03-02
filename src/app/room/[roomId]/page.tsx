@@ -137,26 +137,52 @@ export default function RoomPage() {
 
     if (cycle.currentPhase === 'WINNER_ANNOUNCE') {
       return (
-        <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-4">
-          <CycleStatus
-            phase={cyclePhase}
-            nextSlotTime={cycle?.nextSlot}
-            prizeTitle={cycle?.currentPrizeTitle}
-            prizeImageURL={cycle?.currentPrizeImage}
-          />
-          <div className="text-center space-y-3">
-            <span className="text-7xl animate-bounce">🏆</span>
-            {cycle.winnerName ? (
-              <>
-                <h2 className="text-2xl font-bold text-white">🎉 축하합니다!</h2>
-                <p className="text-xl text-yellow-400 font-bold">{cycle.winnerName}님</p>
-                <p className="text-sm text-gray-400">&ldquo;{cycle.currentPrizeTitle}&rdquo;의 주인공입니다!</p>
-              </>
+        <main className="flex-[3] flex flex-col items-center justify-center overflow-hidden px-4">
+          <div className="text-6xl mb-4">🏆</div>
+          <h2 className="text-2xl font-bold text-yellow-400 mb-2">🎉 우승자 발표!</h2>
+          <p className="text-gray-400 mb-6">
+            {cycle.currentGameType === 'rps' ? '가위바위보 토너먼트' : '게임'} 최종 우승
+          </p>
+
+          <div className="flex flex-col items-center gap-3 mb-6">
+            {cycle.winnerPhoto ? (
+              <img src={cycle.winnerPhoto} alt="" className="w-20 h-20 rounded-full border-4 border-yellow-500 object-cover" />
             ) : (
-              <p className="text-lg text-gray-400">우승자를 발표하고 있습니다...</p>
+              <div className="w-20 h-20 rounded-full bg-yellow-500/20 border-4 border-yellow-500 flex items-center justify-center text-3xl font-bold text-yellow-400">
+                {(cycle.winnerName || '?')[0]}
+              </div>
             )}
+            <p className="text-white text-xl font-bold">{cycle.winnerName || '우승자'}</p>
           </div>
-        </div>
+
+          {cycle.currentPrizeTitle && (
+            <div className="bg-gray-800/80 rounded-2xl p-4 flex items-center gap-4 mb-6 max-w-sm w-full">
+              {cycle.currentPrizeImage && (
+                <img src={cycle.currentPrizeImage} alt="" className="w-16 h-16 rounded-xl object-cover" />
+              )}
+              <div>
+                <p className="text-purple-400 text-xs">획득 경품</p>
+                <p className="text-white font-bold">{cycle.currentPrizeTitle}</p>
+              </div>
+            </div>
+          )}
+
+          {user?.uid === cycle.winnerId ? (
+            <div className="bg-green-900/40 border border-green-500/50 rounded-2xl p-5 max-w-sm w-full text-center">
+              <p className="text-green-400 font-bold text-lg mb-2">🎁 축하합니다!</p>
+              <p className="text-gray-300 text-sm mb-3">경품 수령을 위해 아래 정보를 확인해 주세요.</p>
+              <div className="space-y-2 text-sm text-gray-400">
+                <p>📧 등록된 이메일로 수령 안내가 발송됩니다</p>
+                <p>📦 영업일 기준 3~5일 내 배송 예정</p>
+                <p>📞 문의: 마이페이지 → 당첨 내역</p>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-gray-800/40 border border-gray-700 rounded-2xl p-4 max-w-sm w-full text-center">
+              <p className="text-gray-400 text-sm">다음 경품에 도전해 보세요! 💪</p>
+            </div>
+          )}
+        </main>
       );
     }
 

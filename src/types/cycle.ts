@@ -27,6 +27,7 @@ export interface CycleState {
   cycleIndex: number;
   winnerId: string | null;
   winnerName: string | null;
+  winnerPhoto?: string | null;
 }
 
 // ─── 사이클 로그 (Firestore) ───
