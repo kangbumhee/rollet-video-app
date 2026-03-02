@@ -10,7 +10,7 @@ import { useGameSounds } from '@/hooks/useGameSounds';
 import { ChatWindow } from '@/components/chat/ChatWindow';
 import { LiveBadge } from '@/components/room/LiveBadge';
 import { LevelBadge } from '@/components/user/LevelBadge';
-import { CycleStatus } from '@/components/cycle/CycleStatus';
+import CycleStatus from '@/components/cycle/CycleStatus';
 import { GameContainer } from '@/components/game/GameContainer';
 import { AdGate } from '@/components/ad/AdGate';
 import { ForcedVideoPlayer } from '@/components/video/ForcedVideoPlayer';
@@ -33,6 +33,7 @@ export default function RoomPage() {
   });
   const { cycle, isLive } = useCycle(roomId);
   useGameSounds(cycle?.currentPhase);
+  const cyclePhase = cycle?.currentPhase;
 
   const [hasTicket, setHasTicket] = useState(false);
 
@@ -53,16 +54,24 @@ export default function RoomPage() {
   const renderMainContent = () => {
     if (!cycle || cycle.currentPhase === 'IDLE' || cycle.currentPhase === 'COOLDOWN') {
       return (
-        <div className="flex-1 flex flex-col items-center justify-center p-4 space-y-6">
-          <CycleStatus roomId={roomId} />
-        </div>
+        <CycleStatus
+          phase={cyclePhase}
+          nextSlotTime={cycle?.nextSlot}
+          prizeTitle={cycle?.currentPrizeTitle}
+          prizeImageURL={cycle?.currentPrizeImage}
+        />
       );
     }
 
     if (cycle.currentPhase === 'ANNOUNCING') {
       return (
         <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-4">
-          <CycleStatus roomId={roomId} />
+          <CycleStatus
+            phase={cyclePhase}
+            nextSlotTime={cycle?.nextSlot}
+            prizeTitle={cycle?.currentPrizeTitle}
+            prizeImageURL={cycle?.currentPrizeImage}
+          />
           <div className="text-center space-y-3">
             {cycle.currentPrizeImage && (
               <Image src={cycle.currentPrizeImage} alt="" width={192} height={192} className="w-48 h-48 rounded-2xl object-cover mx-auto shadow-2xl" />
@@ -77,7 +86,12 @@ export default function RoomPage() {
     if (cycle.currentPhase === 'ENTRY_GATE' && !hasTicket) {
       return (
         <div className="flex-1 flex flex-col p-4">
-          <CycleStatus roomId={roomId} />
+          <CycleStatus
+            phase={cyclePhase}
+            nextSlotTime={cycle?.nextSlot}
+            prizeTitle={cycle?.currentPrizeTitle}
+            prizeImageURL={cycle?.currentPrizeImage}
+          />
           <div className="flex-1 flex items-center justify-center">
             {cycle.entryType === 'VIDEO' && cycle.videoURL ? (
               <ForcedVideoPlayer videoURL={cycle.videoURL} roomId={roomId} onComplete={() => setHasTicket(true)} />
@@ -99,7 +113,12 @@ export default function RoomPage() {
       return (
         <div className="flex-1 flex flex-col">
           <div className="px-4 py-2">
-            <CycleStatus roomId={roomId} />
+            <CycleStatus
+              phase={cyclePhase}
+              nextSlotTime={cycle?.nextSlot}
+              prizeTitle={cycle?.currentPrizeTitle}
+              prizeImageURL={cycle?.currentPrizeImage}
+            />
           </div>
           <div className="flex-1 p-4">
             <GameContainer
@@ -117,7 +136,12 @@ export default function RoomPage() {
     if (cycle.currentPhase === 'WINNER_ANNOUNCE') {
       return (
         <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-4">
-          <CycleStatus roomId={roomId} />
+          <CycleStatus
+            phase={cyclePhase}
+            nextSlotTime={cycle?.nextSlot}
+            prizeTitle={cycle?.currentPrizeTitle}
+            prizeImageURL={cycle?.currentPrizeImage}
+          />
           <div className="text-center space-y-3">
             <span className="text-7xl animate-bounce">🏆</span>
             {cycle.winnerName ? (
@@ -134,7 +158,14 @@ export default function RoomPage() {
       );
     }
 
-    return <CycleStatus roomId={roomId} />;
+    return (
+      <CycleStatus
+        phase={cyclePhase}
+        nextSlotTime={cycle?.nextSlot}
+        prizeTitle={cycle?.currentPrizeTitle}
+        prizeImageURL={cycle?.currentPrizeImage}
+      />
+    );
   };
 
   return (
@@ -163,7 +194,13 @@ export default function RoomPage() {
       {/* PC: 가로 배치, 모바일: 세로 배치 */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
         {/* 메인 콘텐츠 */}
-        <main className="flex-[3] lg:flex-1 overflow-y-auto min-h-0">
+        <main
+          className={
+            !cyclePhase || cyclePhase === 'IDLE' || cyclePhase === 'COOLDOWN'
+              ? 'flex-[3] lg:flex-1 flex items-center justify-center overflow-hidden min-h-0'
+              : 'flex-[3] lg:flex-1 overflow-y-auto min-h-0'
+          }
+        >
           {renderMainContent()}
         </main>
 
