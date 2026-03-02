@@ -265,14 +265,6 @@ export default function HomePage() {
           </div>
         )}
 
-        <button
-          onClick={() => router.push("/seller/create")}
-          className="w-full bg-purple-500/10 border border-purple-500/20 rounded-2xl p-4 hover:bg-purple-500/20 active:scale-[0.98] transition-all text-left mb-3"
-        >
-          <p className="text-sm font-bold text-purple-300">📦 내 물건으로 경품방 만들기</p>
-          <p className="text-xs text-gray-500 mt-1">직접배송 · 위탁배송 · 제품 홍보</p>
-        </button>
-
         {isAdmin && (
           <button
             onClick={() => setShowCreate(true)}
