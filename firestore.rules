@@ -1,0 +1,76 @@
+rules_version = '2';
+
+// ============================================
+// [보강⑨] 역할별 권한 (ADMIN / SELLER / USER)
+// ============================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── 헬퍼 함수 ──
+    function isAuth() { return request.auth != null; }
+    function isOwner(uid) { return isAuth() && request.auth.uid == uid; }
+    function isAdmin() { return isAuth() && request.auth.uid == 'ADMIN_UID를_여기에_입력'; }
+    function isRoomOwner(roomData) { return isAuth() && request.auth.uid == roomData.ownerId; }
+
+    // ── 유저 ──
+    match /users/{userId} {
+      allow read: if isAuth();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
+      // totalExp, level은 서버에서만 수정해야 하지만,
+      // lastVisit 등은 클라이언트에서도 수정 가능하게 허용
+    }
+    match /users/{userId}/dailyExp/{date} {
+      allow read, write: if isOwner(userId);
+    }
+    match /users/{userId}/expLogs/{logId} {
+      allow read: if isOwner(userId);
+    }
+
+    // ── 방 ──
+    match /rooms/{roomId} {
+      allow read: if true;  // 누구나 읽기 가능
+      allow create: if isAuth();  // 로그인하면 생성 가능
+      // 수정: 방장 또는 관리자만
+      allow update: if isRoomOwner(resource.data) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── 당첨자 (서버에서만 생성) ──
+    match /winners/{winnerId} {
+      allow read: if isAuth();
+      // 배송지 업데이트: 본인만
+      allow update: if isAuth() && request.auth.uid == resource.data.uid;
+    }
+
+    // ── 결제 ──
+    match /payments/{paymentId} {
+      allow read: if isAuth() &&
+        (request.auth.uid == resource.data.uid || isAdmin());
+    }
+
+    // ── 알림 ──
+    match /notifications/{notifId} {
+      allow read: if isAuth() && request.auth.uid == resource.data.uid;
+      // 읽음 처리만 허용
+      allow update: if isAuth() && request.auth.uid == resource.data.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+    }
+
+    // ── 동영상 시청 로그 ──
+    match /videoWatchLogs/{logId} {
+      allow read: if isAdmin();
+    }
+
+    // ── 환불 큐 (관리자만) ──
+    match /refundQueue/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── 광고 로그 ──
+    match /adLogs/{logId} {
+      allow read: if isAdmin();
+    }
+  }
+}

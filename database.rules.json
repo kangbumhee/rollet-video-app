@@ -1,0 +1,36 @@
+{
+  "rules": {
+    "rooms": {
+      "$roomId": {
+        "chat": {
+          ".read": true,
+          "$messageId": {
+            ".write": "auth != null",
+            ".validate": "newData.hasChildren(['uid', 'displayName', 'message', 'timestamp']) && newData.child('message').isString() && newData.child('message').val().length <= 200"
+          }
+        },
+        "presence": {
+          ".read": true,
+          "$uid": {
+            ".write": "auth != null && auth.uid == $uid"
+          }
+        },
+        "onlineCount": {
+          ".read": true,
+          ".write": "auth != null"
+        },
+        "state": {
+          ".read": true,
+          ".write": false
+        },
+        "tickets": {
+          ".read": true,
+          "$uid": {
+            ".read": true,
+            ".write": "auth != null && auth.uid == $uid"
+          }
+        }
+      }
+    }
+  }
+}
