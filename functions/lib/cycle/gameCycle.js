@@ -198,7 +198,7 @@ exports.gameCycle = (0, scheduler_1.onSchedule)({
         });
         await rtdb.ref(`games/main/current`).update({ phase: 'countdown' });
         await sleep(PHASES[3].duration * 1000);
-        // ── Phase 5: GAME_PLAYING (자동 RPS 토너먼트) ──
+        // ── Phase 5: GAME_PLAYING (게임 타입별 분기) ──
         phaseStart = Date.now();
         phaseEnd = phaseStart + PHASES[4].duration * 1000;
         await rtdb.ref('cycle/main').update({
@@ -206,95 +206,187 @@ exports.gameCycle = (0, scheduler_1.onSchedule)({
             phaseStartedAt: phaseStart,
             phaseEndsAt: phaseEnd,
         });
-        let alivePlayers = participants.map((p) => p.uid);
-        let roundNumber = 0;
-        const maxRounds = Math.ceil(Math.log2(participants.length)) + 2;
-        while (alivePlayers.length > 1 && roundNumber < maxRounds) {
-            roundNumber++;
-            firebase_functions_1.logger.info(`Round ${roundNumber}: ${alivePlayers.length} players`);
-            // 매칭
-            const shuffled = [...alivePlayers].sort(() => Math.random() - 0.5);
-            const matchups = [];
-            for (let i = 0; i < shuffled.length; i += 2) {
-                matchups.push({
-                    matchId: generateId(),
-                    p1: shuffled[i],
-                    p2: shuffled[i + 1] || 'BOT_AUTO',
+        let winnerId = null;
+        if (gameType === 'rps') {
+            // ── 가위바위보 토너먼트 ──
+            let alivePlayers = participants.map((p) => p.uid);
+            let roundNumber = 0;
+            const maxRounds = Math.ceil(Math.log2(participants.length)) + 2;
+            while (alivePlayers.length > 1 && roundNumber < maxRounds) {
+                roundNumber++;
+                const shuffled = [...alivePlayers].sort(() => Math.random() - 0.5);
+                const matchups = [];
+                for (let i = 0; i < shuffled.length; i += 2) {
+                    matchups.push({ matchId: generateId(), p1: shuffled[i], p2: shuffled[i + 1] || 'BOT_AUTO' });
+                }
+                await rtdb.ref(`games/main/current`).update({
+                    phase: 'playing', currentRound: roundNumber,
+                    roundStartedAt: Date.now(), roundEndsAt: Date.now() + 5000, countdown: 5,
                 });
+                for (const m of matchups) {
+                    await rtdb.ref(`games/main/playerMatch/${m.p1}`).set({ matchId: m.matchId, opponentId: m.p2 });
+                    if (!m.p2.startsWith('BOT')) {
+                        await rtdb.ref(`games/main/playerMatch/${m.p2}`).set({ matchId: m.matchId, opponentId: m.p1 });
+                    }
+                }
+                await sleep(5000);
+                const choices = ['rock', 'paper', 'scissors'];
+                const roundWinners = [];
+                const matchResults = {};
+                for (const m of matchups) {
+                    const p1Snap = await rtdb.ref(`games/main/choices/${m.matchId}/${m.p1}`).get();
+                    const p2Snap = await rtdb.ref(`games/main/choices/${m.matchId}/${m.p2}`).get();
+                    const p1Choice = p1Snap.exists() ? p1Snap.val() : choices[Math.floor(Math.random() * 3)];
+                    const p2Choice = p2Snap.exists() ? p2Snap.val() : choices[Math.floor(Math.random() * 3)];
+                    let winner;
+                    if (p1Choice === p2Choice) {
+                        winner = Math.random() > 0.5 ? m.p1 : m.p2;
+                    }
+                    else if ((p1Choice === 'rock' && p2Choice === 'scissors') || (p1Choice === 'scissors' && p2Choice === 'paper') || (p1Choice === 'paper' && p2Choice === 'rock')) {
+                        winner = m.p1;
+                    }
+                    else {
+                        winner = m.p2;
+                    }
+                    roundWinners.push(winner);
+                    matchResults[m.matchId] = { player1: { id: m.p1, choice: p1Choice }, player2: { id: m.p2, choice: p2Choice }, winnerId: winner };
+                }
+                await rtdb.ref(`games/main/current`).update({ phase: 'round_result', matchResults });
+                for (const p of alivePlayers) {
+                    if (!roundWinners.includes(p)) {
+                        await rtdb.ref(`games/main/participants/${p}`).update({ alive: false, eliminatedRound: roundNumber });
+                    }
+                }
+                alivePlayers = roundWinners;
+                await sendBotChat(rtdb, 'main', `⚔️ 라운드 ${roundNumber} 완료! ${alivePlayers.length}명 생존!`);
+                await sleep(3000);
             }
-            // Realtime DB에 라운드 정보 업데이트
-            await rtdb.ref(`games/main/current`).update({
-                phase: 'playing',
-                currentRound: roundNumber,
-                roundStartedAt: Date.now(),
-                roundEndsAt: Date.now() + 5000,
-                countdown: 5,
-            });
-            // 매치 정보 설정
-            for (const m of matchups) {
-                await rtdb.ref(`games/main/playerMatch/${m.p1}`).set({
-                    matchId: m.matchId,
-                    opponentId: m.p2,
-                });
-                if (!m.p2.startsWith('BOT')) {
-                    await rtdb.ref(`games/main/playerMatch/${m.p2}`).set({
-                        matchId: m.matchId,
-                        opponentId: m.p1,
-                    });
-                }
-            }
-            // 5초 대기 (선택 시간)
-            await sleep(5000);
-            // 선택 수집 + 자동 판정
-            const choices = ['rock', 'paper', 'scissors'];
-            const roundWinners = [];
-            const matchResults = {};
-            for (const m of matchups) {
-                // 유저 선택 읽기
-                const p1ChoiceSnap = await rtdb.ref(`games/main/choices/${m.matchId}/${m.p1}`).get();
-                const p2ChoiceSnap = await rtdb.ref(`games/main/choices/${m.matchId}/${m.p2}`).get();
-                const p1Choice = p1ChoiceSnap.exists() ? p1ChoiceSnap.val() : choices[Math.floor(Math.random() * 3)];
-                const p2Choice = p2ChoiceSnap.exists() ? p2ChoiceSnap.val() : choices[Math.floor(Math.random() * 3)];
-                // 승패 판정
-                let winner;
-                if (p1Choice === p2Choice) {
-                    winner = Math.random() > 0.5 ? m.p1 : m.p2; // 무승부는 랜덤
-                }
-                else if ((p1Choice === 'rock' && p2Choice === 'scissors') ||
-                    (p1Choice === 'scissors' && p2Choice === 'paper') ||
-                    (p1Choice === 'paper' && p2Choice === 'rock')) {
-                    winner = m.p1;
-                }
-                else {
-                    winner = m.p2;
-                }
-                roundWinners.push(winner);
-                matchResults[m.matchId] = {
-                    player1: { id: m.p1, choice: p1Choice },
-                    player2: { id: m.p2, choice: p2Choice },
-                    winnerId: winner,
-                };
-            }
-            // 결과 표시
+            winnerId = alivePlayers[0] || null;
+        }
+        else if (gameType === 'roulette') {
+            // ── 룰렛: 참가자 중 랜덤 1명 선택 ──
+            await rtdb.ref(`games/main/current`).update({ phase: 'playing', currentRound: 1 });
+            await sendBotChat(rtdb, 'main', '🎰 룰렛을 돌립니다!');
+            await sleep(3000);
+            const playerIds = participants.map((p) => p.uid);
+            const winnerIndex = Math.floor(Math.random() * playerIds.length);
+            winnerId = playerIds[winnerIndex];
+            // 결과를 Realtime DB에 기록
             await rtdb.ref(`games/main/current`).update({
                 phase: 'round_result',
-                matchResults,
+                rouletteResult: { winnerId, winnerIndex, totalPlayers: playerIds.length },
             });
-            // 탈락자 처리
-            for (const p of alivePlayers) {
-                if (!roundWinners.includes(p)) {
-                    await rtdb.ref(`games/main/participants/${p}`).update({
-                        alive: false,
-                        eliminatedRound: roundNumber,
-                    });
+            await sendBotChat(rtdb, 'main', `🎰 룰렛 결과 발표!`);
+            await sleep(5000);
+        }
+        else if (gameType === 'oxQuiz') {
+            // ── OX퀴즈: 3문제, 틀리면 탈락 ──
+            const quizQuestions = [
+                { question: '대한민국의 수도는 서울이다', answer: true },
+                { question: '지구에서 가장 큰 대양은 대서양이다', answer: false },
+                { question: '1+1=2이다', answer: true },
+                { question: '빛의 속도는 소리의 속도보다 느리다', answer: false },
+                { question: '물의 화학식은 H2O이다', answer: true },
+            ];
+            let alivePlayers = participants.map((p) => p.uid);
+            const totalQuestions = Math.min(3, quizQuestions.length);
+            for (let q = 0; q < totalQuestions && alivePlayers.length > 1; q++) {
+                const quiz = quizQuestions[q];
+                await rtdb.ref(`games/main/current`).update({
+                    phase: 'playing', currentRound: q + 1,
+                    quiz: { question: quiz.question, questionNumber: q + 1, totalQuestions },
+                });
+                await sendBotChat(rtdb, 'main', `❓ Q${q + 1}. ${quiz.question}`);
+                await sleep(10000); // 10초 답변 시간
+                // 답변 수집
+                const survivors = [];
+                for (const uid of alivePlayers) {
+                    const answerSnap = await rtdb.ref(`games/main/answers/${q + 1}/${uid}`).get();
+                    const userAnswer = answerSnap.exists() ? answerSnap.val() : (Math.random() > 0.5); // 봇은 랜덤
+                    if (userAnswer === quiz.answer) {
+                        survivors.push(uid);
+                    }
+                    else {
+                        await rtdb.ref(`games/main/participants/${uid}`).update({ alive: false, eliminatedRound: q + 1 });
+                    }
+                }
+                await rtdb.ref(`games/main/current`).update({
+                    phase: 'round_result',
+                    quizResult: { answer: quiz.answer, survivors: survivors.length, eliminated: alivePlayers.length - survivors.length },
+                });
+                const answerText = quiz.answer ? '⭕ O' : '❌ X';
+                await sendBotChat(rtdb, 'main', `정답은 ${answerText}! ${survivors.length}명 생존, ${alivePlayers.length - survivors.length}명 탈락!`);
+                alivePlayers = survivors;
+                await sleep(3000);
+            }
+            if (alivePlayers.length > 1) {
+                winnerId = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
+            }
+            else {
+                winnerId = alivePlayers[0] || null;
+            }
+        }
+        else if (gameType === 'numberGuess') {
+            // ── 숫자맞추기: 1~100 중 가장 가까운 사람 승리 ──
+            const targetNumber = Math.floor(Math.random() * 100) + 1;
+            await rtdb.ref(`games/main/current`).update({
+                phase: 'playing', currentRound: 1,
+                numberGuess: { min: 1, max: 100 },
+            });
+            await sendBotChat(rtdb, 'main', '🔢 1~100 사이의 숫자를 맞춰보세요! (10초)');
+            await sleep(10000);
+            let closestPlayer = null;
+            let closestDiff = Infinity;
+            for (const p of participants) {
+                const guessSnap = await rtdb.ref(`games/main/guesses/${p.uid}`).get();
+                const guess = guessSnap.exists() ? Number(guessSnap.val()) : Math.floor(Math.random() * 100) + 1;
+                const diff = Math.abs(guess - targetNumber);
+                if (diff < closestDiff) {
+                    closestDiff = diff;
+                    closestPlayer = p.uid;
                 }
             }
-            alivePlayers = roundWinners;
-            await sendBotChat(rtdb, 'main', `⚔️ 라운드 ${roundNumber} 완료! ${alivePlayers.length}명 생존!`);
-            await sleep(3000); // 결과 표시 시간
+            winnerId = closestPlayer;
+            await rtdb.ref(`games/main/current`).update({
+                phase: 'round_result',
+                numberResult: { target: targetNumber, winnerId },
+            });
+            await sendBotChat(rtdb, 'main', `🔢 정답은 ${targetNumber}! 가장 가까운 사람이 승리!`);
+            await sleep(5000);
+        }
+        else if (gameType === 'speedClick') {
+            // ── 빠른클릭: 10초간 가장 많이 클릭한 사람 승리 ──
+            await rtdb.ref(`games/main/current`).update({
+                phase: 'playing', currentRound: 1,
+                speedClick: { duration: 10 },
+            });
+            await sendBotChat(rtdb, 'main', '👆 10초간 최대한 빠르게 클릭하세요!');
+            await sleep(10000);
+            let maxClicks = 0;
+            let topClicker = null;
+            for (const p of participants) {
+                const clickSnap = await rtdb.ref(`games/main/clicks/${p.uid}`).get();
+                const clicks = clickSnap.exists() ? Number(clickSnap.val()) : Math.floor(Math.random() * 50) + 10;
+                if (clicks > maxClicks) {
+                    maxClicks = clicks;
+                    topClicker = p.uid;
+                }
+            }
+            winnerId = topClicker;
+            await rtdb.ref(`games/main/current`).update({
+                phase: 'round_result',
+                speedResult: { winnerId, maxClicks },
+            });
+            await sendBotChat(rtdb, 'main', `👆 최다 클릭: ${maxClicks}회!`);
+            await sleep(5000);
+        }
+        else {
+            // 기본: 랜덤 선택
+            const playerIds = participants.map((p) => p.uid);
+            winnerId = playerIds[Math.floor(Math.random() * playerIds.length)];
+            await sleep(5000);
         }
         // ── Phase 6: GAME_RESULT ──
-        const winnerId = alivePlayers[0] || null;
         phaseStart = Date.now();
         phaseEnd = phaseStart + PHASES[5].duration * 1000;
         await rtdb.ref('cycle/main').update({
