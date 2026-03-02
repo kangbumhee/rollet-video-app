@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
-import { ref, push } from 'firebase/database';
+import { get, push, ref, set } from 'firebase/database';
 import { realtimeDb } from '@/lib/firebase/config';
 
 import CoinFlip from './CoinFlip';
@@ -56,35 +56,48 @@ const GAMES: GameInfo[] = [
   { id: 'stacktower', name: '탑 쌓기', emoji: '🏗️', desc: '타이밍 맞춰 탑을 쌓아라' },
 ];
 
-const BOT_GAME_MESSAGES: Record<string, string[]> = {
-  coinflip: ['🪙 동전 던지기 시작! 행운을 빌어요~', '🪙 앞? 뒤? 선택하세요!'],
-  dice: ['🎲 주사위 굴려볼까요?', '🎲 주사위 대결 시작!'],
-  slot: ['🎰 슬롯머신 돌립니다~ 잭팟 기원!', '🎰 777 나와라!'],
-  memory: ['🧠 기억력 테스트 시작!', '🧠 카드 짝을 맞춰보세요~'],
-  reaction: ['⚡ 반응속도 테스트! 집중하세요~', '⚡ 얼마나 빠를까?'],
-  typing: ['⌨️ 타자 게임 시작! 손가락 준비!', '⌨️ 15초 타자 도전!'],
-  quiz: ['📝 상식 퀴즈 시작! 몇 개 맞출까?', '🧐 퀴즈왕은 누구?'],
-  baseball: ['⚾ 숫자야구 시작! 3자리를 맞춰보세요', '⚾ 스트라이크! 볼!'],
-  mole: ['🔨 두더지가 나타났다! 잡아라!', '🕳️ 두더지 잡기 시작!'],
-  updown: ['🔢 1~100 숫자를 맞춰보세요!', '⬆️⬇️ 업다운 게임!'],
-  colormatch: ['🎨 색깔을 빠르게 판단하세요!', '🌈 스트룹 테스트!'],
-  rspspeed: ['✊ 가위바위보 연승 도전!', '✌️ 몇 연승까지?'],
-  math: ['🧮 암산 게임 시작! 머리 풀가동!', '🧮 수학의 신은 누구?'],
-  wordchain: ['💬 끝말잇기 시작!', '💬 단어를 이어가세요~'],
-  simon: ['🔴 사이먼 게임! 순서를 기억하세요', '🟢🔵🟡 색 순서 외우기!'],
-  bomb: ['💣 폭탄 돌리기! 터지기 전에 답하라!', '💣 틱틱틱...'],
-  oddoneout: ['👀 다른 그림 찾기! 눈을 크게 뜨세요', '🔍 하나가 달라요!'],
-  speedcalc: ['➕ 빠른 계산 시작!', '🔢 누가 더 빠를까?'],
-  emojiquiz: ['😎 이모지 퀴즈! 뭘 뜻하는 걸까?', '🤔 이모지로 맞춰봐!'],
-  stacktower: ['🏗️ 탑 쌓기! 타이밍이 생명!', '🏗️ 얼마나 높이 쌓을까?'],
+const RECORD_MESSAGES: Record<string, (name: string, score: string) => string[]> = {
+  coinflip: (n, s) => [`🪙 ${n}님이 동전 던지기 ${s} 신기록 달성! 🏆`],
+  dice: (n, s) => [`🎲 ${n}님이 주사위 대결 ${s} 신기록!`],
+  slot: (n, s) => [`🎰 ${n}님이 슬롯머신에서 대박! ${s}`],
+  memory: (n, s) => [`🧠 ${n}님이 기억력 게임 ${s} 신기록!`],
+  reaction: (n, s) => [`⚡ ${n}님 반응속도 ${s} 신기록! 번개손!`],
+  typing: (n, s) => [`⌨️ ${n}님 타자 게임 ${s} 신기록!`],
+  quiz: (n, s) => [`📝 ${n}님 상식 퀴즈 ${s} 신기록!`],
+  baseball: (n, s) => [`⚾ ${n}님 숫자야구 ${s} 신기록!`],
+  mole: (n, s) => [`🔨 ${n}님 두더지 ${s} 신기록!`],
+  updown: (n, s) => [`🔢 ${n}님 업다운 ${s} 신기록!`],
+  colormatch: (n, s) => [`🎨 ${n}님 색깔 맞추기 ${s} 신기록!`],
+  rspspeed: (n, s) => [`✊ ${n}님 가위바위보 ${s} 신기록!`],
+  math: (n, s) => [`🧮 ${n}님 암산 ${s} 신기록!`],
+  wordchain: (n, s) => [`💬 ${n}님 끝말잇기 ${s} 신기록!`],
+  simon: (n, s) => [`🔴 ${n}님 사이먼 게임 ${s} 신기록!`],
+  bomb: (n, s) => [`💣 ${n}님 폭탄 돌리기 ${s} 신기록!`],
+  oddoneout: (n, s) => [`👀 ${n}님 다른 그림 찾기 ${s} 신기록!`],
+  speedcalc: (n, s) => [`➕ ${n}님 빠른 계산 ${s} 신기록!`],
+  emojiquiz: (n, s) => [`😎 ${n}님 이모지 퀴즈 ${s} 신기록!`],
+  stacktower: (n, s) => [`🏗️ ${n}님 탑 쌓기 ${s} 신기록!`],
 };
 
 export default function MiniGameLauncher() {
-  const { user } = useAuthStore();
+  const { user, profile } = useAuthStore();
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [records, setRecords] = useState<Record<string, { score: number; holder: string; scoreLabel?: string }>>({});
+
+  useEffect(() => {
+    const loadRecords = async () => {
+      try {
+        const snap = await get(ref(realtimeDb, 'miniGameRecords'));
+        if (snap.exists()) setRecords(snap.val() as Record<string, { score: number; holder: string; scoreLabel?: string }>);
+      } catch {
+        // ignore
+      }
+    };
+    void loadRecords();
+  }, []);
 
   const sendBotChat = (message: string) => {
-    if (!user) return;
     const chatRef = ref(realtimeDb, 'chat/main/messages');
     void push(chatRef, {
       uid: 'BOT',
@@ -97,38 +110,111 @@ export default function MiniGameLauncher() {
     });
   };
 
-  const handleSelectGame = (gameId: string) => {
-    setSelectedGame(gameId);
-    const messages = BOT_GAME_MESSAGES[gameId];
-    if (messages) {
-      const msg = messages[Math.floor(Math.random() * messages.length)];
-      const displayName = user?.displayName || '누군가';
-      sendBotChat(`${msg} (${displayName}님이 시작)`);
+  const lowerIsBetter = (gameId: string) => ['reaction', 'baseball', 'updown', 'memory'].includes(gameId);
+
+  const extractScore = (gameId: string, raw: string): number | null => {
+    const m = raw.match(/\d+/);
+    if (!m) return null;
+    const value = Number(m[0]);
+    if (!Number.isFinite(value)) return null;
+    if (gameId === 'reaction' && raw.includes('ms')) return value;
+    return value;
+  };
+
+  const checkAndUpdateRecord = async (gameId: string, rawResult: string) => {
+    if (!user) return;
+    const score = extractScore(gameId, rawResult);
+    if (score == null) return;
+    const displayName = profile?.displayName || user.displayName || '누군가';
+    const scoreLabel = rawResult;
+    const recordRef = ref(realtimeDb, `miniGameRecords/${gameId}`);
+
+    try {
+      const snap = await get(recordRef);
+      const current = snap.exists() ? (snap.val() as { score: number }) : null;
+      let isNewRecord = false;
+      if (!current) isNewRecord = true;
+      else if (lowerIsBetter(gameId)) isNewRecord = score < current.score;
+      else isNewRecord = score > current.score;
+
+      if (!isNewRecord) return;
+
+      await set(recordRef, {
+        score,
+        scoreLabel,
+        holder: displayName,
+        holderId: user.uid,
+        updatedAt: Date.now(),
+      });
+      setRecords((prev) => ({ ...prev, [gameId]: { score, holder: displayName, scoreLabel } }));
+
+      const msgs = RECORD_MESSAGES[gameId];
+      if (msgs) {
+        const arr = msgs(displayName, scoreLabel);
+        sendBotChat(arr[Math.floor(Math.random() * arr.length)]);
+      }
+    } catch {
+      // ignore
     }
   };
 
-  const handleResult = (message: string) => {
-    const displayName = user?.displayName || '누군가';
-    sendBotChat(`${displayName}님 ${message}`);
+  const handleSelectGame = (gameId: string) => {
+    setSelectedGame(gameId);
+  };
+
+  const handleResult = (gameId: string, message: string) => {
+    void checkAndUpdateRecord(gameId, message);
   };
 
   const handleBack = () => setSelectedGame(null);
 
   const renderGame = () => {
-    const props = { onResult: handleResult };
+    const rec = selectedGame ? records[selectedGame] : null;
+    const recordDisplay = rec ? `🏆 신기록: ${rec.holder} (${rec.scoreLabel || rec.score})` : null;
+    const props = { onResult: (msg: string) => selectedGame && handleResult(selectedGame, msg) };
     switch (selectedGame) {
       case 'coinflip':
-        return <CoinFlip {...props} />;
+        return (
+          <>
+            {recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}
+            <CoinFlip {...props} />
+          </>
+        );
       case 'dice':
-        return <DiceGame {...props} />;
+        return (
+          <>
+            {recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}
+            <DiceGame {...props} />
+          </>
+        );
       case 'slot':
-        return <SlotMachine {...props} />;
+        return (
+          <>
+            {recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}
+            <SlotMachine {...props} />
+          </>
+        );
       case 'memory':
-        return <MemoryGame {...props} />;
+        return (
+          <>
+            {recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}
+            <MemoryGame {...props} />
+          </>
+        );
       case 'reaction':
-        return <ReactionTest {...props} />;
+        return (
+          <>
+            {recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}
+            <ReactionTest {...props} />
+          </>
+        );
       case 'typing':
-        return <TypingGame {...props} />;
+        return (
+          <>
+            {recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}
+            <TypingGame {...props} />
+          </>
+        );
       case 'quiz':
         return <QuizGame {...props} />;
       case 'baseball':
@@ -164,33 +250,61 @@ export default function MiniGameLauncher() {
 
   if (selectedGame) {
     return (
-      <div className="flex flex-col gap-3">
-        <button
-          onClick={handleBack}
-          className="self-start px-3 py-1.5 bg-gray-700 text-white text-sm rounded-lg hover:bg-gray-600 transition"
-        >
-          ← 게임 목록
-        </button>
-        {renderGame()}
+      <div className="flex flex-col gap-2 h-full">
+        <div className="flex items-center justify-between sticky top-0 bg-gray-900 z-10 pb-2">
+          <button
+            onClick={handleBack}
+            className="px-3 py-1 bg-gray-700 text-white text-xs rounded-lg hover:bg-gray-600 transition"
+          >
+            ← 목록
+          </button>
+          {records[selectedGame] && (
+            <span className="text-yellow-400 text-[10px] font-bold truncate ml-2">
+              🏆 {records[selectedGame].holder}
+            </span>
+          )}
+        </div>
+        <div className="flex-1 overflow-y-auto">{renderGame()}</div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <h3 className="text-white font-bold text-lg text-center">🎮 미니게임</h3>
-      <div className="grid grid-cols-4 gap-2">
-        {GAMES.map((game) => (
-          <button
-            key={game.id}
-            onClick={() => handleSelectGame(game.id)}
-            className="flex flex-col items-center gap-1 p-2 bg-gray-800 rounded-xl hover:bg-gray-700 transition border border-gray-700 hover:border-purple-500"
-          >
-            <span className="text-2xl">{game.emoji}</span>
-            <span className="text-white text-xs font-medium leading-tight text-center">{game.name}</span>
-          </button>
-        ))}
-      </div>
+    <div className="flex flex-col gap-2">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center justify-between w-full px-3 py-2 bg-gray-800 rounded-xl"
+      >
+        <span className="text-white font-bold text-sm">🎮 미니게임</span>
+        <span className="text-gray-400 text-xs">{expanded ? '접기 ▲' : '펼치기 ▼'} ({GAMES.length}종)</span>
+      </button>
+
+      {expanded && (
+        <div className="max-h-[45vh] overflow-y-auto rounded-xl bg-gray-900/50 p-2">
+          <div className="grid grid-cols-5 gap-1.5">
+            {GAMES.map((game) => {
+              const rec = records[game.id];
+              return (
+                <button
+                  key={game.id}
+                  onClick={() => handleSelectGame(game.id)}
+                  className="flex flex-col items-center gap-0.5 p-1.5 bg-gray-800 rounded-lg hover:bg-gray-700 transition border border-gray-700/50 hover:border-purple-500/50"
+                >
+                  <span className="text-lg leading-none">{game.emoji}</span>
+                  <span className="text-white text-[9px] font-medium leading-tight text-center truncate w-full">
+                    {game.name}
+                  </span>
+                  {rec && (
+                    <span className="text-yellow-400 text-[7px] truncate w-full text-center">
+                      🏆{rec.holder}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
