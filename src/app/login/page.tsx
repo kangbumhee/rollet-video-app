@@ -5,13 +5,14 @@
 
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function LoginPage() {
   const router = useRouter();
   const { profile, loading, signInWithGoogle } = useAuthStore();
+  const [isKakaoInApp, setIsKakaoInApp] = useState(false);
 
   // 이미 로그인 되어 있으면 메인으로
   useEffect(() => {
@@ -19,6 +20,30 @@ export default function LoginPage() {
       router.push("/");
     }
   }, [profile, loading, router]);
+
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    // 카카오톡, 라인, 인스타그램 등 인앱 브라우저 감지
+    if (/KAKAOTALK|Instagram|FBAN|FBAV|LINE/i.test(ua)) {
+      setIsKakaoInApp(true);
+
+      // 안드로이드: intent로 외부 브라우저 열기
+      if (/Android/i.test(ua)) {
+        const url = window.location.href;
+        window.location.href =
+          "intent://" +
+          url.replace(/https?:\/\//, "") +
+          "#Intent;scheme=https;package=com.android.chrome;end";
+        return;
+      }
+
+      // iOS: 크롬 스킴 시도 후 실패하면 현재 URL 유지
+      if (/iPhone|iPad/i.test(ua)) {
+        const chromeUrl = window.location.href.replace(/^https:\/\//, "googlechromes://");
+        window.location.href = chromeUrl || window.location.href;
+      }
+    }
+  }, []);
 
   const handleGoogleLogin = async () => {
     try {
@@ -28,6 +53,54 @@ export default function LoginPage() {
       console.error("로그인 실패:", error);
     }
   };
+
+  // 인앱 브라우저에서 자동 리다이렉트 실패 시 안내 화면
+  if (isKakaoInApp) {
+    const copyUrl = () => {
+      void navigator.clipboard.writeText(window.location.href);
+      alert("링크가 복사되었습니다. 브라우저에 붙여넣기 해주세요!");
+    };
+
+    return (
+      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-6 text-center">
+        <div className="text-5xl mb-6">🌐</div>
+        <h1 className="text-white text-xl font-bold mb-3">외부 브라우저에서 열어주세요</h1>
+        <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+          카카오톡 내 브라우저에서는 Google 로그인이
+          <br />
+          지원되지 않습니다.
+        </p>
+
+        <button
+          onClick={() => {
+            const url = window.location.href;
+            window.location.href =
+              "intent://" +
+              url.replace(/https?:\/\//, "") +
+              "#Intent;scheme=https;package=com.android.chrome;end";
+          }}
+          className="w-full max-w-xs py-3 bg-purple-600 text-white rounded-xl font-semibold mb-3"
+        >
+          Chrome으로 열기
+        </button>
+
+        <button
+          onClick={copyUrl}
+          className="w-full max-w-xs py-3 bg-gray-800 text-gray-300 rounded-xl font-semibold mb-6"
+        >
+          링크 복사하기
+        </button>
+
+        <div className="bg-gray-800/50 rounded-xl p-4 max-w-xs">
+          <p className="text-gray-400 text-xs leading-relaxed">
+            <strong className="text-gray-300">방법:</strong> 오른쪽 상단
+            <span className="text-white"> ⋮ </span>→
+            <span className="text-white"> 다른 브라우저로 열기</span>를 눌러주세요
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0A0A0F] flex flex-col items-center justify-center px-6">
