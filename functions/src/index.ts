@@ -5,7 +5,7 @@ initializeApp();
 
 export { gameCycle } from './cycle/gameCycle';
 export { runPhase } from './cycle/phaseRunner';
-export { onChatMessage, periodicHype } from './cycle/botResponder';
+export { periodicHype } from './cycle/botResponder';
 
 export { processGameRound } from './game/processRound';
 export { advanceGame } from './game/advanceGame';
