@@ -15,6 +15,7 @@ import CycleStatus from '@/components/cycle/CycleStatus';
 import { GameContainer } from '@/components/game/GameContainer';
 import { AdGate } from '@/components/ad/AdGate';
 import { ForcedVideoPlayer } from '@/components/video/ForcedVideoPlayer';
+import MiniGameLauncher from '@/components/minigame/MiniGameLauncher';
 import { Badge } from '@/components/ui/badge';
 import { SoundToggle } from '@/components/ui/SoundToggle';
 import Image from 'next/image';
@@ -90,12 +91,15 @@ export default function RoomPage() {
   const renderMainContent = () => {
     if (!cycle || cycle.currentPhase === 'IDLE' || cycle.currentPhase === 'COOLDOWN') {
       return (
-        <CycleStatus
-          phase={cyclePhase}
-          nextSlotTime={cycle?.nextSlot}
-          prizeTitle={cycle?.currentPrizeTitle}
-          prizeImageURL={cycle?.currentPrizeImage}
-        />
+        <div className="flex flex-col items-center justify-center p-4 w-full">
+          <CycleStatus
+            phase={cyclePhase}
+            nextSlotTime={cycle?.nextSlot}
+            prizeTitle={cycle?.currentPrizeTitle}
+            prizeImageURL={cycle?.currentPrizeImage}
+          />
+          <MiniGameLauncher />
+        </div>
       );
     }
 
