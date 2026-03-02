@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import AuthProvider from "@/components/providers/AuthProvider";
 import { NotificationBanner } from "@/components/notifications/NotificationBanner";
+import InAppBrowserGuard from "@/components/InAppBrowserGuard";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -28,10 +29,12 @@ export default function RootLayout({
   return (
     <html lang="ko" className="dark">
       <body className={`${inter.className} antialiased`}>
-        <AuthProvider>
-          <NotificationBanner />
-          {children}
-        </AuthProvider>
+        <InAppBrowserGuard>
+          <AuthProvider>
+            <NotificationBanner />
+            {children}
+          </AuthProvider>
+        </InAppBrowserGuard>
       </body>
     </html>
   );
