@@ -59,6 +59,9 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
   const [liarPhase, setLiarPhase] = useState<'discuss' | 'vote' | 'reveal'>('discuss');
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const scoreSubmittedRef = useRef(false);
+  const lastTransitionedRoundRef = useRef<number>(0);
+  const advanceRoundCalledRef = useRef(false);
   const finalSoundPlayedRef = useRef(false);
   const lineRunSoundRoundRef = useRef('');
   const liarRevealSoundRoundRef = useRef('');
@@ -79,6 +82,8 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
         const data = snap.val() as Record<string, unknown>;
         setRoundData(data);
         setMyChoice(null);
+        scoreSubmittedRef.current = false;
+        advanceRoundCalledRef.current = false;
         setShowResult(false);
         setRoundResult('');
         setTypingInput('');
@@ -105,9 +110,10 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
       }
     });
     return () => unsub();
-  }, [roomId, current?.round, current]);
+  }, [roomId, current?.round]);
 
   useEffect(() => {
+    if (!current || current.phase !== 'round_playing') return;
     if (!roundData || timeLeft <= 0) return;
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
@@ -121,13 +127,17 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
       });
     }, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [roundData, current?.round]);
+  }, [current?.phase, roundData, current?.round, timeLeft]);
 
   // game_intro -> round_waiting phase is handled on client
   useEffect(() => {
     if (!current || !uid) return;
     if (current.phase !== 'game_intro') return;
     if (!current.startedBy || current.startedBy !== uid) return;
+
+    if (current.round <= 1) {
+      lastTransitionedRoundRef.current = 0;
+    }
 
     const elapsed = Date.now() - (current.introStartedAt || Date.now());
     const remaining = Math.max(0, 3000 - elapsed);
@@ -149,18 +159,47 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     return () => clearTimeout(timer);
   }, [current?.phase, current?.startedBy, current?.introStartedAt, uid, roomId]);
 
+  // round_waiting -> round_playing phase is handled on client
+  useEffect(() => {
+    if (!current || !uid) return;
+    if (current.phase !== 'round_waiting') return;
+    if (!current.startedBy || current.startedBy !== uid) return;
+    if (current.round < 1) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const phaseSnap = await get(ref(realtimeDb, `games/${roomId}/current/phase`));
+        if (phaseSnap.val() !== 'round_waiting') return;
+
+        await update(ref(realtimeDb, `games/${roomId}/current`), {
+          phase: 'round_playing',
+        });
+      } catch (err) {
+        console.error('[RegularGamePlayer] round_waiting transition error:', err);
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [current?.phase, current?.round, current?.startedBy, uid, roomId]);
+
   // round_result -> next round_waiting/final_result transition is handled on client
   useEffect(() => {
     if (!current || !uid) return;
     if (current.phase !== 'round_result') return;
     if (!current.startedBy || current.startedBy !== uid) return;
+    if (lastTransitionedRoundRef.current >= current.round) return;
+
+    const roundAtStart = current.round;
+    const totalAtStart = current.totalRounds;
 
     const timer = setTimeout(async () => {
       try {
         const phaseSnap = await get(ref(realtimeDb, `games/${roomId}/current/phase`));
         if (phaseSnap.val() !== 'round_result') return;
 
-        if (current.round >= current.totalRounds) {
+        lastTransitionedRoundRef.current = roundAtStart;
+
+        if (roundAtStart >= totalAtStart) {
           await update(ref(realtimeDb, `games/${roomId}/current`), {
             phase: 'final_result',
           });
@@ -169,7 +208,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
 
         await update(ref(realtimeDb, `games/${roomId}/current`), {
           phase: 'round_waiting',
-          round: current.round + 1,
+          round: roundAtStart + 1,
         });
       } catch (err) {
         console.error('[RegularGamePlayer] Round transition error:', err);
@@ -293,8 +332,8 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
   }, [roomId, current?.gameType, current?.round, current]);
 
   const submitScore = async (points: number) => {
-    if (myChoice !== null) return;
-    setMyChoice('done');
+    if (scoreSubmittedRef.current) return;
+    scoreSubmittedRef.current = true;
     if (points > 0) soundManager.play('correct');
     else if (points < 0) soundManager.play('wrong');
     const scoreRef = ref(realtimeDb, `games/${roomId}/current/scores/${uid}`);
@@ -347,9 +386,12 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
 
   const advanceRound = useCallback(async () => {
     if (!current) return;
+    if (!current.startedBy || current.startedBy !== uid) return;
+    if (advanceRoundCalledRef.current) return;
+    advanceRoundCalledRef.current = true;
     soundManager.play('whoosh');
     await set(ref(realtimeDb, `games/${roomId}/current/phase`), 'round_result');
-  }, [current, roomId]);
+  }, [current, roomId, uid]);
 
   const handleTimeUp = useCallback(async () => {
     if (!current || !roundData) return;
@@ -427,6 +469,53 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
             </div>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  if (current.phase === 'round_waiting') {
+    return (
+      <div className="flex flex-col items-center justify-center p-6 space-y-4 animate-fade-in">
+        <div className="text-5xl animate-bounce">🎲</div>
+        <h2 className="text-xl font-bold text-white">Round {current.round}/{current.totalRounds}</h2>
+        <p className="text-yellow-400 text-sm animate-pulse">준비 중...</p>
+        <div className="w-full max-w-sm bg-gray-800/30 rounded-xl p-3">
+          <p className="text-gray-500 text-xs mb-2 font-bold">📊 실시간 순위</p>
+          <div className="space-y-1">
+            {rankings.slice(0, 5).map((r, i) => (
+              <div key={r.uid} className={`flex items-center justify-between text-xs px-2 py-1 rounded ${r.uid === uid ? 'bg-purple-500/20' : ''}`}>
+                <span className="text-gray-400">{i + 1}. <span className={r.uid === uid ? 'text-purple-300 font-bold' : 'text-white'}>{r.name}</span></span>
+                <span className="text-yellow-400 font-bold">{r.score}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (current.phase === 'round_result') {
+    return (
+      <div className="flex flex-col items-center justify-center p-6 space-y-4 animate-fade-in">
+        <div className="text-4xl">📊</div>
+        <h2 className="text-lg font-bold text-white">Round {current.round} 결과</h2>
+        {showResult && (
+          <div className={`text-2xl font-bold ${
+            roundResult.startsWith('+') ? 'text-green-400' : roundResult.startsWith('-') ? 'text-red-400' : 'text-gray-400'
+          }`}>{roundResult}</div>
+        )}
+        <div className="w-full max-w-sm bg-gray-800/30 rounded-xl p-3">
+          <p className="text-gray-500 text-xs mb-2 font-bold">📊 실시간 순위</p>
+          <div className="space-y-1">
+            {rankings.slice(0, 5).map((r, i) => (
+              <div key={r.uid} className={`flex items-center justify-between text-xs px-2 py-1 rounded ${r.uid === uid ? 'bg-purple-500/20' : ''}`}>
+                <span className="text-gray-400">{i + 1}. <span className={r.uid === uid ? 'text-purple-300 font-bold' : 'text-white'}>{r.name}</span></span>
+                <span className="text-yellow-400 font-bold">{r.score}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="text-gray-500 text-xs animate-pulse">다음 라운드 준비 중...</p>
       </div>
     );
   }
