@@ -41,15 +41,38 @@ export function validateDaySchedule(slots: TimeSlot[], availablePrizeCount: numb
 }
 
 export function isPastDate(date: string): boolean {
-  const now = new Date();
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const today = kst.toISOString().split('T')[0];
+  const today = getKSTDateString();
   return date < today;
 }
 
 export function isPastSlot(date: string, time: string): boolean {
+  // KST 기준으로 현재 시간 계산
   const now = new Date();
-  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const slotTime = new Date(`${date}T${time}:00+09:00`);
-  return slotTime.getTime() < kstNow.getTime();
+  const kstNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  
+  // 슬롯 시간을 KST Date 객체로 생성
+  const [hours, minutes] = time.split(':').map(Number);
+  const [year, month, day] = date.split('-').map(Number);
+  
+  const slotDate = new Date(year, month - 1, day, hours, minutes, 0);
+  
+  // 현재 KST 시간과 비교
+  const kstYear = kstNow.getFullYear();
+  const kstMonth = kstNow.getMonth();
+  const kstDay = kstNow.getDate();
+  const kstHours = kstNow.getHours();
+  const kstMinutes = kstNow.getMinutes();
+  
+  const currentKST = new Date(kstYear, kstMonth, kstDay, kstHours, kstMinutes, 0);
+  
+  return slotDate.getTime() < currentKST.getTime();
+}
+
+function getKSTDateString(): string {
+  const now = new Date();
+  const kst = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  const y = kst.getFullYear();
+  const m = String(kst.getMonth() + 1).padStart(2, '0');
+  const d = String(kst.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
