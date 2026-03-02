@@ -260,14 +260,20 @@ export default function RoomPage() {
           <div className="flex items-center gap-1.5">
             {canSeeUserList ? (
               <button onClick={() => setShowUserList(!showUserList)} className="relative">
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 cursor-pointer hover:border-yellow-500/50 transition-colors">
-                  👥 {onlineCount}
-                </Badge>
+                <div className="flex items-center gap-1 bg-gray-800 px-2 py-1 rounded-full border border-gray-700 hover:border-yellow-500/50 transition-colors">
+                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                  <span className="text-green-400 text-xs font-bold">
+                    {onlineCount > 999 ? `${(onlineCount / 1000).toFixed(1)}K` : onlineCount}명
+                  </span>
+                </div>
               </button>
             ) : (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
-                👥 {onlineCount}
-              </Badge>
+              <div className="flex items-center gap-1 bg-gray-800 px-2 py-1 rounded-full border border-gray-700">
+                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                <span className="text-green-400 text-xs font-bold">
+                  {onlineCount > 999 ? `${(onlineCount / 1000).toFixed(1)}K` : onlineCount}명
+                </span>
+              </div>
             )}
             <SoundToggle />
             {hasTicket && <Badge className="bg-green-600 text-white text-[10px] px-1.5 py-0.5">🎫</Badge>}
