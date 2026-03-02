@@ -17,6 +17,7 @@ export interface UserProfile {
   totalWins: number;
   isSeller: boolean;
   isAdmin: boolean;
+  isModerator?: boolean;
   createdAt: number; // timestamp
 }
 

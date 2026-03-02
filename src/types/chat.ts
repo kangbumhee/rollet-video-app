@@ -11,4 +11,6 @@ export interface ChatMessage {
   isBot: boolean;
   isSystem: boolean; // 시스템 메시지 (입장, 당첨 등)
   timestamp: number;
+  isModerator?: boolean;
+  isAdmin?: boolean;
 }

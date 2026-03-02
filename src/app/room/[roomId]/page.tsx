@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/authStore';
 import { usePresence } from '@/hooks/usePresence';
@@ -32,12 +32,44 @@ export default function RoomPage() {
     displayName: profile?.displayName || '익명',
     photoURL: profile?.photoURL,
     level: profile?.level || 1,
+    isModerator: profile?.isModerator || false,
+    isAdmin: profile?.isAdmin || false,
   });
   const { cycle, isLive } = useCycle(roomId);
   useGameSounds(cycle?.currentPhase);
   const cyclePhase = cycle?.currentPhase;
 
   const [hasTicket, setHasTicket] = useState(false);
+
+  const handleKick = useCallback(async (targetUid: string, targetDisplayName: string) => {
+    if (!user) return;
+    const confirmed = window.confirm(`${targetDisplayName}님을 강퇴하시겠습니까?\n(30분간 참여 제한)`);
+    if (!confirmed) return;
+
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/admin/moderate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: 'kick',
+          targetUid,
+          targetDisplayName,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+      } else {
+        alert(data.error || '강퇴 실패');
+      }
+    } catch {
+      alert('네트워크 오류');
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -234,7 +266,12 @@ export default function RoomPage() {
 
         {/* 채팅 */}
         <aside className="flex-[2] lg:flex-none lg:w-80 min-h-0 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-800">
-          <ChatWindow messages={messages} onSendMessage={(msg) => void sendMessage(msg)} currentUid={user?.uid || ''} />
+          <ChatWindow
+            messages={messages}
+            onSendMessage={(msg) => void sendMessage(msg)}
+            currentUid={user?.uid || ''}
+            onKick={handleKick}
+          />
         </aside>
       </div>
     </div>

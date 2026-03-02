@@ -12,13 +12,16 @@ interface ChatWindowProps {
   onSendMessage?: (message: string) => void;
   currentUid?: string;
   disabled?: boolean;
+  onKick?: (uid: string, displayName: string) => void;
+  onSetModerator?: (uid: string, displayName: string) => void;
 }
 
-export function ChatWindow({ messages, onSend, onSendMessage, currentUid, disabled = false }: ChatWindowProps) {
+export function ChatWindow({ messages, onSend, onSendMessage, currentUid, disabled = false, onKick }: ChatWindowProps) {
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const profile = useAuthStore((s) => s.profile);
   const sender = onSendMessage || onSend;
+  const canManage = profile?.isAdmin || profile?.isModerator || false;
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -47,7 +50,13 @@ export function ChatWindow({ messages, onSend, onSendMessage, currentUid, disabl
           <p className="text-gray-600 text-xs text-center mt-4">아직 채팅이 없어요. 첫 메시지를 보내보세요!</p>
         )}
         {messages.map((msg) => (
-          <ChatBubble key={msg.id} message={msg} isMe={msg.uid === (currentUid || profile?.uid)} />
+          <ChatBubble
+            key={msg.id}
+            message={msg}
+            isMe={msg.uid === (currentUid || profile?.uid)}
+            canManage={canManage}
+            onKick={onKick}
+          />
         ))}
       </div>
 

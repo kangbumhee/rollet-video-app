@@ -11,6 +11,8 @@ interface ChatSender {
   displayName: string;
   photoURL?: string;
   level?: number;
+  isModerator?: boolean;
+  isAdmin?: boolean;
 }
 
 export function useChat(roomId: string, sender?: ChatSender) {
@@ -46,6 +48,8 @@ export function useChat(roomId: string, sender?: ChatSender) {
         timestamp: data.timestamp || Date.now(),
         isBot: data.type === 'bot' || data.isBot || false,
         isSystem: data.type === 'system' || data.isSystem || false,
+        isModerator: data.isModerator || false,
+        isAdmin: data.isAdmin || false,
       };
 
       if (message.uid !== (sender?.uid || '')) {
@@ -106,6 +110,8 @@ export function useChat(roomId: string, sender?: ChatSender) {
         type: 'user',
         isBot: false,
         isSystem: false,
+        isModerator: sender?.isModerator || false,
+        isAdmin: sender?.isAdmin || false,
       });
     },
     [roomId, sender]

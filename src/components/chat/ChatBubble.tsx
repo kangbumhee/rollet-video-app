@@ -5,15 +5,22 @@
 
 "use client";
 
+import { useState } from 'react';
 import { ChatMessage } from "@/types/chat";
 import LevelBadge from "@/components/user/LevelBadge";
+import { useAuthStore } from '@/stores/authStore';
 
 interface ChatBubbleProps {
   message: ChatMessage;
   isMe: boolean;
+  canManage?: boolean;
+  onKick?: (uid: string, displayName: string) => void;
 }
 
-export default function ChatBubble({ message, isMe }: ChatBubbleProps) {
+export default function ChatBubble({ message, isMe, canManage, onKick }: ChatBubbleProps) {
+  const [showMenu, setShowMenu] = useState(false);
+  const profile = useAuthStore((s) => s.profile);
+
   // ── 시스템 메시지 ──
   if (message.isSystem) {
     return (
@@ -44,22 +51,91 @@ export default function ChatBubble({ message, isMe }: ChatBubbleProps) {
     );
   }
 
+  const getNameColor = () => {
+    if (message.isAdmin) return 'text-yellow-400 font-bold';
+    if (message.isModerator) return 'text-red-500 font-bold';
+    if (isMe) return 'text-yellow-400';
+    return 'text-gray-400';
+  };
+
+  const getRoleBadge = () => {
+    if (message.isAdmin) return <span className="text-[9px] bg-yellow-500/20 text-yellow-400 px-1 py-0.5 rounded ml-1">관리자</span>;
+    if (message.isModerator) return <span className="text-[9px] bg-red-500/20 text-red-400 px-1 py-0.5 rounded ml-1">운영자</span>;
+    return null;
+  };
+
+  const handleNameClick = () => {
+    if (!canManage || isMe || message.isBot || message.isSystem) return;
+    setShowMenu(!showMenu);
+  };
+
   // ── 일반 메시지 ──
   return (
     <div className={`flex items-start gap-2 py-0.5 animate-slide-up ${isMe ? "flex-row-reverse" : ""}`}>
-      <div className={`${isMe ? "text-right" : ""}`}>
+      <div className={`${isMe ? "text-right" : ""} relative`}>
         <div className={`flex items-center gap-1.5 ${isMe ? "justify-end" : ""}`}>
           <LevelBadge level={message.level} size="sm" />
-          <span className={`text-[11px] font-medium ${isMe ? "text-yellow-400" : "text-gray-400"}`}>
+          <span
+            className={`text-[11px] font-medium cursor-pointer hover:underline ${getNameColor()}`}
+            onClick={handleNameClick}
+          >
             {message.displayName}
           </span>
+          {getRoleBadge()}
         </div>
+
+        {showMenu && canManage && (
+          <div
+            className="absolute z-50 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[140px]"
+            style={{ left: isMe ? 'auto' : 0, right: isMe ? 0 : 'auto' }}
+          >
+            {profile?.isAdmin && !message.isAdmin && (
+              <button
+                onClick={async () => {
+                  const action = message.isModerator ? 'removeModerator' : 'setModerator';
+                  const label = message.isModerator ? '운영자 해제' : '운영자 지정';
+                  if (!confirm(`${message.displayName}님을 ${label}하시겠습니까?`)) return;
+                  try {
+                    const { auth } = await import('@/lib/firebase/config');
+                    const token = await auth.currentUser?.getIdToken();
+                    await fetch('/api/admin/moderate', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ action, targetUid: message.uid, targetDisplayName: message.displayName }),
+                    });
+                    alert(`${message.displayName}님 ${label} 완료`);
+                  } catch {
+                    alert('실패');
+                  }
+                  setShowMenu(false);
+                }}
+                className="w-full text-left px-3 py-1.5 text-xs text-blue-400 hover:bg-blue-500/10 transition-colors"
+              >
+                {message.isModerator ? '🔓 운영자 해제' : '🛡️ 운영자 지정'}
+              </button>
+            )}
+            <button
+              onClick={() => {
+                onKick?.(message.uid, message.displayName);
+                setShowMenu(false);
+              }}
+              className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+            >
+              🚫 강퇴하기
+            </button>
+          </div>
+        )}
+
         <p
           className={`text-sm mt-0.5 px-3 py-1.5 rounded-xl max-w-[260px]
             inline-block break-words
             ${
               isMe
                 ? "bg-yellow-500/20 text-yellow-100 rounded-tr-none"
+                : message.isModerator
+                ? 'bg-red-500/10 text-red-100 rounded-tl-none border border-red-500/20'
+                : message.isAdmin
+                ? 'bg-yellow-500/10 text-yellow-100 rounded-tl-none border border-yellow-500/20'
                 : "bg-gray-800 text-gray-200 rounded-tl-none"
             }`}
         >
