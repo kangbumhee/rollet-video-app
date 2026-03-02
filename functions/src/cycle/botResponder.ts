@@ -7,7 +7,7 @@ import { logger } from 'firebase-functions';
 export const onChatMessage = onValueWritten(
   {
     ref: 'rooms/{roomId}/chat/{messageId}',
-    region: 'asia-northeast3',
+    region: 'us-central1',
   },
   async (event) => {
     const roomId = event.params.roomId;

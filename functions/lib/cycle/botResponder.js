@@ -8,7 +8,7 @@ const database_2 = require("firebase-admin/database");
 const firebase_functions_1 = require("firebase-functions");
 exports.onChatMessage = (0, database_1.onValueWritten)({
     ref: 'rooms/{roomId}/chat/{messageId}',
-    region: 'asia-northeast3',
+    region: 'us-central1',
 }, async (event) => {
     const roomId = event.params.roomId;
     const message = event.data.after.val();
