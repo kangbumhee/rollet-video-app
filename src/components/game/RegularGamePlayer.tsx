@@ -45,6 +45,8 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
   const [typingDone, setTypingDone] = useState(false);
   const [tapCount, setTapCount] = useState(0);
   const [tapping, setTapping] = useState(false);
+  const [otherTaps, setOtherTaps] = useState<Record<string, { count: number; lastTapAt: number; displayName: string }>>({});
+  const [simultaneousTaps, setSimultaneousTaps] = useState<string[]>([]);
   const [nunchiClaimed, setNunchiClaimed] = useState<Record<string, number>>({});
   const [myNunchiNumber, setMyNunchiNumber] = useState<number | null>(null);
   const [priceInput, setPriceInput] = useState('');
@@ -91,6 +93,8 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
         setTypingStartTime(Date.now());
         setTapCount(0);
         setTapping(false);
+        setOtherTaps({});
+        setSimultaneousTaps([]);
         setMyNunchiNumber(null);
         setNunchiClaimed({});
         setPriceInput('');
@@ -270,6 +274,42 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
       soundManager.play('tap-frenzy');
     }
   }, [tapCount]);
+
+  // 탭 서바이벌 - 다른 플레이어 탭 실시간 구독
+  useEffect(() => {
+    if (!current || current.gameType !== 'tapSurvival' || current.round < 1) return;
+    const unsub = onValue(ref(realtimeDb, `games/${roomId}/taps/round${current.round}`), (snap) => {
+      if (snap.exists()) {
+        setOtherTaps(snap.val() as Record<string, { count: number; lastTapAt: number; displayName: string }>);
+      } else {
+        setOtherTaps({});
+      }
+    });
+    return () => unsub();
+  }, [roomId, current?.gameType, current?.round]);
+
+  // 동시 탭 감지 (내 탭과 200ms 이내 다른 사람 탭)
+  useEffect(() => {
+    if (!current || current.gameType !== 'tapSurvival') return;
+    if (tapCount === 0) return;
+
+    const now = Date.now();
+    const simultaneous: string[] = [];
+
+    Object.entries(otherTaps).forEach(([id, data]) => {
+      if (id === uid) return;
+      if (Math.abs(now - data.lastTapAt) < 200) {
+        simultaneous.push(data.displayName || current.nameMap[id] || id.slice(0, 6));
+      }
+    });
+
+    if (simultaneous.length > 0) {
+      setSimultaneousTaps(simultaneous);
+      // 1.5초 후 자동으로 사라지게
+      const timer = setTimeout(() => setSimultaneousTaps([]), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [tapCount, otherTaps]);
 
   useEffect(() => {
     if (!current || current.gameType !== 'drawGuess' || current.round < 1) return;
@@ -961,21 +1001,51 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
   }
 
   if (gt === 'tapSurvival') {
+    // 다른 플레이어 탭 현황 정렬
+    const otherPlayers = Object.entries(otherTaps)
+      .filter(([id]) => id !== uid)
+      .map(([id, data]) => ({
+        uid: id,
+        name: data.displayName || current.nameMap[id] || id.slice(0, 6),
+        count: data.count || 0,
+        lastTapAt: data.lastTapAt || 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+
     return (
       <div className="flex flex-col p-3 overflow-y-auto">
         {renderHeader()}
         {renderScoreBar()}
-        {myChoice === null ? (
+        {!scoreSubmittedRef.current ? (
           <div className="space-y-3">
+            {/* 내 탭 카운트 */}
             <div className="text-center">
               <p className="text-6xl font-bold text-yellow-400">{tapCount}</p>
-              <p className="text-gray-400 text-sm">탭 횟수</p>
+              <p className="text-gray-400 text-sm">내 탭 수</p>
             </div>
+
+            {/* 동시 탭 알림 */}
+            {simultaneousTaps.length > 0 && (
+              <div className="bg-purple-500/20 border border-purple-500/40 rounded-xl px-4 py-2 text-center animate-bounce">
+                <p className="text-purple-300 text-sm font-bold">
+                  ⚡ {simultaneousTaps.join(', ')}와(과) 동시 클릭!
+                </p>
+              </div>
+            )}
+
+            {/* TAP 버튼 */}
             <button
-              onPointerDown={() => {
+              onPointerDown={async () => {
                 soundManager.play('tap-hit');
-                setTapCount((prev) => prev + 1);
+                const newCount = tapCount + 1;
+                setTapCount(newCount);
                 setTapping(true);
+                // 실시간으로 내 탭 정보를 RTDB에 기록
+                await set(ref(realtimeDb, `games/${roomId}/taps/round${current.round}/${uid}`), {
+                  count: newCount,
+                  lastTapAt: Date.now(),
+                  displayName,
+                });
               }}
               onPointerUp={() => setTapping(false)}
               className={`w-full py-16 rounded-2xl text-3xl font-bold transition-all active:scale-95 ${
@@ -984,6 +1054,31 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
             >
               👆 TAP!
             </button>
+
+            {/* 실시간 다른 플레이어 탭 현황 */}
+            {otherPlayers.length > 0 && (
+              <div className="bg-gray-800/40 rounded-xl p-3">
+                <p className="text-gray-500 text-xs mb-2 font-bold">🔥 실시간 탭 현황</p>
+                <div className="space-y-1">
+                  {otherPlayers.map((p) => {
+                    const diff = Math.abs(Date.now() - p.lastTapAt);
+                    const isSimul = diff < 200;
+                    return (
+                      <div key={p.uid} className={`flex items-center justify-between text-xs px-2 py-1 rounded ${
+                        isSimul ? 'bg-purple-500/20 ring-1 ring-purple-500/50' : ''
+                      }`}>
+                        <span className="text-white">
+                          {isSimul && '⚡ '}{p.name}
+                        </span>
+                        <span className="text-yellow-400 font-bold">{p.count}회</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 제출 버튼 */}
             <button
               onClick={async () => {
                 await submitScore(tapCount);
