@@ -7,16 +7,16 @@ import type { PrizeRoom, DeliveryType } from '@/types/seller';
 
 const VALID_DELIVERY_TYPES: DeliveryType[] = ['SELF_DELIVERY', 'CONSIGNMENT', 'SPONSORED'];
 const VALID_GAME_TYPES = [
-  'luckyDice',
-  'stockRace',
-  'highLow',
-  'coinBet',
-  'horseRace',
-  'floorRoulette',
-  'goldRush',
-  'bombDefuse',
-  'tideWave',
-  'treasureHunt',
+  'drawGuess',
+  'lineRunner',
+  'liarVote',
+  'typingBattle',
+  'bombPass',
+  'priceGuess',
+  'oxSurvival',
+  'tapSurvival',
+  'nunchiGame',
+  'quickTouch',
 ];
 
 export async function POST(req: NextRequest) {

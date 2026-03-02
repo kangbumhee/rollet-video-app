@@ -25,16 +25,16 @@ import { realtimeDb } from '@/lib/firebase/config';
 import Image from 'next/image';
 
 const REGULAR_GAMES = [
-  { id: 'luckyDice', name: '운명의 주사위', emoji: '🎲' },
-  { id: 'stockRace', name: '주식 레이스', emoji: '📈' },
-  { id: 'highLow', name: '하이 & 로우', emoji: '🃏' },
-  { id: 'coinBet', name: '코인 베팅', emoji: '🪙' },
-  { id: 'horseRace', name: '경마 레이스', emoji: '🏇' },
-  { id: 'floorRoulette', name: '바닥 룰렛', emoji: '🟥' },
-  { id: 'goldRush', name: '골드 러시', emoji: '⛏️' },
-  { id: 'bombDefuse', name: '폭탄 해제', emoji: '💣' },
-  { id: 'tideWave', name: '파도 서바이벌', emoji: '🌊' },
-  { id: 'treasureHunt', name: '보물찾기', emoji: '🗺️' },
+  { id: 'drawGuess', name: '그림 맞추기', emoji: '🎨' },
+  { id: 'lineRunner', name: '라인 러너', emoji: '✏️' },
+  { id: 'liarVote', name: '라이어 투표', emoji: '🕵️' },
+  { id: 'typingBattle', name: '타이핑 배틀', emoji: '⌨️' },
+  { id: 'bombPass', name: '폭탄 돌리기', emoji: '💣' },
+  { id: 'priceGuess', name: '가격 맞추기', emoji: '💰' },
+  { id: 'oxSurvival', name: 'OX 서바이벌', emoji: '⭕' },
+  { id: 'tapSurvival', name: '탭 서바이벌', emoji: '👆' },
+  { id: 'nunchiGame', name: '눈치 게임', emoji: '👀' },
+  { id: 'quickTouch', name: '순발력 터치', emoji: '🎯' },
 ];
 
 export default function RoomPage() {

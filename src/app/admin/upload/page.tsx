@@ -15,16 +15,16 @@ import { ArrowLeft, Upload, Loader2, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const GAME_OPTIONS = [
-  { type: "luckyDice", icon: "🎲", title: "운명의 주사위" },
-  { type: "stockRace", icon: "📈", title: "주식 레이스" },
-  { type: "highLow", icon: "🃏", title: "하이 & 로우" },
-  { type: "coinBet", icon: "🪙", title: "코인 베팅" },
-  { type: "horseRace", icon: "🏇", title: "경마 레이스" },
-  { type: "floorRoulette", icon: "🟥", title: "바닥 룰렛" },
-  { type: "goldRush", icon: "⛏️", title: "골드 러시" },
-  { type: "bombDefuse", icon: "💣", title: "폭탄 해제" },
-  { type: "tideWave", icon: "🌊", title: "파도 서바이벌" },
-  { type: "treasureHunt", icon: "🗺️", title: "보물찾기" },
+  { type: 'drawGuess', icon: '🎨', title: '그림 맞추기' },
+  { type: 'lineRunner', icon: '✏️', title: '라인 러너' },
+  { type: 'liarVote', icon: '🕵️', title: '라이어 투표' },
+  { type: 'typingBattle', icon: '⌨️', title: '타이핑 배틀' },
+  { type: 'bombPass', icon: '💣', title: '폭탄 돌리기' },
+  { type: 'priceGuess', icon: '💰', title: '가격 맞추기' },
+  { type: 'oxSurvival', icon: '⭕', title: 'OX 서바이벌' },
+  { type: 'tapSurvival', icon: '👆', title: '탭 서바이벌' },
+  { type: 'nunchiGame', icon: '👀', title: '눈치 게임' },
+  { type: 'quickTouch', icon: '🎯', title: '순발력 터치' },
 ];
 
 type Step = "upload" | "processing" | "done";

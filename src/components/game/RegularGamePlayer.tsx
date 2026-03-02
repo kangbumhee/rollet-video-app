@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
-import { ref, onValue, set, get } from 'firebase/database';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { ref, onValue, set, get, push } from 'firebase/database';
 import { realtimeDb } from '@/lib/firebase/config';
+import DrawingCanvas from '@/components/game/canvas/DrawingCanvas';
+import LineRunnerGame from '@/components/game/canvas/LineRunnerGame';
 
 interface GameCurrent {
   gameType: string;
@@ -13,19 +15,9 @@ interface GameCurrent {
   totalPlayers: number;
   scores: Record<string, number>;
   nameMap: Record<string, string>;
+  alive: Record<string, boolean>;
   startedAt: number;
-  startedBy: string;
-  roundsReady?: boolean;
-}
-
-interface RoundData {
-  round: number;
-  mult: number;
-  type: string;
-  choices: string[] | string;
-  choiceLabels: string[];
-  timeLimit: number;
-  [key: string]: unknown;
+  config?: Record<string, unknown>;
 }
 
 interface RegularGamePlayerProps {
@@ -36,154 +28,93 @@ interface RegularGamePlayerProps {
 
 export default function RegularGamePlayer({ roomId, uid, displayName }: RegularGamePlayerProps) {
   const [current, setCurrent] = useState<GameCurrent | null>(null);
-  const [roundData, setRoundData] = useState<RoundData | null>(null);
+  const [roundData, setRoundData] = useState<Record<string, unknown> | null>(null);
   const [myChoice, setMyChoice] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(0);
-  const [roundResult, setRoundResult] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
-  const [rankings, setRankings] = useState<{ uid: string; name: string; score: number }[]>([]);
+  const [roundResult, setRoundResult] = useState('');
+  const [rankings, setRankings] = useState<Array<{ uid: string; name: string; score: number }>>([]);
+
+  const [strokes, setStrokes] = useState<Array<{ points: Array<{ x: number; y: number }>; color: string; width: number }>>([]);
+  const [guessInput, setGuessInput] = useState('');
+  const [typingInput, setTypingInput] = useState('');
+  const [typingStartTime, setTypingStartTime] = useState(0);
+  const [typingDone, setTypingDone] = useState(false);
+  const [tapCount, setTapCount] = useState(0);
+  const [tapping, setTapping] = useState(false);
+  const [nunchiClaimed, setNunchiClaimed] = useState<Record<string, number>>({});
+  const [myNunchiNumber, setMyNunchiNumber] = useState<number | null>(null);
+  const [priceInput, setPriceInput] = useState('');
+  const [bombAnswer, setBombAnswer] = useState('');
+  const [currentBombHolder, setCurrentBombHolder] = useState('');
+  const [bombQuizIdx, setBombQuizIdx] = useState(0);
+  const [lineDistance, setLineDistance] = useState(0);
+  const [oxRevealed, setOxRevealed] = useState(false);
+  const [touchScore, setTouchScore] = useState(0);
+  const [activeTarget, setActiveTarget] = useState<{ x: number; y: number; id: number } | null>(null);
+  const [votes, setVotes] = useState<Record<string, string>>({});
+  const [liarPhase, setLiarPhase] = useState<'discuss' | 'vote' | 'reveal'>('discuss');
+
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const currentRef = ref(realtimeDb, `games/${roomId}/current`);
-    const unsub = onValue(currentRef, (snap) => {
+    const unsub = onValue(ref(realtimeDb, `games/${roomId}/current`), (snap) => {
       if (snap.exists()) setCurrent(snap.val() as GameCurrent);
       else setCurrent(null);
     });
     return () => unsub();
   }, [roomId]);
 
-  const calculatePoints = useCallback((rd: RoundData, choice: string): number => {
-    const mult = rd.mult || 1;
-    switch (rd.type) {
-      case 'luckyDice': {
-        const sum = (rd.sum as number) || 0;
-        if (choice === 'safe') return Math.floor(sum / 2) * mult;
-        const hasSeven = rd.hasSeven as boolean;
-        return hasSeven ? 0 : sum * mult;
-      }
-      case 'stockRace': {
-        const changes = (rd.changes as number[]) || [0, 0, 0];
-        const idx = parseInt(choice, 10);
-        return (changes[idx] || 0) * mult;
-      }
-      case 'highLow': {
-        const actual = rd.actual as string;
-        return choice === actual ? 20 * mult : -10 * mult;
-      }
-      case 'coinBet': {
-        const bet = choice === 'allin' ? 100 : parseInt(choice, 10);
-        return Math.random() < 0.5 ? bet * mult : -bet * mult;
-      }
-      case 'horseRace': {
-        const result = (rd.result as number[]) || [];
-        const myHorse = parseInt(choice, 10);
-        const rank = result.indexOf(myHorse);
-        const pts = [50, 30, 10, -10, -20];
-        return (pts[rank] || 0) * mult;
-      }
-      case 'floorRoulette': {
-        const winZone = rd.winZone as number;
-        return parseInt(choice, 10) === winZone ? 40 * mult : -15 * mult;
-      }
-      case 'goldRush': {
-        const golds = (rd.golds as number[]) || [0, 0, 0];
-        const idx = parseInt(choice, 10);
-        return (golds[idx] || 0) * mult;
-      }
-      case 'bombDefuse': {
-        const bombWire = rd.bombWire as number;
-        return parseInt(choice, 10) !== bombWire ? 30 * mult : -30 * mult;
-      }
-      case 'tideWave': {
-        const seaLevel = rd.seaLevel as number;
-        const guess = parseInt(choice, 10) || 50;
-        const diff = Math.abs(guess - seaLevel);
-        if (diff <= 5) return 50 * mult;
-        if (diff <= 15) return 20 * mult;
-        if (diff <= 30) return 0;
-        return -15 * mult;
-      }
-      case 'treasureHunt': {
-        const grid = (rd.grid as number[]) || [];
-        const idx = parseInt(choice, 10);
-        return (grid[idx] || 0) * mult;
-      }
-      default:
-        return 0;
-    }
-  }, []);
-
-  const submitChoice = useCallback(async (choice: string) => {
-    if (myChoice !== null) return;
-    setMyChoice(choice);
-
-    await set(ref(realtimeDb, `games/${roomId}/playerChoices/round${current?.round}/${uid}`), {
-      choice,
-      timestamp: Date.now(),
-      displayName,
-    });
-
-    if (roundData) {
-      const points = calculatePoints(roundData, choice);
-      setRoundResult(points > 0 ? `+${points}점!` : points === 0 ? '0점' : `${points}점`);
-
-      const scoreRef = ref(realtimeDb, `games/${roomId}/current/scores/${uid}`);
-      const scoreSnap = await get(scoreRef);
-      const currentScore = scoreSnap.exists() ? (scoreSnap.val() as number) : 0;
-      await set(scoreRef, currentScore + points);
-
-      setShowResult(true);
-
-      setTimeout(async () => {
-        setShowResult(false);
-        setMyChoice(null);
-        setRoundResult(null);
-
-        if (current && current.round < current.totalRounds) {
-          const nextRound = current.round + 1;
-          const choicesSnap = await get(ref(realtimeDb, `games/${roomId}/playerChoices/round${current.round}`));
-          const choiceCount = choicesSnap.exists() ? Object.keys(choicesSnap.val() as object).length : 0;
-          if (choiceCount >= current.totalPlayers) {
-            await set(ref(realtimeDb, `games/${roomId}/current/round`), nextRound);
-          }
-        } else if (current && current.round >= current.totalRounds) {
-          await set(ref(realtimeDb, `games/${roomId}/current/phase`), 'final_result');
-        }
-      }, 3000);
-    }
-  }, [myChoice, roomId, current, uid, displayName, roundData, calculatePoints]);
-
-  const handleAutoChoice = useCallback(async () => {
-    if (!roundData || myChoice !== null) return;
-    const choices = Array.isArray(roundData.choices) ? roundData.choices : ['50'];
-    const randomChoice = choices[Math.floor(Math.random() * choices.length)];
-    await submitChoice(randomChoice);
-  }, [roundData, myChoice, submitChoice]);
-
   useEffect(() => {
-    if (!current || current.phase === 'game_intro' || current.phase === 'final_result') return;
-    const roundRef = ref(realtimeDb, `games/${roomId}/rounds/round${current.round}`);
-    const unsub = onValue(roundRef, (snap) => {
-      if (snap.exists()) setRoundData(snap.val() as RoundData);
+    if (!current || current.round < 1) return;
+    const unsub = onValue(ref(realtimeDb, `games/${roomId}/rounds/round${current.round}`), (snap) => {
+      if (snap.exists()) {
+        const data = snap.val() as Record<string, unknown>;
+        setRoundData(data);
+        setMyChoice(null);
+        setShowResult(false);
+        setRoundResult('');
+        setTypingInput('');
+        setTypingDone(false);
+        setTypingStartTime(Date.now());
+        setTapCount(0);
+        setTapping(false);
+        setMyNunchiNumber(null);
+        setNunchiClaimed({});
+        setPriceInput('');
+        setBombAnswer('');
+        setBombQuizIdx(0);
+        setLineDistance(0);
+        setOxRevealed(false);
+        setTouchScore(0);
+        setActiveTarget(null);
+        setLiarPhase('discuss');
+        setVotes({});
+        setStrokes([]);
+        setGuessInput('');
+
+        const tl = (data.timeLimit as number) || (data.duration as number) || (data.discussionTime as number) || 15;
+        setTimeLeft(tl);
+      }
     });
     return () => unsub();
-  }, [roomId, current]);
+  }, [roomId, current?.round, current]);
 
   useEffect(() => {
-    if (!roundData || myChoice !== null || !current || current.phase !== 'round_waiting') return;
-    setTimeLeft(roundData.timeLimit);
-    const interval = setInterval(() => {
+    if (!roundData || timeLeft <= 0) return;
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          clearInterval(interval);
-          void handleAutoChoice();
+          if (timerRef.current) clearInterval(timerRef.current);
+          void handleTimeUp();
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
-    return () => clearInterval(interval);
-  }, [roundData, myChoice, current, handleAutoChoice]);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [roundData, current?.round]);
 
   useEffect(() => {
     if (!current?.scores || !current?.nameMap) return;
@@ -193,6 +124,158 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     setRankings(sorted);
   }, [current?.scores, current?.nameMap]);
 
+  useEffect(() => {
+    if (!current || current.gameType !== 'drawGuess' || current.round < 1) return;
+    const unsub = onValue(ref(realtimeDb, `games/${roomId}/drawing/round${current.round}`), (snap) => {
+      if (snap.exists()) {
+        const data = snap.val() as Record<string, unknown>;
+        if (data.strokes) {
+          setStrokes(Object.values(data.strokes as Record<string, unknown>) as typeof strokes);
+        }
+      }
+    });
+    return () => unsub();
+  }, [roomId, current?.gameType, current?.round, current]);
+
+  useEffect(() => {
+    if (!current || current.gameType !== 'nunchiGame' || current.round < 1) return;
+    const unsub = onValue(ref(realtimeDb, `games/${roomId}/nunchi/round${current.round}`), (snap) => {
+      if (snap.exists()) setNunchiClaimed(snap.val() as Record<string, number>);
+      else setNunchiClaimed({});
+    });
+    return () => unsub();
+  }, [roomId, current?.gameType, current?.round, current]);
+
+  useEffect(() => {
+    if (!current || current.gameType !== 'bombPass' || current.round < 1) return;
+    const unsub = onValue(ref(realtimeDb, `games/${roomId}/bomb/round${current.round}/holder`), (snap) => {
+      if (snap.exists()) setCurrentBombHolder(snap.val() as string);
+      else if (roundData) setCurrentBombHolder((roundData.initialBombHolder as string) || '');
+    });
+    return () => unsub();
+  }, [roomId, current?.gameType, current?.round, roundData, current]);
+
+  useEffect(() => {
+    if (!current || current.gameType !== 'quickTouch' || !roundData || current.round < 1) return;
+    const targets = (roundData.targets || []) as Array<{ x: number; y: number; delay: number; size: number }>;
+    const timers: NodeJS.Timeout[] = [];
+    targets.forEach((t, i) => {
+      const timer = setTimeout(() => {
+        setActiveTarget({ x: t.x, y: t.y, id: i });
+        setTimeout(() => setActiveTarget((prev) => (prev?.id === i ? null : prev)), 1000);
+      }, t.delay);
+      timers.push(timer);
+    });
+    return () => timers.forEach(clearTimeout);
+  }, [current?.gameType, current?.round, roundData, current]);
+
+  useEffect(() => {
+    if (!current || current.gameType !== 'liarVote' || current.round < 1) return;
+    const unsub = onValue(ref(realtimeDb, `games/${roomId}/votes/round${current.round}`), (snap) => {
+      if (snap.exists()) setVotes(snap.val() as Record<string, string>);
+    });
+    return () => unsub();
+  }, [roomId, current?.gameType, current?.round, current]);
+
+  const submitScore = async (points: number) => {
+    if (myChoice !== null) return;
+    setMyChoice('done');
+    const scoreRef = ref(realtimeDb, `games/${roomId}/current/scores/${uid}`);
+    const snap = await get(scoreRef);
+    const cur = snap.exists() ? (snap.val() as number) : 0;
+    await set(scoreRef, cur + points);
+    setRoundResult(points > 0 ? `+${points}점!` : points === 0 ? '0점' : `${points}점`);
+    setShowResult(true);
+
+    await set(ref(realtimeDb, `games/${roomId}/playerChoices/round${current?.round}/${uid}`), {
+      score: points, displayName, timestamp: Date.now(),
+    });
+  };
+
+  const submitChoice = async (choice: string) => {
+    if (myChoice !== null) return;
+    setMyChoice(choice);
+    await set(ref(realtimeDb, `games/${roomId}/playerChoices/round${current?.round}/${uid}`), {
+      choice, displayName, timestamp: Date.now(),
+    });
+  };
+
+  const revealLiarResult = async () => {
+    if (!current || !roundData) return;
+    const liarId = roundData.liarId as string;
+    const voteCounts: Record<string, number> = {};
+    Object.values(votes).forEach((targetId) => {
+      voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
+    });
+    const topVoted = Object.entries(voteCounts).sort((a, b) => b[1] - a[1])[0];
+    const caught = topVoted && topVoted[0] === liarId;
+
+    if (caught) {
+      const aliveIds = Object.keys(current.alive).filter((id) => current.alive[id] && id !== liarId);
+      for (const id of aliveIds) {
+        const sRef = ref(realtimeDb, `games/${roomId}/current/scores/${id}`);
+        const s = await get(sRef);
+        await set(sRef, ((s.val() as number) || 0) + 20);
+      }
+      setRoundResult('라이어 적발 성공! +20점');
+    } else {
+      const sRef = ref(realtimeDb, `games/${roomId}/current/scores/${liarId}`);
+      const s = await get(sRef);
+      await set(sRef, ((s.val() as number) || 0) + 30);
+      setRoundResult(uid === liarId ? '속이기 성공! +30점' : '라이어를 놓침!');
+    }
+    setShowResult(true);
+  };
+
+  const advanceRound = useCallback(async () => {
+    if (!current) return;
+    setTimeout(async () => {
+      if (current.round >= current.totalRounds) {
+        await set(ref(realtimeDb, `games/${roomId}/current/phase`), 'final_result');
+      } else {
+        await set(ref(realtimeDb, `games/${roomId}/current/round`), current.round + 1);
+      }
+    }, 3000);
+  }, [current, roomId]);
+
+  const handleTimeUp = useCallback(async () => {
+    if (!current || !roundData) return;
+    const gt = current.gameType;
+
+    if (gt === 'tapSurvival' && !myChoice) {
+      await submitScore(tapCount);
+    } else if (gt === 'quickTouch' && !myChoice) {
+      await submitScore(touchScore);
+    } else if (gt === 'typingBattle' && !typingDone) {
+      await submitScore(0);
+    } else if (gt === 'oxSurvival' && !myChoice) {
+      await submitChoice('timeout');
+    } else if (gt === 'priceGuess' && !myChoice) {
+      await submitChoice('0');
+    } else if (gt === 'lineRunner' && !myChoice) {
+      await submitScore(lineDistance);
+    } else if (gt === 'liarVote' && liarPhase === 'discuss') {
+      setLiarPhase('vote');
+      setTimeLeft((roundData.voteTime as number) || 15);
+    } else if (gt === 'liarVote' && liarPhase === 'vote') {
+      setLiarPhase('reveal');
+      await revealLiarResult();
+    } else if (gt === 'nunchiGame' && !myChoice) {
+      await submitChoice('timeout');
+    } else if (gt === 'bombPass') {
+      if (currentBombHolder === uid) {
+        await submitScore(-50);
+      }
+    } else if (gt === 'drawGuess' && !myChoice) {
+      await submitScore(0);
+    }
+
+    void advanceRound();
+  }, [
+    current, roundData, tapCount, touchScore, typingDone, myChoice, liarPhase,
+    lineDistance, currentBombHolder, uid, advanceRound
+  ]);
+
   if (!current) return null;
 
   if (current.phase === 'game_intro') {
@@ -201,9 +284,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
         <div className="text-6xl animate-bounce">🎮</div>
         <h2 className="text-2xl font-bold text-white">{current.gameName}</h2>
         <p className="text-gray-400">{current.totalPlayers}명 참가 · {current.totalRounds}라운드</p>
-        <div className="flex items-center gap-2 text-yellow-400 text-sm">
-          <span className="animate-pulse">잠시 후 시작됩니다...</span>
-        </div>
+        <span className="text-yellow-400 text-sm animate-pulse">잠시 후 시작...</span>
       </div>
     );
   }
@@ -212,21 +293,14 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     return (
       <div className="flex flex-col items-center p-4 space-y-4 overflow-y-auto">
         <div className="text-5xl mb-2">🏆</div>
-        <h2 className="text-xl font-bold text-yellow-400">{current.gameName} 결과</h2>
+        <h2 className="text-xl font-bold text-yellow-400">{current.gameName} 최종 결과</h2>
         <div className="w-full max-w-sm space-y-2">
           {rankings.map((r, i) => (
-            <div
-              key={r.uid}
-              className={`flex items-center justify-between px-4 py-2 rounded-xl ${
-                i === 0
-                  ? 'bg-yellow-500/20 border border-yellow-500/50'
-                  : i === 1
-                    ? 'bg-gray-500/20 border border-gray-500/30'
-                    : i === 2
-                      ? 'bg-orange-500/20 border border-orange-500/30'
-                      : 'bg-gray-800/50'
-              } ${r.uid === uid ? 'ring-2 ring-purple-500' : ''}`}
-            >
+            <div key={r.uid} className={`flex items-center justify-between px-4 py-2 rounded-xl ${
+              i === 0 ? 'bg-yellow-500/20 border border-yellow-500/50' :
+              i === 1 ? 'bg-gray-500/20 border border-gray-500/30' :
+              i === 2 ? 'bg-orange-500/20 border border-orange-500/30' : 'bg-gray-800/50'
+            } ${r.uid === uid ? 'ring-2 ring-purple-500' : ''}`}>
               <div className="flex items-center gap-3">
                 <span className="text-lg font-bold w-8 text-center">
                   {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`}
@@ -243,164 +317,575 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     );
   }
 
-  return (
-    <div className="flex flex-col p-4 space-y-4 overflow-y-auto">
-      <div className="flex items-center justify-between">
-        <div>
-          <span className="text-purple-400 text-sm font-bold">{current.gameName}</span>
-          <h3 className="text-white font-bold text-lg">
-            Round {current.round}/{current.totalRounds}
-            {roundData?.mult === 2 && <span className="text-red-400 ml-2 text-sm">x2 BONUS!</span>}
-          </h3>
-        </div>
-        <div className="flex items-center gap-2">
-          {timeLeft > 0 && myChoice === null && (
-            <span className={`text-lg font-bold ${timeLeft <= 3 ? 'text-red-400 animate-pulse' : 'text-yellow-400'}`}>
-              ⏱ {timeLeft}초
-            </span>
-          )}
-        </div>
-      </div>
+  if (!roundData) return <div className="text-gray-500 text-center p-8">라운드 로딩 중...</div>;
 
-      <div className="bg-gray-800/50 rounded-xl px-4 py-2 flex items-center justify-between">
-        <span className="text-gray-400 text-sm">내 점수</span>
-        <span className="text-yellow-400 font-bold text-lg">{current.scores?.[uid] || 0}점</span>
+  const renderHeader = () => (
+    <div className="flex items-center justify-between mb-3">
+      <div>
+        <span className="text-purple-400 text-xs font-bold">{current.gameName}</span>
+        <h3 className="text-white font-bold text-base">Round {current.round}/{current.totalRounds}</h3>
       </div>
-
-      {roundData && (
-        <div className="bg-gray-800/30 rounded-xl p-4 text-center">
-          {roundData.type === 'luckyDice' && (
-            <div>
-              <p className="text-gray-400 text-sm mb-2">주사위 결과</p>
-              <div className="flex justify-center gap-3 text-4xl mb-2">
-                {(roundData.dice as number[])?.map((d, i) => (
-                  <span key={i}>{'⚀⚁⚂⚃⚄⚅'[d - 1]}</span>
-                ))}
-              </div>
-              <p className="text-white font-bold text-xl">합계: {roundData.sum as number}</p>
-              {(roundData.hasSeven as boolean) && <p className="text-red-400 text-sm mt-1">⚠️ 7 또는 14!</p>}
-            </div>
-          )}
-          {roundData.type === 'highLow' && (
-            <div>
-              <p className="text-gray-400 text-sm mb-2">현재 카드</p>
-              <p className="text-5xl font-bold text-white mb-1">{roundData.currentCardName as string}</p>
-              <p className="text-gray-500 text-xs">다음 카드가 높을까? 낮을까?</p>
-            </div>
-          )}
-          {roundData.type === 'horseRace' && <p className="text-gray-400 text-sm">어떤 말에 베팅하시겠습니까?</p>}
-          {roundData.type === 'stockRace' && <p className="text-gray-400 text-sm">어떤 종목에 투자하시겠습니까?</p>}
-          {roundData.type === 'coinBet' && (
-            <div>
-              <p className="text-4xl mb-2">🪙</p>
-              <p className="text-gray-400 text-sm">베팅 금액을 선택하세요</p>
-            </div>
-          )}
-          {roundData.type === 'floorRoulette' && <p className="text-gray-400 text-sm">안전한 색을 고르세요!</p>}
-          {roundData.type === 'goldRush' && <p className="text-gray-400 text-sm">어떤 광산에서 채굴할까요?</p>}
-          {roundData.type === 'bombDefuse' && (
-            <div>
-              <p className="text-4xl mb-2">💣</p>
-              <p className="text-gray-400 text-sm">어떤 선을 끊으시겠습니까?</p>
-            </div>
-          )}
-          {roundData.type === 'tideWave' && (
-            <div>
-              <p className="text-4xl mb-2">🌊</p>
-              <p className="text-gray-400 text-sm">파도 높이를 예측하세요 (0~100)</p>
-            </div>
-          )}
-          {roundData.type === 'treasureHunt' && (
-            <div>
-              <p className="text-4xl mb-2">🗺️</p>
-              <p className="text-gray-400 text-sm">5x5 격자에서 보물을 찾으세요!</p>
-            </div>
-          )}
-        </div>
+      {timeLeft > 0 && myChoice === null && (
+        <span className={`text-lg font-bold ${timeLeft <= 3 ? 'text-red-400 animate-pulse' : 'text-yellow-400'}`}>
+          ⏱ {timeLeft}초
+        </span>
       )}
+    </div>
+  );
 
-      {roundData && myChoice === null && !showResult && (
-        <div className="space-y-2">
-          {roundData.choices === 'number' ? (
+  const renderScoreBar = () => (
+    <div className="bg-gray-800/50 rounded-xl px-4 py-2 flex items-center justify-between mb-3">
+      <span className="text-gray-400 text-sm">내 점수</span>
+      <span className="text-yellow-400 font-bold text-lg">{current.scores?.[uid] || 0}점</span>
+    </div>
+  );
+
+  const renderResult = () => showResult ? (
+    <div className="flex flex-col items-center py-4 animate-fade-in">
+      <div className={`text-2xl font-bold ${
+        roundResult.startsWith('+') ? 'text-green-400' : roundResult.startsWith('-') ? 'text-red-400' : 'text-gray-400'
+      }`}>{roundResult}</div>
+      <p className="text-gray-500 text-sm mt-1">다음 라운드 준비 중...</p>
+    </div>
+  ) : null;
+
+  const renderMiniRanking = () => (
+    <div className="bg-gray-800/30 rounded-xl p-3 mt-3">
+      <p className="text-gray-500 text-xs mb-2 font-bold">📊 실시간 순위</p>
+      <div className="space-y-1">
+        {rankings.slice(0, 5).map((r, i) => (
+          <div key={r.uid} className={`flex items-center justify-between text-xs px-2 py-1 rounded ${r.uid === uid ? 'bg-purple-500/20' : ''}`}>
+            <span className="text-gray-400">{i + 1}. <span className={r.uid === uid ? 'text-purple-300 font-bold' : 'text-white'}>{r.name}</span></span>
+            <span className="text-yellow-400 font-bold">{r.score}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const gt = current.gameType;
+
+  if (gt === 'drawGuess') {
+    const isDrawer = (roundData.drawerId as string) === uid;
+    const word = roundData.word as string;
+
+    return (
+      <div className="flex flex-col p-3 overflow-y-auto">
+        {renderHeader()}
+        {renderScoreBar()}
+
+        {isDrawer ? (
+          <div className="space-y-2">
+            <div className="bg-green-500/20 border border-green-500/30 rounded-xl px-4 py-2 text-center">
+              <p className="text-green-400 text-sm font-bold">당신이 출제자!</p>
+              <p className="text-white text-xl font-bold mt-1">제시어: {word}</p>
+            </div>
+            <DrawingCanvas
+              strokes={strokes}
+              onStroke={async (stroke) => {
+                const strokeRef = ref(realtimeDb, `games/${roomId}/drawing/round${current.round}/strokes`);
+                await push(strokeRef, stroke);
+              }}
+              onClear={async () => {
+                await set(ref(realtimeDb, `games/${roomId}/drawing/round${current.round}/strokes`), null);
+              }}
+              showToolbar={true}
+            />
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="bg-blue-500/20 border border-blue-500/30 rounded-xl px-4 py-2 text-center">
+              <p className="text-blue-400 text-sm font-bold">그림을 보고 맞추세요!</p>
+              <p className="text-gray-500 text-xs">카테고리: {roundData.category as string}</p>
+            </div>
+            <DrawingCanvas strokes={strokes} disabled={true} showToolbar={false} />
+            {myChoice === null && (
+              <div className="flex gap-2">
+                <input
+                  value={guessInput}
+                  onChange={(e) => setGuessInput(e.target.value)}
+                  placeholder="정답 입력..."
+                  className="flex-1 bg-gray-800 text-white rounded-xl px-4 py-3 border border-gray-700 focus:border-purple-500 outline-none"
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter' && guessInput.trim()) {
+                      if (guessInput.trim() === word) {
+                        await submitScore(30);
+                        void advanceRound();
+                      } else {
+                        setGuessInput('');
+                      }
+                    }
+                  }}
+                />
+                <button
+                  onClick={async () => {
+                    if (guessInput.trim() === word) {
+                      await submitScore(30);
+                      void advanceRound();
+                    } else {
+                      setGuessInput('');
+                    }
+                  }}
+                  className="px-5 py-3 bg-purple-600 text-white rounded-xl font-bold"
+                >확인</button>
+              </div>
+            )}
+          </div>
+        )}
+        {renderResult()}
+        {renderMiniRanking()}
+      </div>
+    );
+  }
+
+  if (gt === 'lineRunner') {
+    return (
+      <div className="flex flex-col p-3 overflow-y-auto">
+        {renderHeader()}
+        {renderScoreBar()}
+        {myChoice === null ? (
+          <LineRunnerGame
+            obstacles={(roundData.obstacles || []) as Array<{ x: number; y: number; w: number; h: number }>}
+            speedMultiplier={(roundData.speedMultiplier as number) || 1}
+            timeLimit={(roundData.timeLimit as number) || 30}
+            onResult={async (dist) => {
+              setLineDistance(dist);
+              await submitScore(Math.floor(dist / 10));
+              void advanceRound();
+            }}
+          />
+        ) : (
+          renderResult()
+        )}
+        {renderMiniRanking()}
+      </div>
+    );
+  }
+
+  if (gt === 'liarVote') {
+    const isLiar = (roundData.liarId as string) === uid;
+    const myWord = isLiar ? (roundData.fakeWord as string) : (roundData.realWord as string);
+    const alivePlayers = Object.entries(current.nameMap).filter(([id]) => current.alive[id]);
+
+    return (
+      <div className="flex flex-col p-3 overflow-y-auto">
+        {renderHeader()}
+        {renderScoreBar()}
+
+        <div className={`rounded-xl px-4 py-3 text-center mb-3 ${isLiar ? 'bg-red-500/20 border border-red-500/30' : 'bg-blue-500/20 border border-blue-500/30'}`}>
+          <p className="text-xs text-gray-400">카테고리: {roundData.category as string}</p>
+          <p className="text-white text-xl font-bold mt-1">{myWord}</p>
+          {isLiar && <p className="text-red-400 text-xs mt-1">당신이 라이어입니다! 들키지 마세요</p>}
+        </div>
+
+        {liarPhase === 'discuss' && (
+          <div className="bg-gray-800/30 rounded-xl p-4 text-center">
+            <p className="text-yellow-400 font-bold">💬 토론 시간</p>
+            <p className="text-gray-400 text-sm mt-1">채팅으로 서로의 제시어를 물어보세요!</p>
+          </div>
+        )}
+
+        {liarPhase === 'vote' && (
+          <div className="space-y-2">
+            <p className="text-red-400 font-bold text-center">🗳️ 투표! 라이어를 지목하세요</p>
+            <div className="grid grid-cols-2 gap-2">
+              {alivePlayers.filter(([id]) => id !== uid).map(([id, name]) => (
+                <button
+                  key={id}
+                  onClick={async () => {
+                    await set(ref(realtimeDb, `games/${roomId}/votes/round${current.round}/${uid}`), id);
+                    setMyChoice(id);
+                  }}
+                  disabled={myChoice !== null}
+                  className="px-3 py-3 bg-gray-800 hover:bg-red-600/30 border border-gray-700 hover:border-red-500 rounded-xl text-white text-sm font-bold transition disabled:opacity-40"
+                >
+                  🕵️ {name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {liarPhase === 'reveal' && (
+          <div className="bg-gray-800/30 rounded-xl p-4 text-center space-y-2">
+            <p className="text-2xl">🕵️</p>
+            <p className="text-white font-bold">라이어: {roundData.liarName as string}</p>
+            <p className="text-gray-400 text-sm">정답: {roundData.realWord as string}</p>
+          </div>
+        )}
+
+        {renderResult()}
+        {renderMiniRanking()}
+      </div>
+    );
+  }
+
+  if (gt === 'typingBattle') {
+    const sentence = (roundData.sentence as string) || '';
+
+    return (
+      <div className="flex flex-col p-3 overflow-y-auto">
+        {renderHeader()}
+        {renderScoreBar()}
+        <div className="bg-gray-800/50 rounded-xl p-4 mb-3">
+          <p className="text-gray-400 text-xs mb-2">이 문장을 정확하게 타이핑하세요:</p>
+          <p className="text-white text-lg font-bold leading-relaxed">{sentence}</p>
+        </div>
+        {!typingDone && myChoice === null ? (
+          <div className="space-y-2">
+            <input
+              value={typingInput}
+              onChange={(e) => setTypingInput(e.target.value)}
+              placeholder="여기에 타이핑..."
+              autoFocus
+              className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-gray-700 focus:border-yellow-500 outline-none text-lg"
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter' && typingInput.trim()) {
+                  const elapsed = (Date.now() - typingStartTime) / 1000;
+                  const accuracy = calculateAccuracy(sentence, typingInput.trim());
+                  const wpm = Math.floor((typingInput.trim().length / elapsed) * 60 / 5);
+                  const points = Math.floor(accuracy * wpm / 10);
+                  setTypingDone(true);
+                  await submitScore(points);
+                  void advanceRound();
+                }
+              }}
+            />
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>정확도: {calculateAccuracy(sentence, typingInput)}%</span>
+              <span>{typingInput.length}/{sentence.length}자</span>
+            </div>
+          </div>
+        ) : (
+          renderResult()
+        )}
+        {renderMiniRanking()}
+      </div>
+    );
+  }
+
+  if (gt === 'bombPass') {
+    const quizzes = (roundData.quizzes || []) as Array<{ q: string; a: string; acceptable: string[] }>;
+    const currentQuiz = quizzes[bombQuizIdx] || { q: '?', a: '?', acceptable: ['?'] };
+    const isBombHolder = currentBombHolder === uid;
+
+    return (
+      <div className="flex flex-col p-3 overflow-y-auto">
+        {renderHeader()}
+        {renderScoreBar()}
+        <div className={`rounded-xl p-4 text-center mb-3 ${isBombHolder ? 'bg-red-500/20 border border-red-500/30 animate-pulse' : 'bg-gray-800/30'}`}>
+          <p className="text-4xl mb-2">{isBombHolder ? '💣🔥' : '😮‍💨'}</p>
+          <p className="text-white font-bold">{isBombHolder ? '폭탄이 당신에게!' : `폭탄: ${current.nameMap[currentBombHolder] || '?'}`}</p>
+        </div>
+        {isBombHolder && myChoice === null && (
+          <div className="space-y-2">
+            <p className="text-yellow-400 font-bold text-center text-lg">{currentQuiz.q}</p>
             <div className="flex gap-2">
               <input
-                type="number"
-                min={0}
-                max={100}
-                placeholder="0~100"
-                className="flex-1 bg-gray-800 text-white rounded-xl px-4 py-3 text-center text-lg border border-gray-700 focus:border-purple-500 outline-none"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const val = (e.target as HTMLInputElement).value;
-                    if (val) void submitChoice(val);
+                value={bombAnswer}
+                onChange={(e) => setBombAnswer(e.target.value)}
+                placeholder="정답 입력..."
+                autoFocus
+                className="flex-1 bg-gray-800 text-white rounded-xl px-4 py-3 border border-gray-700 outline-none"
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter' && bombAnswer.trim()) {
+                    const isCorrect = currentQuiz.acceptable.some(
+                      (ans) => bombAnswer.trim().toLowerCase().includes(ans.toLowerCase())
+                    );
+                    if (isCorrect) {
+                      const others = Object.keys(current.alive).filter((id) => current.alive[id] && id !== uid);
+                      const nextHolder = others[Math.floor(Math.random() * others.length)];
+                      await set(ref(realtimeDb, `games/${roomId}/bomb/round${current.round}/holder`), nextHolder);
+                      setBombAnswer('');
+                      setBombQuizIdx((prev) => prev + 1);
+                      await submitScore(10);
+                    } else {
+                      setBombAnswer('');
+                    }
                   }
                 }}
               />
               <button
-                onClick={() => {
-                  const input = document.querySelector('input[type="number"]') as HTMLInputElement;
-                  if (input?.value) void submitChoice(input.value);
+                onClick={async () => {
+                  const isCorrect = currentQuiz.acceptable.some(
+                    (ans) => bombAnswer.trim().toLowerCase().includes(ans.toLowerCase())
+                  );
+                  if (isCorrect) {
+                    const others = Object.keys(current.alive).filter((id) => current.alive[id] && id !== uid);
+                    const nextHolder = others[Math.floor(Math.random() * others.length)];
+                    await set(ref(realtimeDb, `games/${roomId}/bomb/round${current.round}/holder`), nextHolder);
+                    setBombAnswer('');
+                    setBombQuizIdx((prev) => prev + 1);
+                    await submitScore(10);
+                  }
                 }}
-                className="px-6 py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-500"
-              >
-                확인
-              </button>
+                className="px-5 py-3 bg-red-600 text-white rounded-xl font-bold"
+              >전송</button>
             </div>
-          ) : roundData.choices === 'grid25' ? (
-            <div className="grid grid-cols-5 gap-1.5">
-              {Array.from({ length: 25 }).map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => void submitChoice(String(i))}
-                  className="aspect-square bg-gray-700 hover:bg-purple-600 rounded-lg text-white text-xs font-bold transition-colors border border-gray-600 hover:border-purple-400"
-                >
-                  {i + 1}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className={`grid ${(roundData.choiceLabels?.length || 0) <= 3 ? 'grid-cols-2' : 'grid-cols-3'} gap-2`}>
-              {(roundData.choices as string[])?.map((choice, i) => (
-                <button
-                  key={choice}
-                  onClick={() => void submitChoice(choice)}
-                  className="px-4 py-4 bg-gray-800 hover:bg-purple-600/50 border border-gray-700 hover:border-purple-500 rounded-xl text-white font-bold text-sm transition-all active:scale-95"
-                >
-                  {roundData.choiceLabels?.[i] || choice}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {showResult && (
-        <div className="flex flex-col items-center py-6 animate-fade-in">
-          <div className={`text-3xl font-bold ${
-            roundResult?.startsWith('+') ? 'text-green-400' : roundResult?.startsWith('-') ? 'text-red-400' : 'text-gray-400'
-          }`}>
-            {roundResult}
           </div>
-          <p className="text-gray-500 text-sm mt-2">다음 라운드 준비 중...</p>
-        </div>
-      )}
+        )}
+        {renderResult()}
+        {renderMiniRanking()}
+      </div>
+    );
+  }
 
-      <div className="bg-gray-800/30 rounded-xl p-3">
-        <p className="text-gray-500 text-xs mb-2 font-bold">📊 실시간 순위</p>
-        <div className="space-y-1">
-          {rankings.slice(0, 5).map((r, i) => (
-            <div key={r.uid} className={`flex items-center justify-between text-xs px-2 py-1 rounded ${r.uid === uid ? 'bg-purple-500/20' : ''}`}>
-              <span className="text-gray-400">
-                {i + 1}. <span className={r.uid === uid ? 'text-purple-300 font-bold' : 'text-white'}>{r.name}</span>
-              </span>
-              <span className="text-yellow-400 font-bold">{r.score}</span>
+  if (gt === 'priceGuess') {
+    return (
+      <div className="flex flex-col p-3 overflow-y-auto">
+        {renderHeader()}
+        {renderScoreBar()}
+        <div className="bg-gray-800/30 rounded-xl p-4 text-center mb-3">
+          <p className="text-4xl mb-2">{roundData.hint as string}</p>
+          <p className="text-white text-xl font-bold">{roundData.itemName as string}</p>
+          <p className="text-gray-500 text-xs mt-1">{roundData.category as string}</p>
+        </div>
+        {myChoice === null ? (
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={priceInput}
+              onChange={(e) => setPriceInput(e.target.value)}
+              placeholder="가격 입력 (원)"
+              className="flex-1 bg-gray-800 text-white rounded-xl px-4 py-3 border border-gray-700 outline-none text-center text-lg"
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter' && priceInput) {
+                  const guess = parseInt(priceInput, 10);
+                  const actual = roundData.actualPrice as number;
+                  const diff = Math.abs(guess - actual);
+                  const accuracy = Math.max(0, 100 - Math.floor((diff / actual) * 100));
+                  const points = Math.floor(accuracy / 2);
+                  await submitChoice(priceInput);
+                  await submitScore(points);
+                  setRoundResult(`정답: ${actual.toLocaleString()}원 | 정확도 ${accuracy}% -> +${points}점`);
+                  setShowResult(true);
+                  void advanceRound();
+                }
+              }}
+            />
+            <button
+              onClick={async () => {
+                if (!priceInput) return;
+                const guess = parseInt(priceInput, 10);
+                const actual = roundData.actualPrice as number;
+                const diff = Math.abs(guess - actual);
+                const accuracy = Math.max(0, 100 - Math.floor((diff / actual) * 100));
+                const points = Math.floor(accuracy / 2);
+                await submitChoice(priceInput);
+                await submitScore(points);
+                setRoundResult(`정답: ${actual.toLocaleString()}원 | 정확도 ${accuracy}% -> +${points}점`);
+                setShowResult(true);
+                void advanceRound();
+              }}
+              className="px-5 py-3 bg-yellow-600 text-white rounded-xl font-bold"
+            >확인</button>
+          </div>
+        ) : (
+          renderResult()
+        )}
+        {renderMiniRanking()}
+      </div>
+    );
+  }
+
+  if (gt === 'oxSurvival') {
+    return (
+      <div className="flex flex-col p-3 overflow-y-auto">
+        {renderHeader()}
+        {renderScoreBar()}
+        <div className="bg-gray-800/30 rounded-xl p-4 text-center mb-3">
+          <p className="text-white text-lg font-bold">{roundData.question as string}</p>
+        </div>
+        {myChoice === null ? (
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={async () => {
+                const correct = (roundData.answer as boolean) === true;
+                await submitChoice('O');
+                await submitScore(correct ? 20 : -10);
+                setOxRevealed(true);
+                setRoundResult(correct ? '⭕ 정답! +20점' : '❌ 오답! -10점');
+                setShowResult(true);
+                void advanceRound();
+              }}
+              className="py-8 bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/50 rounded-2xl text-5xl font-bold text-blue-400 transition active:scale-95"
+            >⭕</button>
+            <button
+              onClick={async () => {
+                const correct = (roundData.answer as boolean) === false;
+                await submitChoice('X');
+                await submitScore(correct ? 20 : -10);
+                setOxRevealed(true);
+                setRoundResult(correct ? '⭕ 정답! +20점' : '❌ 오답! -10점');
+                setShowResult(true);
+                void advanceRound();
+              }}
+              className="py-8 bg-red-600/30 hover:bg-red-600/50 border border-red-500/50 rounded-2xl text-5xl font-bold text-red-400 transition active:scale-95"
+            >❌</button>
+          </div>
+        ) : (
+          <div className="text-center space-y-2">
+            {renderResult()}
+            {oxRevealed && (
+              <p className="text-gray-400 text-sm">{roundData.explanation as string}</p>
+            )}
+          </div>
+        )}
+        {renderMiniRanking()}
+      </div>
+    );
+  }
+
+  if (gt === 'tapSurvival') {
+    return (
+      <div className="flex flex-col p-3 overflow-y-auto">
+        {renderHeader()}
+        {renderScoreBar()}
+        {myChoice === null ? (
+          <div className="space-y-3">
+            <div className="text-center">
+              <p className="text-6xl font-bold text-yellow-400">{tapCount}</p>
+              <p className="text-gray-400 text-sm">탭 횟수</p>
             </div>
-          ))}
-          {rankings.length > 5 && (
-            <p className="text-gray-600 text-[10px] text-center">+{rankings.length - 5}명 더</p>
+            <button
+              onPointerDown={() => {
+                setTapCount((prev) => prev + 1);
+                setTapping(true);
+              }}
+              onPointerUp={() => setTapping(false)}
+              className={`w-full py-16 rounded-2xl text-3xl font-bold transition-all active:scale-95 ${
+                tapping ? 'bg-yellow-500 text-black scale-95' : 'bg-yellow-600/30 text-yellow-400 border-2 border-yellow-500/50'
+              }`}
+            >
+              👆 TAP!
+            </button>
+            <button
+              onClick={async () => {
+                await submitScore(tapCount);
+                void advanceRound();
+              }}
+              className="w-full py-3 bg-green-600 text-white rounded-xl font-bold"
+            >제출 ({tapCount}회)</button>
+          </div>
+        ) : (
+          renderResult()
+        )}
+        {renderMiniRanking()}
+      </div>
+    );
+  }
+
+  if (gt === 'nunchiGame') {
+    const maxNum = (roundData.maxNumber as number) || 10;
+    const claimedNumbers = Object.values(nunchiClaimed).filter((n) => n <= maxNum);
+    const nextNumber = claimedNumbers.length > 0 ? Math.max(...claimedNumbers) + 1 : 1;
+    const duplicates = claimedNumbers.filter((n, i, arr) => arr.indexOf(n) !== i);
+    const iEliminated = myNunchiNumber !== null && duplicates.includes(myNunchiNumber);
+
+    return (
+      <div className="flex flex-col p-3 overflow-y-auto">
+        {renderHeader()}
+        {renderScoreBar()}
+        <div className="bg-gray-800/30 rounded-xl p-4 text-center mb-3">
+          <p className="text-gray-400 text-sm">다음 숫자를 클릭하세요</p>
+          <p className="text-6xl font-bold text-white my-3">{nextNumber}</p>
+          <p className="text-yellow-400 text-xs">동시에 누르면 둘 다 탈락!</p>
+        </div>
+        {myNunchiNumber === null && myChoice === null ? (
+          <button
+            onClick={async () => {
+              const myNum = nextNumber;
+              setMyNunchiNumber(myNum);
+              await set(ref(realtimeDb, `games/${roomId}/nunchi/round${current.round}/${uid}`), myNum);
+              setTimeout(async () => {
+                const snap = await get(ref(realtimeDb, `games/${roomId}/nunchi/round${current.round}`));
+                const all = snap.exists() ? (snap.val() as Record<string, number>) : {};
+                const vals = Object.values(all);
+                const isDup = vals.filter((v) => v === myNum).length > 1;
+                if (isDup) {
+                  await submitScore(-20);
+                  setRoundResult('💥 동시 클릭! -20점');
+                } else {
+                  await submitScore(myNum * 5);
+                  setRoundResult(`${myNum}번 성공! +${myNum * 5}점`);
+                }
+                setShowResult(true);
+                void advanceRound();
+              }, 2000);
+            }}
+            className="w-full py-10 bg-green-600/30 hover:bg-green-600/50 border-2 border-green-500/50 rounded-2xl text-2xl font-bold text-green-400 transition active:scale-90"
+          >
+            👀 {nextNumber} 클릭!
+          </button>
+        ) : (
+          <div className="text-center">
+            <p className="text-white text-lg">{myNunchiNumber}번 선택함</p>
+            {iEliminated && <p className="text-red-400 font-bold mt-2">💥 동시 클릭 — 탈락!</p>}
+            {renderResult()}
+          </div>
+        )}
+        {renderMiniRanking()}
+      </div>
+    );
+  }
+
+  if (gt === 'quickTouch') {
+    return (
+      <div className="flex flex-col p-3 overflow-y-auto">
+        {renderHeader()}
+        {renderScoreBar()}
+        <div className="relative bg-gray-800/30 rounded-xl mb-3" style={{ height: 350 }}>
+          <div className="text-center pt-2">
+            <span className="text-yellow-400 font-bold text-2xl">{touchScore}</span>
+            <span className="text-gray-500 text-sm ml-2">점</span>
+          </div>
+          {activeTarget && (
+            <button
+              onClick={() => {
+                setTouchScore((prev) => prev + 10);
+                setActiveTarget(null);
+              }}
+              className="absolute bg-red-500 rounded-full shadow-lg shadow-red-500/50 transition-transform active:scale-75"
+              style={{
+                left: `${activeTarget.x}%`,
+                top: `${activeTarget.y}%`,
+                width: 44,
+                height: 44,
+                transform: 'translate(-50%, -50%)',
+              }}
+            >
+              <span className="text-white text-lg">🎯</span>
+            </button>
           )}
         </div>
+        {timeLeft <= 0 && myChoice === null && (
+          <button
+            onClick={async () => {
+              await submitScore(touchScore);
+              void advanceRound();
+            }}
+            className="w-full py-3 bg-purple-600 text-white rounded-xl font-bold"
+          >결과 제출 ({touchScore}점)</button>
+        )}
+        {renderResult()}
+        {renderMiniRanking()}
       </div>
+    );
+  }
+
+  return (
+    <div className="p-4 text-center text-gray-500">
+      <p>게임 로딩 중...</p>
     </div>
   );
+}
+
+function calculateAccuracy(original: string, typed: string): number {
+  if (!typed) return 0;
+  let correct = 0;
+  const len = Math.min(original.length, typed.length);
+  for (let i = 0; i < len; i++) {
+    if (original[i] === typed[i]) correct++;
+  }
+  return Math.floor((correct / original.length) * 100);
 }
