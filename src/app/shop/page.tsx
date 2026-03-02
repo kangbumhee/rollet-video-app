@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ShoppingBag } from "lucide-react";
 
-export default function SellerCreatePage() {
+export default function ShopPage() {
   const router = useRouter();
 
   return (
@@ -12,24 +12,18 @@ export default function SellerCreatePage() {
         <button onClick={() => router.push("/")} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-800">
           <ArrowLeft size={18} className="text-gray-400" />
         </button>
-        <h1 className="font-bold">셀러 경품방 만들기</h1>
+        <h1 className="font-bold">상점</h1>
       </header>
 
       <div className="max-w-md mx-auto p-6 text-center">
         <div className="py-20">
-          <span className="text-6xl mb-4 block">🏪</span>
-          <h2 className="text-xl font-bold mb-2">준비 중입니다</h2>
+          <ShoppingBag size={64} className="mx-auto text-gray-600 mb-4" />
+          <h2 className="text-xl font-bold mb-2">상점 준비 중</h2>
           <p className="text-gray-400 text-sm">
-            셀러 경품방 등록 기능은 곧 오픈됩니다.
+            포인트로 추가 티켓, 부스트 아이템 등을
             <br />
-            입점 문의: prizelive@example.com
+            구매할 수 있는 상점이 곧 오픈됩니다.
           </p>
-          <button
-            onClick={() => router.push("/")}
-            className="mt-8 px-6 py-3 bg-gray-800 rounded-xl text-sm hover:bg-gray-700 transition-colors"
-          >
-            메인으로 돌아가기
-          </button>
         </div>
       </div>
     </div>
