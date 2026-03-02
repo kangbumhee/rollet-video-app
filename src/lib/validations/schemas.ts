@@ -65,6 +65,7 @@ export const CreatePrizeSchema = z.object({
   imageURL: z.string().url("유효한 이미지 URL"),
   title: z.string().max(50).optional(),
   gameType: z.enum(["rps", "roulette", "numberGuess", "oxQuiz", "speedClick"]).default("rps"),
+  totalQuantity: z.number().int().min(1).max(999).default(1),
 });
 
 // ── API 에러 응답 표준 ──

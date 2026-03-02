@@ -39,6 +39,8 @@ export async function GET(req: NextRequest) {
         gameType: data.gameType || 'rps',
         deliveryType: data.deliveryType || 'SELF_DELIVERY',
         status: data.status,
+        totalQuantity: data.totalQuantity || 1,
+        remainingQuantity: data.remainingQuantity ?? data.totalQuantity ?? 1,
         scheduledAt: data.scheduledAt || null,
         createdAt: data.createdAt,
       };

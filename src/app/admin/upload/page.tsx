@@ -37,6 +37,7 @@ export default function AdminUploadPage() {
   const [preview, setPreview] = useState("");
   const [title, setTitle] = useState("");
   const [gameType, setGameType] = useState("rps");
+  const [totalQuantity, setTotalQuantity] = useState(1);
   const [result, setResult] = useState<PrizeCreateResponse | null>(null);
   const [error, setError] = useState("");
 
@@ -65,6 +66,7 @@ export default function AdminUploadPage() {
           imageURL,
           title: title || undefined,
           gameType,
+          totalQuantity,
         },
       });
 
@@ -150,6 +152,24 @@ export default function AdminUploadPage() {
               ))}
             </div>
 
+            {/* 수량 입력 */}
+            <div className="mt-4">
+              <p className="text-xs text-gray-400 mb-2">경품 수량</p>
+              <input
+                type="number"
+                min={1}
+                max={999}
+                value={totalQuantity}
+                onChange={(e) => setTotalQuantity(Math.max(1, Number(e.target.value) || 1))}
+                className="w-full p-3 bg-gray-800 border border-gray-700 rounded-xl text-white
+                           focus:outline-none focus:border-yellow-500/50"
+                placeholder="수량 입력 (기본 1개)"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                같은 경품을 여러 슬롯에 배정할 수 있는 횟수입니다
+              </p>
+            </div>
+
             {/* 에러 */}
             {error && (
               <p
@@ -209,6 +229,7 @@ export default function AdminUploadPage() {
                   setFile(null);
                   setPreview("");
                   setTitle("");
+                  setTotalQuantity(1);
                   setResult(null);
                 }}
                 className="flex-1 py-3 bg-gray-800 rounded-xl text-sm"

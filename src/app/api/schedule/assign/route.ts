@@ -33,27 +33,17 @@ export async function POST(req: NextRequest) {
       prizeTitle?: string;
       prizeImageURL?: string;
       gameType?: string;
+      totalQuantity?: number;
+      remainingQuantity?: number;
     };
     if (!['APPROVED', 'SCHEDULED'].includes(room.status)) {
       return NextResponse.json({ success: false, error: `배정 불가 상태 (${room.status})` }, { status: 400 });
     }
 
-    const existingAssignment = await adminFirestore
-      .collection('scheduleSlots')
-      .where('roomId', '==', roomId)
-      .where('status', 'in', ['ASSIGNED', 'LIVE'])
-      .limit(1)
-      .get();
-
-    if (!existingAssignment.empty) {
-      const existingSlot = existingAssignment.docs[0].data() as { date?: string; time?: string };
-      return NextResponse.json(
-        {
-          success: false,
-          error: `이 경품은 이미 ${existingSlot.date} ${existingSlot.time}에 배정되어 있습니다.`,
-        },
-        { status: 400 }
-      );
+    // 남은 수량 체크
+    const remaining = room.remainingQuantity ?? room.totalQuantity ?? 1;
+    if (remaining <= 0) {
+      return NextResponse.json({ success: false, error: '해당 경품의 남은 수량이 없습니다' }, { status: 400 });
     }
 
     const { date, time } = parseSlotId(slotId);
@@ -80,7 +70,8 @@ export async function POST(req: NextRequest) {
     );
 
     await adminFirestore.doc(`rooms/${roomId}`).update({
-      status: 'SCHEDULED',
+      remainingQuantity: remaining - 1,
+      status: remaining - 1 > 0 ? 'APPROVED' : 'SCHEDULED',
       scheduledSlot: `${date}T${time}`,
       scheduledAt,
       updatedAt: Date.now(),
@@ -142,6 +133,18 @@ export async function DELETE(req: NextRequest) {
         scheduledAt: null,
         updatedAt: Date.now(),
       });
+
+      // 남은 수량 1 복구
+      const roomDoc = await adminFirestore.doc(`rooms/${roomId}`).get();
+      if (roomDoc.exists) {
+        const roomData = roomDoc.data() as { remainingQuantity?: number; totalQuantity?: number };
+        const currentRemaining = roomData.remainingQuantity ?? 0;
+        const total = roomData.totalQuantity ?? 1;
+        await adminFirestore.doc(`rooms/${roomId}`).update({
+          remainingQuantity: Math.min(currentRemaining + 1, total),
+          status: 'APPROVED',
+        });
+      }
     }
 
     return NextResponse.json({ success: true });

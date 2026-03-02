@@ -14,6 +14,8 @@ interface RoomItem {
   gameType: string;
   deliveryType: string;
   status: string;
+  totalQuantity?: number;
+  remainingQuantity?: number;
 }
 
 interface SlotPrizeAssignerProps {
@@ -128,9 +130,11 @@ export function SlotPrizeAssigner({ slot, onAssign, onUnassign, onClose }: SlotP
                   <button
                     key={room.id}
                     onClick={() => onAssign(room.id)}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-700/30 
-                               hover:bg-gray-700/60 transition-colors text-left
-                               border border-transparent hover:border-yellow-500/30"
+                    disabled={(room.remainingQuantity ?? 1) <= 0}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl text-left border transition-colors
+                      ${(room.remainingQuantity ?? 1) <= 0
+                        ? 'bg-gray-700/20 border-gray-700 opacity-40 cursor-not-allowed'
+                        : 'bg-gray-700/30 hover:bg-gray-700/60 border-transparent hover:border-yellow-500/30'}`}
                   >
                     {room.prizeImageURL ? (
                       <img src={room.prizeImageURL} alt="" className="w-12 h-12 rounded-lg object-cover" />
@@ -150,7 +154,13 @@ export function SlotPrizeAssigner({ slot, onAssign, onUnassign, onClose }: SlotP
                         {room.estimatedValue > 0 ? ` · ${room.estimatedValue.toLocaleString()}원` : ''}
                       </p>
                     </div>
-                    <span className="text-xs text-yellow-400 font-medium shrink-0">배정 →</span>
+                    <span
+                      className={`px-2 py-1 rounded text-xs font-bold shrink-0 ${
+                        (room.remainingQuantity ?? 1) > 0 ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                      }`}
+                    >
+                      {(room.remainingQuantity ?? room.totalQuantity ?? 1)}/{room.totalQuantity ?? 1}개
+                    </span>
                   </button>
                 ))}
               </div>

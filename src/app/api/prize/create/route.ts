@@ -34,7 +34,8 @@ export async function POST(req: NextRequest) {
     throw e;
   }
 
-  const { imageURL, title, gameType } = validated;
+  const { imageURL, title, gameType, totalQuantity } = validated;
+  const quantity = Math.max(1, Math.floor(Number(totalQuantity || 1)));
 
   // AI 설명 생성
   let prizeTitle = title || "";
@@ -72,6 +73,8 @@ export async function POST(req: NextRequest) {
     deliveryType: "SELF_DELIVERY",
     gameType,
     status: "APPROVED",
+    totalQuantity: quantity,
+    remainingQuantity: quantity,
     entryMethod: "AD",
     scheduledAt: nextSlot.getTime(),
     participants: 0,
