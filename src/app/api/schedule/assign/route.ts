@@ -22,13 +22,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'slotId와 roomId가 필요합니다.' }, { status: 400 });
     }
 
-    const roomDoc = await adminFirestore.doc(`prizeRooms/${roomId}`).get();
+    const roomDoc = await adminFirestore.doc(`rooms/${roomId}`).get();
     if (!roomDoc.exists) {
       return NextResponse.json({ success: false, error: '방을 찾을 수 없습니다.' }, { status: 404 });
     }
 
     const room = roomDoc.data() as {
       status: string;
+      prize?: {
+        title?: string;
+        imageURL?: string;
+      };
       prizeTitle?: string;
       prizeImageURL?: string;
       gameType?: string;
@@ -65,8 +69,8 @@ export async function POST(req: NextRequest) {
         time,
         enabled: true,
         roomId,
-        prizeTitle: room.prizeTitle || '',
-        prizeImageURL: room.prizeImageURL || '',
+        prizeTitle: room.prize?.title || room.prizeTitle || '',
+        prizeImageURL: room.prize?.imageURL || room.prizeImageURL || '',
         gameType: room.gameType || 'rps',
         status: 'ASSIGNED',
         scheduledAt,
@@ -75,7 +79,7 @@ export async function POST(req: NextRequest) {
       { merge: true }
     );
 
-    await adminFirestore.doc(`prizeRooms/${roomId}`).update({
+    await adminFirestore.doc(`rooms/${roomId}`).update({
       status: 'SCHEDULED',
       scheduledSlot: `${date}T${time}`,
       scheduledAt,
@@ -84,8 +88,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      prizeTitle: room.prizeTitle || '',
-      prizeImageURL: room.prizeImageURL || '',
+      prizeTitle: room.prize?.title || room.prizeTitle || '',
+      prizeImageURL: room.prize?.imageURL || room.prizeImageURL || '',
       gameType: room.gameType || 'rps',
     });
   } catch (error) {
@@ -132,7 +136,7 @@ export async function DELETE(req: NextRequest) {
     });
 
     if (roomId) {
-      await adminFirestore.doc(`prizeRooms/${roomId}`).update({
+      await adminFirestore.doc(`rooms/${roomId}`).update({
         status: 'APPROVED',
         scheduledSlot: null,
         scheduledAt: null,
