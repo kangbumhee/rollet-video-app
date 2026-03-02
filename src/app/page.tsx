@@ -34,6 +34,7 @@ export default function HomePage() {
   const { user, profile } = useAuthStore();
 
   const [rooms, setRooms] = useState<RoomData[]>([]);
+  const [mainRoomCount, setMainRoomCount] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [newMax, setNewMax] = useState(50);
@@ -78,6 +79,15 @@ export default function HomePage() {
     });
     return () => unsubs.forEach((u) => u());
   }, [roomIds, roomIdsKey]);
+
+  useEffect(() => {
+    const presRef = ref(realtimeDb, "rooms/main/presence");
+    const unsub = onValue(presRef, (snap) => {
+      const count = snap.exists() ? Object.keys(snap.val()).length : 0;
+      setMainRoomCount(count);
+    });
+    return () => unsub();
+  }, []);
 
   const handleCreate = async () => {
     if (!user || !isAdmin || !newName.trim()) return;
@@ -186,7 +196,12 @@ export default function HomePage() {
           >
             <div className="flex items-center justify-between mb-3">
               <LiveBadge />
-              <span className="text-xs text-gray-400">👥 접속 중</span>
+              <div className="flex items-center gap-1 bg-black/30 px-2 py-1 rounded-full">
+                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                <span className="text-green-400 text-xs font-bold">
+                  {mainRoomCount > 999 ? `${(mainRoomCount / 1000).toFixed(1)}K` : mainRoomCount}명
+                </span>
+              </div>
             </div>
             <p className="text-left text-lg font-bold text-white group-hover:text-yellow-300 transition-colors">
               🎮 메인 경품방 입장하기

@@ -21,11 +21,25 @@ import { Badge } from '@/components/ui/badge';
 import { SoundToggle } from '@/components/ui/SoundToggle';
 import Image from 'next/image';
 
+const REGULAR_GAMES = [
+  { id: 'luckyDice', name: '운명의 주사위', emoji: '🎲' },
+  { id: 'stockRace', name: '주식 레이스', emoji: '📈' },
+  { id: 'highLow', name: '하이 & 로우', emoji: '🃏' },
+  { id: 'coinBet', name: '코인 베팅', emoji: '🪙' },
+  { id: 'horseRace', name: '경마 레이스', emoji: '🏇' },
+  { id: 'floorRoulette', name: '바닥 룰렛', emoji: '🟥' },
+  { id: 'goldRush', name: '골드 러시', emoji: '⛏️' },
+  { id: 'bombDefuse', name: '폭탄 해제', emoji: '💣' },
+  { id: 'tideWave', name: '파도 서바이벌', emoji: '🌊' },
+  { id: 'treasureHunt', name: '보물찾기', emoji: '🗺️' },
+];
+
 export default function RoomPage() {
   useWakeLock();
   const params = useParams();
   const router = useRouter();
   const roomId = params.roomId as string;
+  const isMainRoom = roomId === 'main';
   const { user, profile, loading } = useAuthStore();
 
   const { onlineCount, onlineUsers } = usePresence(roomId, user?.uid || null);
@@ -44,7 +58,16 @@ export default function RoomPage() {
   const [hasTicket, setHasTicket] = useState(false);
   const [showUserList, setShowUserList] = useState(false);
   const [showFreePlay, setShowFreePlay] = useState(false);
+  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [showGameLauncher, setShowGameLauncher] = useState(false);
   const canSeeUserList = profile?.isAdmin || profile?.isModerator || false;
+  const canStartGame = profile?.isAdmin || profile?.isModerator || false;
+
+  const fmtCount = (n: number) => {
+    if (n >= 10000) return `${(n / 10000).toFixed(1)}만`;
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+    return String(n);
+  };
 
   const handleKick = useCallback(async (targetUid: string, targetDisplayName: string) => {
     if (!user) return;
@@ -90,24 +113,27 @@ export default function RoomPage() {
     );
   }
 
-  const renderMainContent = () => {
+  // --- 메인방 콘텐츠 (기존 사이클 기반) ---
+  const renderMainRoomContent = () => {
     if (!cycle || cycle.currentPhase === 'IDLE' || cycle.currentPhase === 'COOLDOWN') {
       return (
-        <div className="flex flex-col items-center justify-center p-4 w-full">
+        <div className="flex flex-col items-center p-4 w-full overflow-y-auto">
           <CycleStatus
             phase={cyclePhase}
             nextSlotTime={cycle?.nextSlot}
             prizeTitle={cycle?.currentPrizeTitle}
             prizeImageURL={cycle?.currentPrizeImage}
           />
-          <MiniGameLauncher />
+          <div className="w-full mt-2">
+            <MiniGameLauncher />
+          </div>
         </div>
       );
     }
 
     if (cycle.currentPhase === 'ANNOUNCING') {
       return (
-        <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-4">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-4 overflow-y-auto">
           <CycleStatus
             phase={cyclePhase}
             nextSlotTime={cycle?.nextSlot}
@@ -127,7 +153,7 @@ export default function RoomPage() {
 
     if (cycle.currentPhase === 'ENTRY_GATE' && !hasTicket) {
       return (
-        <div className="flex-1 flex flex-col p-4">
+        <div className="flex-1 flex flex-col p-4 overflow-y-auto">
           <CycleStatus
             phase={cyclePhase}
             nextSlotTime={cycle?.nextSlot}
@@ -153,7 +179,7 @@ export default function RoomPage() {
       (cycle.currentPhase === 'ENTRY_GATE' && hasTicket)
     ) {
       return (
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col overflow-y-auto">
           <div className="px-4 py-2">
             <CycleStatus
               phase={cyclePhase}
@@ -177,7 +203,7 @@ export default function RoomPage() {
 
     if (cycle.currentPhase === 'WINNER_ANNOUNCE') {
       return (
-        <main className="flex-[3] flex flex-col items-center justify-center overflow-hidden px-4">
+        <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto px-4 py-4">
           <div className="text-6xl mb-4">🏆</div>
           <h2 className="text-2xl font-bold text-yellow-400 mb-2">🎉 우승자 발표!</h2>
           <p className="text-gray-400 mb-6">
@@ -214,7 +240,6 @@ export default function RoomPage() {
               <div className="space-y-2 text-sm text-gray-400">
                 <p>📧 등록된 이메일로 수령 안내가 발송됩니다</p>
                 <p>📦 영업일 기준 3~5일 내 배송 예정</p>
-                <p>📞 문의: 마이페이지 → 당첨 내역</p>
               </div>
             </div>
           ) : (
@@ -223,15 +248,10 @@ export default function RoomPage() {
             </div>
           )}
 
-          <div className="flex flex-col items-center gap-3 mt-4">
-            <button
-              onClick={() => setShowFreePlay(true)}
-              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover:from-purple-500 hover:to-pink-500 transition-all shadow-lg animate-pulse"
-            >
-              🎮 다른 게임 더 하기!
-            </button>
-          </div>
-        </main>
+          <button onClick={() => setShowFreePlay(true)} className="mt-4 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover:from-purple-500 hover:to-pink-500 transition-all shadow-lg animate-pulse">
+            🎮 다른 게임 더 하기!
+          </button>
+        </div>
       );
     }
 
@@ -245,6 +265,51 @@ export default function RoomPage() {
     );
   };
 
+  // --- 커스텀방 콘텐츠 (정규게임 매니저 시작 + 미니게임) ---
+  const renderCustomRoomContent = () => {
+    return (
+      <div className="flex-1 flex flex-col overflow-y-auto p-4 gap-4">
+        {/* 매니저 전용: 정규게임 시작 패널 */}
+        {canStartGame && (
+          <div className="w-full">
+            <button
+              onClick={() => setShowGameLauncher(!showGameLauncher)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 rounded-xl"
+            >
+              <span className="text-white font-bold text-sm">🏆 정규게임 시작 (매니저 전용)</span>
+              <span className="text-gray-400 text-xs">{showGameLauncher ? '접기 ▲' : '펼치기 ▼'}</span>
+            </button>
+            {showGameLauncher && (
+              <div className="mt-2 grid grid-cols-5 gap-2">
+                {REGULAR_GAMES.map((game) => (
+                  <button
+                    key={game.id}
+                    onClick={() => alert(`[준비중] ${game.name} 게임 시작 기능은 서버 배포 후 활성화됩니다.\n\n현재 ${onlineCount}명 접속 중`)}
+                    className="flex flex-col items-center gap-1 p-2 bg-gray-800 rounded-xl border border-gray-700 hover:border-purple-500/50 hover:bg-gray-700 transition"
+                  >
+                    <span className="text-xl">{game.emoji}</span>
+                    <span className="text-[9px] text-white font-medium text-center leading-tight">{game.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 방 상태 */}
+        <div className="text-center py-6">
+          <div className="text-5xl mb-3">🎮</div>
+          <h2 className="text-xl font-bold text-white mb-1">자유 게임방</h2>
+          <p className="text-gray-400 text-sm">참여하고 싶은 미니게임을 선택하세요</p>
+          <p className="text-green-400 text-xs mt-2 font-bold">👥 {fmtCount(onlineCount)}명 접속 중</p>
+        </div>
+
+        {/* 미니게임 */}
+        <MiniGameLauncher />
+      </div>
+    );
+  };
+
   return (
     <div className="h-[100dvh] flex flex-col bg-gray-950 overflow-hidden">
       {/* 헤더 */}
@@ -255,24 +320,20 @@ export default function RoomPage() {
               ←
             </button>
             {isLive && <LiveBadge />}
-            <h1 className="text-white font-bold text-sm">PrizeLive</h1>
+            <h1 className="text-white font-bold text-sm">{isMainRoom ? 'PrizeLive' : '자유방'}</h1>
           </div>
           <div className="flex items-center gap-1.5">
             {canSeeUserList ? (
               <button onClick={() => setShowUserList(!showUserList)} className="relative">
                 <div className="flex items-center gap-1 bg-gray-800 px-2 py-1 rounded-full border border-gray-700 hover:border-yellow-500/50 transition-colors">
                   <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                  <span className="text-green-400 text-xs font-bold">
-                    {onlineCount > 999 ? `${(onlineCount / 1000).toFixed(1)}K` : onlineCount}명
-                  </span>
+                  <span className="text-green-400 text-xs font-bold">{fmtCount(onlineCount)}명</span>
                 </div>
               </button>
             ) : (
               <div className="flex items-center gap-1 bg-gray-800 px-2 py-1 rounded-full border border-gray-700">
                 <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                <span className="text-green-400 text-xs font-bold">
-                  {onlineCount > 999 ? `${(onlineCount / 1000).toFixed(1)}K` : onlineCount}명
-                </span>
+                <span className="text-green-400 text-xs font-bold">{fmtCount(onlineCount)}명</span>
               </div>
             )}
             <SoundToggle />
@@ -286,7 +347,7 @@ export default function RoomPage() {
       {showUserList && canSeeUserList && (
         <div className="absolute top-12 right-2 z-[100] w-64 max-h-80 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800">
-            <span className="text-xs font-bold text-white">접속자 목록 ({onlineCount}명)</span>
+            <span className="text-xs font-bold text-white">접속자 목록 ({fmtCount(onlineCount)}명)</span>
             <button onClick={() => setShowUserList(false)} className="text-gray-500 hover:text-white text-sm">
               ✕
             </button>
@@ -322,24 +383,38 @@ export default function RoomPage() {
       {/* PC: 가로 배치, 모바일: 세로 배치 */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
         {/* 메인 콘텐츠 */}
-        <main
-          className={
-            !cyclePhase || cyclePhase === 'IDLE' || cyclePhase === 'COOLDOWN'
-              ? 'flex-[3] lg:flex-1 flex items-center justify-center overflow-hidden min-h-0'
-              : 'flex-[3] lg:flex-1 overflow-y-auto min-h-0'
-          }
-        >
-          {renderMainContent()}
+        <main className={`${chatCollapsed ? 'flex-1' : 'flex-[3]'} lg:flex-1 min-h-0 overflow-y-auto`}>
+          {isMainRoom ? renderMainRoomContent() : renderCustomRoomContent()}
         </main>
 
-        {/* 채팅 */}
-        <aside className="flex-[2] lg:flex-none lg:w-80 min-h-0 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-800">
-          <ChatWindow
-            messages={messages}
-            onSendMessage={(msg) => void sendMessage(msg)}
-            currentUid={user?.uid || ''}
-            onKick={handleKick}
-          />
+        {/* 채팅 영역 — 접기/펼치기 가능 */}
+        <aside className={`${chatCollapsed ? '' : 'flex-[2]'} lg:flex-none lg:w-80 min-h-0 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-800 transition-all duration-300`}>
+          {/* 채팅 토글 바 */}
+          <button
+            onClick={() => setChatCollapsed(!chatCollapsed)}
+            className="shrink-0 flex items-center justify-center gap-2 px-3 py-1.5 bg-gray-800/80 border-b border-gray-700 hover:bg-gray-700 transition-colors"
+          >
+            <span className="text-gray-400 text-xs font-bold">
+              {chatCollapsed ? '💬 채팅 열기 ▲' : '💬 채팅 접기 ▼'}
+            </span>
+            {chatCollapsed && messages.length > 0 && (
+              <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold animate-pulse">
+                {messages.length > 99 ? '99+' : messages.length}
+              </span>
+            )}
+          </button>
+
+          {/* 채팅 본체 */}
+          {!chatCollapsed && (
+            <div className="flex-1 min-h-0">
+              <ChatWindow
+                messages={messages}
+                onSendMessage={(msg) => void sendMessage(msg)}
+                currentUid={user?.uid || ''}
+                onKick={handleKick}
+              />
+            </div>
+          )}
         </aside>
       </div>
 

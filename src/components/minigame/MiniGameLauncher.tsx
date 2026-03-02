@@ -253,7 +253,7 @@ export default function MiniGameLauncher() {
 
   if (selectedGame) {
     return (
-      <div className="flex flex-col gap-2 h-full">
+      <div className="flex flex-col gap-2 w-full">
         <div className="flex items-center justify-between sticky top-0 bg-gray-900 z-10 pb-2">
           <button
             onClick={handleBack}
@@ -267,7 +267,7 @@ export default function MiniGameLauncher() {
             </span>
           )}
         </div>
-        <div className="flex-1 overflow-y-auto">{renderGame()}</div>
+        <div className="overflow-y-auto pb-20">{renderGame()}</div>
       </div>
     );
   }
