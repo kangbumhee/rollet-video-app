@@ -497,6 +497,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
             <DrawingCanvas
               strokes={strokes}
               onStroke={async (stroke) => {
+                soundManager.play('draw-stroke');
                 const strokeRef = ref(realtimeDb, `games/${roomId}/drawing/round${current.round}/strokes`);
                 await push(strokeRef, stroke);
               }}
@@ -523,6 +524,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
                   onKeyDown={async (e) => {
                     if (e.key === 'Enter' && guessInput.trim()) {
                       if (guessInput.trim() === word) {
+                        soundManager.play('draw-correct');
                         await submitScore(30);
                         void advanceRound();
                       } else {
@@ -534,6 +536,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
                 <button
                   onClick={async () => {
                     if (guessInput.trim() === word) {
+                      soundManager.play('draw-correct');
                       await submitScore(30);
                       void advanceRound();
                     } else {
@@ -564,6 +567,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
             timeLimit={(roundData.timeLimit as number) || 30}
             onResult={async (dist) => {
               setLineDistance(dist);
+              soundManager.play('line-crash');
               await submitScore(Math.floor(dist / 10));
               void advanceRound();
             }}
@@ -607,6 +611,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
                 <button
                   key={id}
                   onClick={async () => {
+                    soundManager.play('vote-cast');
                     await set(ref(realtimeDb, `games/${roomId}/votes/round${current.round}/${uid}`), id);
                     setMyChoice(id);
                   }}
@@ -649,12 +654,16 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
           <div className="space-y-2">
             <input
               value={typingInput}
-              onChange={(e) => setTypingInput(e.target.value)}
+              onChange={(e) => {
+                setTypingInput(e.target.value);
+                soundManager.play('typing-key');
+              }}
               placeholder="여기에 타이핑..."
               autoFocus
               className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-gray-700 focus:border-yellow-500 outline-none text-lg"
               onKeyDown={async (e) => {
                 if (e.key === 'Enter' && typingInput.trim()) {
+                  soundManager.play('typing-complete');
                   const elapsed = (Date.now() - typingStartTime) / 1000;
                   const accuracy = calculateAccuracy(sentence, typingInput.trim());
                   const wpm = Math.floor((typingInput.trim().length / elapsed) * 60 / 5);
@@ -712,6 +721,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
                       await set(ref(realtimeDb, `games/${roomId}/bomb/round${current.round}/holder`), nextHolder);
                       setBombAnswer('');
                       setBombQuizIdx((prev) => prev + 1);
+                      soundManager.play('bomb-pass');
                       await submitScore(10);
                     } else {
                       setBombAnswer('');
@@ -730,6 +740,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
                     await set(ref(realtimeDb, `games/${roomId}/bomb/round${current.round}/holder`), nextHolder);
                     setBombAnswer('');
                     setBombQuizIdx((prev) => prev + 1);
+                    soundManager.play('bomb-pass');
                     await submitScore(10);
                   }
                 }}
@@ -764,11 +775,14 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
               className="flex-1 bg-gray-800 text-white rounded-xl px-4 py-3 border border-gray-700 outline-none text-center text-lg"
               onKeyDown={async (e) => {
                 if (e.key === 'Enter' && priceInput) {
+                  soundManager.play('cash-register');
                   const guess = parseInt(priceInput, 10);
                   const actual = roundData.actualPrice as number;
                   const diff = Math.abs(guess - actual);
                   const accuracy = Math.max(0, 100 - Math.floor((diff / actual) * 100));
                   const points = Math.floor(accuracy / 2);
+                  if (accuracy >= 50) soundManager.play('price-close');
+                  else soundManager.play('price-far');
                   await submitChoice(priceInput);
                   await submitScore(points);
                   setRoundResult(`정답: ${actual.toLocaleString()}원 | 정확도 ${accuracy}% -> +${points}점`);
@@ -780,11 +794,14 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
             <button
               onClick={async () => {
                 if (!priceInput) return;
+                soundManager.play('cash-register');
                 const guess = parseInt(priceInput, 10);
                 const actual = roundData.actualPrice as number;
                 const diff = Math.abs(guess - actual);
                 const accuracy = Math.max(0, 100 - Math.floor((diff / actual) * 100));
                 const points = Math.floor(accuracy / 2);
+                if (accuracy >= 50) soundManager.play('price-close');
+                else soundManager.play('price-far');
                 await submitChoice(priceInput);
                 await submitScore(points);
                 setRoundResult(`정답: ${actual.toLocaleString()}원 | 정확도 ${accuracy}% -> +${points}점`);
@@ -814,7 +831,9 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={async () => {
+                soundManager.play('ox-select');
                 const correct = (roundData.answer as boolean) === true;
+                soundManager.play(correct ? 'ox-survive' : 'ox-eliminate');
                 await submitChoice('O');
                 await submitScore(correct ? 20 : -10);
                 setOxRevealed(true);
@@ -826,7 +845,9 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
             >⭕</button>
             <button
               onClick={async () => {
+                soundManager.play('ox-select');
                 const correct = (roundData.answer as boolean) === false;
+                soundManager.play(correct ? 'ox-survive' : 'ox-eliminate');
                 await submitChoice('X');
                 await submitScore(correct ? 20 : -10);
                 setOxRevealed(true);
@@ -863,6 +884,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
             </div>
             <button
               onPointerDown={() => {
+                soundManager.play('tap-hit');
                 setTapCount((prev) => prev + 1);
                 setTapping(true);
               }}
@@ -909,6 +931,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
           <button
             onClick={async () => {
               const myNum = nextNumber;
+              soundManager.play('nunchi-claim');
               setMyNunchiNumber(myNum);
               await set(ref(realtimeDb, `games/${roomId}/nunchi/round${current.round}/${uid}`), myNum);
               setTimeout(async () => {
@@ -917,9 +940,11 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
                 const vals = Object.values(all);
                 const isDup = vals.filter((v) => v === myNum).length > 1;
                 if (isDup) {
+                  soundManager.play('nunchi-clash');
                   await submitScore(-20);
                   setRoundResult('💥 동시 클릭! -20점');
                 } else {
+                  soundManager.play('nunchi-safe');
                   await submitScore(myNum * 5);
                   setRoundResult(`${myNum}번 성공! +${myNum * 5}점`);
                 }
@@ -956,6 +981,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
           {activeTarget && (
             <button
               onClick={() => {
+                soundManager.play('target-hit');
                 setTouchScore((prev) => prev + 10);
                 setActiveTarget(null);
               }}
