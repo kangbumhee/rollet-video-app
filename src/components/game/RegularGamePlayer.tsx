@@ -51,6 +51,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
   const [myNunchiNumber, setMyNunchiNumber] = useState<number | null>(null);
   const [priceInput, setPriceInput] = useState('');
   const [bombAnswer, setBombAnswer] = useState('');
+  const [bombWrong, setBombWrong] = useState(false);
   const [currentBombHolder, setCurrentBombHolder] = useState('');
   const [bombQuizIdx, setBombQuizIdx] = useState(0);
   const [lineDistance, setLineDistance] = useState(0);
@@ -99,6 +100,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
         setNunchiClaimed({});
         setPriceInput('');
         setBombAnswer('');
+        setBombWrong(false);
         setBombQuizIdx(0);
         setLineDistance(0);
         setOxRevealed(false);
@@ -832,6 +834,9 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
         {isBombHolder && myChoice === null && (
           <div className="space-y-2">
             <p className="text-yellow-400 font-bold text-center text-lg">{currentQuiz.q}</p>
+            {bombWrong && (
+              <p className="text-red-400 text-sm font-bold animate-pulse">❌ 오답! 다시 시도하세요</p>
+            )}
             <div className="flex gap-2">
               <input
                 value={bombAnswer}
@@ -849,11 +854,14 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
                       const nextHolder = others[Math.floor(Math.random() * others.length)];
                       await set(ref(realtimeDb, `games/${roomId}/bomb/round${current.round}/holder`), nextHolder);
                       setBombAnswer('');
+                      setBombWrong(false);
                       setBombQuizIdx((prev) => prev + 1);
                       soundManager.play('bomb-pass');
                       await submitScore(10);
                     } else {
                       setBombAnswer('');
+                      setBombWrong(true);
+                      setTimeout(() => setBombWrong(false), 1200);
                     }
                   }
                 }}
@@ -868,9 +876,14 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
                     const nextHolder = others[Math.floor(Math.random() * others.length)];
                     await set(ref(realtimeDb, `games/${roomId}/bomb/round${current.round}/holder`), nextHolder);
                     setBombAnswer('');
+                    setBombWrong(false);
                     setBombQuizIdx((prev) => prev + 1);
                     soundManager.play('bomb-pass');
                     await submitScore(10);
+                  } else {
+                    setBombAnswer('');
+                    setBombWrong(true);
+                    setTimeout(() => setBombWrong(false), 1200);
                   }
                 }}
                 className="px-5 py-3 bg-red-600 text-white rounded-xl font-bold"
