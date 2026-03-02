@@ -171,11 +171,12 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function sendBotChat(rtdb: ReturnType<typeof getDatabase>, roomId: string, message: string): Promise<void> {
-  const chatRef = rtdb.ref(`rooms/${roomId}/chat`).push();
+  // 클라이언트가 /chat/{roomId}/messages 를 구독하므로 같은 경로에 작성
+  const chatRef = rtdb.ref(`chat/${roomId}/messages`).push();
   await chatRef.set({
     uid: 'BOT_HOST',
     displayName: '🎪 방장봇',
-    message,
+    text: message,        // 'message' → 'text'로 변경 (클라이언트 필드명 일치)
     level: 99,
     timestamp: Date.now(),
     type: 'bot',
