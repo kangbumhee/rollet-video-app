@@ -22,7 +22,7 @@ interface GameContainerProps {
 export interface GameComponentProps {
   roomId: string;
   uid: string | null;
-  sessionId: string;
+  sessionId?: string;
   currentRound: number;
   matchId?: string;
   opponentId?: string;
@@ -40,27 +40,12 @@ export interface GameComponentProps {
 
 // ─── 동적 게임 컴포넌트 매핑 ───
 // 새 게임 추가 시 여기에 dynamic import만 추가하면 됨
-const GAME_COMPONENTS: Record<GameType, React.ComponentType<GameComponentProps>> = {
-  rps: dynamic(() => import("./rps/RPSGame"), {
-    loading: () => <GameLoadingSpinner name="가위바위보" />,
-    ssr: false,
-  }),
-  roulette: dynamic(() => import("./roulette/RouletteGame"), {
-    loading: () => <GameLoadingSpinner name="룰렛" />,
-    ssr: false,
-  }),
-  oxQuiz: dynamic(() => import("./oxQuiz/OXQuizGame"), {
-    loading: () => <GameLoadingSpinner name="OX퀴즈" />,
-    ssr: false,
-  }),
-  numberGuess: dynamic(() => import("./numberGuess/NumberGuessGame"), {
-    loading: () => <GameLoadingSpinner name="숫자맞추기" />,
-    ssr: false,
-  }),
-  speedClick: dynamic(() => import("./speedClick/SpeedClickGame"), {
-    loading: () => <GameLoadingSpinner name="스피드클릭" />,
-    ssr: false,
-  }),
+const GAME_COMPONENTS: Record<string, ReturnType<typeof dynamic>> = {
+  rps: dynamic(() => import("./rps/RPSGame"), { loading: () => <GameLoadingSpinner />, ssr: false }),
+  roulette: dynamic(() => import("./roulette/RouletteGame"), { loading: () => <GameLoadingSpinner />, ssr: false }),
+  oxQuiz: dynamic(() => import("./ox/OXQuizGame"), { loading: () => <GameLoadingSpinner />, ssr: false }),
+  numberGuess: dynamic(() => import("./number/NumberGuessGame"), { loading: () => <GameLoadingSpinner />, ssr: false }),
+  speedClick: dynamic(() => import("./speed/SpeedClickGame"), { loading: () => <GameLoadingSpinner />, ssr: false }),
 };
 
 export function GameContainer({ roomId, uid, displayName, photoURL, level }: GameContainerProps) {
@@ -119,7 +104,7 @@ export function GameContainer({ roomId, uid, displayName, photoURL, level }: Gam
 
     case "playing":
     case "round_result": {
-      const GameComponent = GAME_COMPONENTS[gameState.gameType];
+      const GameComponent = GAME_COMPONENTS[gameState.gameType as GameType];
       if (!GameComponent) {
         return (
           <PlaceholderGame
@@ -164,7 +149,7 @@ export function GameContainer({ roomId, uid, displayName, photoURL, level }: Gam
 }
 
 // ─── 로딩 스피너 ───
-function GameLoadingSpinner({ name }: { name: string }) {
+function GameLoadingSpinner({ name = "게임" }: { name?: string }) {
   return (
     <div className="flex flex-col items-center justify-center h-64">
       <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-yellow-500 mb-4" />
