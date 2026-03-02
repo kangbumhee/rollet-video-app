@@ -13,12 +13,15 @@ import { LiveBadge } from '@/components/room/LiveBadge';
 import { LevelBadge } from '@/components/user/LevelBadge';
 import CycleStatus from '@/components/cycle/CycleStatus';
 import { GameContainer } from '@/components/game/GameContainer';
+import RegularGamePlayer from '@/components/game/RegularGamePlayer';
 import { AdGate } from '@/components/ad/AdGate';
 import { ForcedVideoPlayer } from '@/components/video/ForcedVideoPlayer';
 import MiniGameLauncher from '@/components/minigame/MiniGameLauncher';
 import FreePlayLobby from '@/components/game/FreePlayLobby';
 import { Badge } from '@/components/ui/badge';
 import { SoundToggle } from '@/components/ui/SoundToggle';
+import { onValue, ref } from 'firebase/database';
+import { realtimeDb } from '@/lib/firebase/config';
 import Image from 'next/image';
 
 const REGULAR_GAMES = [
@@ -61,6 +64,8 @@ export default function RoomPage() {
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [showGameLauncher, setShowGameLauncher] = useState(false);
   const [startingGame, setStartingGame] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [activeGame, setActiveGame] = useState<{ phase: string; gameName: string } | null>(null);
   const canSeeUserList = profile?.isAdmin || profile?.isModerator || false;
   const canStartGame = profile?.isAdmin || profile?.isModerator || false;
 
@@ -147,6 +152,48 @@ export default function RoomPage() {
       router.push('/login');
     }
   }, [loading, user, router]);
+
+  useEffect(() => {
+    if (isMainRoom) return;
+    const gameRef = ref(realtimeDb, `games/${roomId}/current`);
+    const unsub = onValue(gameRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.val() as { phase?: string; gameName?: string };
+        setActiveGame({ phase: data.phase || 'idle', gameName: data.gameName || '' });
+      } else {
+        setActiveGame(null);
+      }
+    });
+    return () => unsub();
+  }, [roomId, isMainRoom]);
+
+  const handleResetGame = useCallback(async (forceConfirm = false) => {
+    if (!user) return;
+    if (forceConfirm) {
+      const confirmed = window.confirm('진행 중인 게임을 강제 초기화하시겠습니까?');
+      if (!confirmed) return;
+    }
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/room/${roomId}/reset-game`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json()) as { success?: boolean; error?: string };
+      if (!data.success) {
+        alert(data.error || '게임 초기화 실패');
+      }
+    } catch {
+      alert('네트워크 오류');
+    }
+  }, [roomId, user]);
+
+  useEffect(() => {
+    if (chatCollapsed && messages.length > 0) {
+      setUnreadCount((prev) => prev + 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length]);
 
   if (loading) {
     return (
@@ -310,6 +357,42 @@ export default function RoomPage() {
 
   // --- 커스텀방 콘텐츠 (정규게임 매니저 시작 + 미니게임) ---
   const renderCustomRoomContent = () => {
+    if (activeGame && activeGame.phase !== 'idle' && activeGame.phase !== 'final_result') {
+      return (
+        <div className="flex-1 flex flex-col overflow-y-auto">
+          <RegularGamePlayer roomId={roomId} uid={user?.uid || ''} displayName={profile?.displayName || '익명'} />
+          {canStartGame && (
+            <div className="p-4">
+              <button
+                onClick={() => void handleResetGame(true)}
+                className="w-full py-3 bg-red-600/20 border border-red-500/40 text-red-300 rounded-xl text-sm font-bold hover:bg-red-600/30 transition"
+              >
+                ⚠️ 게임 강제 초기화
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (activeGame && activeGame.phase === 'final_result') {
+      return (
+        <div className="flex-1 flex flex-col overflow-y-auto">
+          <RegularGamePlayer roomId={roomId} uid={user?.uid || ''} displayName={profile?.displayName || '익명'} />
+          {canStartGame && (
+            <div className="p-4">
+              <button
+                onClick={() => void handleResetGame(false)}
+                className="w-full py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-bold transition"
+              >
+                🔄 게임 초기화 (새 게임 시작 가능)
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className="flex-1 flex flex-col overflow-y-auto p-4 gap-4">
         {/* 매니저 전용: 정규게임 시작 패널 */}
@@ -435,32 +518,61 @@ export default function RoomPage() {
         </main>
 
         {/* 채팅 영역 — 접기/펼치기 가능 */}
-        <aside className={`${chatCollapsed ? '' : 'flex-[2]'} lg:flex-none lg:w-80 min-h-0 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-800 transition-all duration-300`}>
-          {/* 채팅 토글 바 */}
-          <button
-            onClick={() => setChatCollapsed(!chatCollapsed)}
-            className="shrink-0 flex items-center justify-center gap-2 px-3 py-1.5 bg-gray-800/80 border-b border-gray-700 hover:bg-gray-700 transition-colors"
-          >
-            <span className="text-gray-400 text-xs font-bold">
-              {chatCollapsed ? '💬 채팅 열기 ▲' : '💬 채팅 접기 ▼'}
-            </span>
-            {chatCollapsed && messages.length > 0 && (
-              <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold animate-pulse">
-                {messages.length > 99 ? '99+' : messages.length}
-              </span>
-            )}
-          </button>
-
-          {/* 채팅 본체 */}
-          {!chatCollapsed && (
-            <div className="flex-1 min-h-0">
-              <ChatWindow
-                messages={messages}
-                onSendMessage={(msg) => void sendMessage(msg)}
-                currentUid={user?.uid || ''}
-                onKick={handleKick}
-              />
+        <aside
+          className={`${
+            chatCollapsed ? 'shrink-0' : 'flex-[2]'
+          } lg:flex-none lg:w-80 min-h-0 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-800 transition-all duration-300`}
+        >
+          {chatCollapsed ? (
+            <div className="bg-black/40 px-3 py-2">
+              <button
+                onClick={() => {
+                  setChatCollapsed(false);
+                  setUnreadCount(0);
+                }}
+                className="w-full flex items-center justify-between text-xs text-gray-400 mb-2"
+              >
+                <span className="font-bold">
+                  💬 채팅 열기{' '}
+                  {unreadCount > 0 && (
+                    <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </span>
+                <span>▲</span>
+              </button>
+              <div className="space-y-1">
+                {messages.slice(-2).map((msg, i) => (
+                  <div key={i} className="text-xs truncate">
+                    <span className="text-yellow-400 font-bold mr-1">
+                      {msg.displayName || '익명'}:
+                    </span>
+                    <span className="text-gray-300">{msg.message || ''}</span>
+                  </div>
+                ))}
+                {messages.length === 0 && (
+                  <p className="text-[10px] text-gray-600">메시지가 없습니다</p>
+                )}
+              </div>
             </div>
+          ) : (
+            <>
+              <button
+                onClick={() => setChatCollapsed(true)}
+                className="shrink-0 flex items-center justify-center gap-2 px-3 py-1.5 bg-gray-800/80 border-b border-gray-700 hover:bg-gray-700 transition-colors"
+              >
+                <span className="text-gray-400 text-xs font-bold">💬 채팅 접기 ▼</span>
+              </button>
+              <div className="flex-1 min-h-0">
+                <ChatWindow
+                  messages={messages}
+                  onSendMessage={(msg) => void sendMessage(msg)}
+                  currentUid={user?.uid || ''}
+                  onKick={handleKick}
+                />
+              </div>
+            </>
           )}
         </aside>
       </div>

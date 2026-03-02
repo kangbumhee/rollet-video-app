@@ -52,9 +52,15 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
     // 이미 진행 중인 게임 확인
     const currentSnap = await adminRealtimeDb.ref(`games/${roomId}/current`).get();
     if (currentSnap.exists()) {
-      const current = currentSnap.val() as { phase?: string } | null;
+      const current = currentSnap.val() as { phase?: string; startedAt?: number } | null;
       if (current?.phase && current.phase !== "idle" && current.phase !== "final_result") {
-        return NextResponse.json({ error: "이미 게임이 진행 중입니다" }, { status: 409 });
+        // 10분 이상 지난 게임은 자동 리셋 허용
+        const elapsed = Date.now() - (current.startedAt || 0);
+        if (elapsed < 10 * 60 * 1000) {
+          return NextResponse.json({ error: "이미 게임이 진행 중입니다" }, { status: 409 });
+        }
+        // 10분 초과: 이전 게임 데이터 삭제 후 진행
+        await adminRealtimeDb.ref(`games/${roomId}`).remove();
       }
     }
 
