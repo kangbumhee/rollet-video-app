@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 
 interface CycleStatusProps {
   phase?: string;
-  nextSlotTime?: string;
-  prizeTitle?: string;
-  prizeImageURL?: string;
+  nextSlotTime?: string | null;
+  prizeTitle?: string | null;
+  prizeImageURL?: string | null;
 }
 
 export default function CycleStatus({ phase, nextSlotTime, prizeTitle, prizeImageURL }: CycleStatusProps) {
