@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { get, push, ref, set } from 'firebase/database';
 import { realtimeDb } from '@/lib/firebase/config';
+import { soundManager } from '@/lib/sounds/SoundManager';
 
 import CoinFlip from './CoinFlip';
 import DiceGame from './DiceGame';
@@ -139,6 +140,7 @@ export default function MiniGameLauncher() {
 
       if (!isNewRecord) return;
 
+      soundManager.play('new-record');
       await set(recordRef, {
         score,
         scoreLabel,
@@ -159,6 +161,7 @@ export default function MiniGameLauncher() {
   };
 
   const handleSelectGame = (gameId: string) => {
+    soundManager.play('click');
     setSelectedGame(gameId);
   };
 
