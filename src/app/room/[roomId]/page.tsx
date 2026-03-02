@@ -139,32 +139,36 @@ export default function RoomPage() {
 
   return (
     <div className="h-[100dvh] flex flex-col bg-gray-950 overflow-hidden">
-      <header className="shrink-0 sticky top-0 z-50 bg-gray-900/95 backdrop-blur border-b border-gray-800">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
+      {/* 헤더 */}
+      <header className="shrink-0 bg-gray-900/95 backdrop-blur border-b border-gray-800 z-50">
+        <div className="flex items-center justify-between px-3 py-2">
+          <div className="flex items-center gap-2">
             <button onClick={() => router.push('/')} className="text-gray-400 hover:text-white">
               ←
             </button>
             {isLive && <LiveBadge />}
-            <h1 className="text-white font-bold text-lg">PrizeLive</h1>
+            <h1 className="text-white font-bold text-sm">PrizeLive</h1>
           </div>
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="text-xs">
+          <div className="flex items-center gap-1.5">
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
               👥 {onlineCount}
             </Badge>
             <SoundToggle />
-            {hasTicket && <Badge className="bg-green-600 text-white text-xs">🎫 티켓</Badge>}
+            {hasTicket && <Badge className="bg-green-600 text-white text-[10px] px-1.5 py-0.5">🎫</Badge>}
             {profile && <LevelBadge level={profile.level} size="sm" />}
           </div>
         </div>
       </header>
 
+      {/* PC: 가로 배치, 모바일: 세로 배치 */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
-        <main className="flex-1 overflow-y-auto min-h-0">
-          <div className="flex-1 flex flex-col">{renderMainContent()}</div>
+        {/* 메인 콘텐츠 */}
+        <main className="flex-[3] lg:flex-1 overflow-y-auto min-h-0">
+          {renderMainContent()}
         </main>
 
-        <aside className="h-[40vh] lg:h-auto lg:w-80 shrink-0 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-800">
+        {/* 채팅 */}
+        <aside className="flex-[2] lg:flex-none lg:w-80 min-h-0 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-800">
           <ChatWindow messages={messages} onSendMessage={(msg) => void sendMessage(msg)} currentUid={user?.uid || ''} />
         </aside>
       </div>
