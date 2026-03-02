@@ -5,7 +5,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ChatMessage } from "@/types/chat";
 import LevelBadge from "@/components/user/LevelBadge";
 import { useAuthStore } from '@/stores/authStore';
@@ -19,7 +19,29 @@ interface ChatBubbleProps {
 
 export default function ChatBubble({ message, isMe, canManage, onKick }: ChatBubbleProps) {
   const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const profile = useAuthStore((s) => s.profile);
+
+  // 바깥 클릭 시 메뉴 닫기
+  useEffect(() => {
+    if (!showMenu) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    // 다음 틱에 등록해야 현재 클릭 이벤트에 의해 바로 닫히지 않음
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handleClickOutside);
+    }, 0);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [showMenu]);
 
   // ── 시스템 메시지 ──
   if (message.isSystem) {
@@ -66,7 +88,7 @@ export default function ChatBubble({ message, isMe, canManage, onKick }: ChatBub
 
   const handleNameClick = () => {
     if (!canManage || isMe || message.isBot || message.isSystem) return;
-    setShowMenu(!showMenu);
+    setShowMenu((prev) => !prev);
   };
 
   // ── 일반 메시지 ──
@@ -86,6 +108,7 @@ export default function ChatBubble({ message, isMe, canManage, onKick }: ChatBub
 
         {showMenu && canManage && (
           <div
+            ref={menuRef}
             className="absolute z-50 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[140px]"
             style={{ left: isMe ? 'auto' : 0, right: isMe ? 0 : 'auto' }}
           >
