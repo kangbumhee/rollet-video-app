@@ -4,6 +4,7 @@
       "$roomId": {
         "chat": {
           ".read": true,
+          ".indexOn": ["timestamp"],
           "$messageId": {
             ".write": "auth != null",
             ".validate": "newData.hasChildren(['uid', 'displayName', 'message', 'timestamp']) && newData.child('message').isString() && newData.child('message').val().length <= 200"
@@ -30,6 +31,16 @@
             ".write": "auth != null && auth.uid == $uid"
           }
         }
+      }
+    },
+    "cycle": {
+      ".read": true,
+      ".write": false
+    },
+    "games": {
+      ".read": true,
+      "$sessionId": {
+        ".write": "auth != null"
       }
     }
   }
