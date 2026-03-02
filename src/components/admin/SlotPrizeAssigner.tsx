@@ -25,6 +25,19 @@ interface SlotPrizeAssignerProps {
   onClose: () => void;
 }
 
+const GAME_TYPE_LABELS: Record<string, string> = {
+  luckyDice: '🎲 운명의 주사위',
+  stockRace: '📈 주식 레이스',
+  highLow: '🃏 하이 & 로우',
+  coinBet: '🪙 코인 베팅',
+  horseRace: '🏇 경마 레이스',
+  floorRoulette: '🟥 바닥 룰렛',
+  goldRush: '⛏️ 골드 러시',
+  bombDefuse: '💣 폭탄 해제',
+  tideWave: '🌊 파도 서바이벌',
+  treasureHunt: '🗺️ 보물찾기',
+};
+
 export function SlotPrizeAssigner({ slot, onAssign, onUnassign, onClose }: SlotPrizeAssignerProps) {
   const [availableRooms, setAvailableRooms] = useState<RoomItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -146,11 +159,7 @@ export function SlotPrizeAssigner({ slot, onAssign, onUnassign, onClose }: SlotP
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-white font-medium truncate">{room.prizeTitle}</p>
                       <p className="text-xs text-gray-400">
-                        {room.gameType === 'rps' ? '✊ 가위바위보' :
-                         room.gameType === 'roulette' ? '🎰 룰렛' :
-                         room.gameType === 'oxQuiz' ? '⭕ OX퀴즈' :
-                         room.gameType === 'numberGuess' ? '🔢 숫자맞추기' :
-                         room.gameType === 'speedClick' ? '👆 빠른클릭' : room.gameType}
+                        {GAME_TYPE_LABELS[room.gameType] || room.gameType}
                         {room.estimatedValue > 0 ? ` · ${room.estimatedValue.toLocaleString()}원` : ''}
                       </p>
                     </div>

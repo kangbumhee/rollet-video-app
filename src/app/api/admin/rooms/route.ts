@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
         prizeDescription: data.prize?.description || data.prizeDescription || '',
         prizeImageURL: data.prize?.imageURL || data.prizeImageURL || '',
         estimatedValue: data.prize?.estimatedValue || data.estimatedValue || 0,
-        gameType: data.gameType || 'rps',
+        gameType: data.gameType || 'luckyDice',
         deliveryType: data.deliveryType || 'SELF_DELIVERY',
         status: data.status,
         totalQuantity: data.totalQuantity || 1,

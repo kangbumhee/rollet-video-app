@@ -15,6 +15,19 @@ import type { DeliveryType } from '@/types/seller';
 
 type Step = 'type' | 'prize' | 'video' | 'confirm';
 
+const GAME_TYPES = [
+  { id: 'luckyDice', name: '운명의 주사위' },
+  { id: 'stockRace', name: '주식 레이스' },
+  { id: 'highLow', name: '하이 & 로우' },
+  { id: 'coinBet', name: '코인 베팅' },
+  { id: 'horseRace', name: '경마 레이스' },
+  { id: 'floorRoulette', name: '바닥 룰렛' },
+  { id: 'goldRush', name: '골드 러시' },
+  { id: 'bombDefuse', name: '폭탄 해제' },
+  { id: 'tideWave', name: '파도 서바이벌' },
+  { id: 'treasureHunt', name: '보물찾기' },
+] as const;
+
 export function SellerCreateForm() {
   const { user } = useAuthStore();
   const [step, setStep] = useState<Step>('type');
@@ -29,7 +42,7 @@ export function SellerCreateForm() {
   const [prizeImage, setPrizeImage] = useState<File | null>(null);
   const [prizeImageURL, setPrizeImageURL] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
-  const [gameType, setGameType] = useState('rps');
+  const [gameType, setGameType] = useState<(typeof GAME_TYPES)[number]['id']>('luckyDice');
   const [videoURL, setVideoURL] = useState<string | null>(null);
   const [videoDuration, setVideoDuration] = useState(0);
 
@@ -187,14 +200,14 @@ export function SellerCreateForm() {
             <label className="text-sm text-gray-300">게임 타입</label>
             <select
               value={gameType}
-              onChange={(e) => setGameType(e.target.value)}
+              onChange={(e) => setGameType(e.target.value as (typeof GAME_TYPES)[number]['id'])}
               className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm"
             >
-              <option value="rps">✊ 가위바위보 토너먼트</option>
-              <option value="roulette">🎡 행운의 룰렛</option>
-              <option value="oxQuiz">⭕ OX퀴즈</option>
-              <option value="numberGuess">🔢 숫자맞추기</option>
-              <option value="speedClick">⚡ 스피드클릭</option>
+              {GAME_TYPES.map((game) => (
+                <option key={game.id} value={game.id}>
+                  {game.name}
+                </option>
+              ))}
             </select>
           </div>
 

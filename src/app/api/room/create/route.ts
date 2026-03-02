@@ -6,7 +6,18 @@ import { generateId } from '@/lib/utils';
 import type { PrizeRoom, DeliveryType } from '@/types/seller';
 
 const VALID_DELIVERY_TYPES: DeliveryType[] = ['SELF_DELIVERY', 'CONSIGNMENT', 'SPONSORED'];
-const VALID_GAME_TYPES = ['rps', 'roulette', 'oxQuiz', 'numberGuess', 'speedClick'];
+const VALID_GAME_TYPES = [
+  'luckyDice',
+  'stockRace',
+  'highLow',
+  'coinBet',
+  'horseRace',
+  'floorRoulette',
+  'goldRush',
+  'bombDefuse',
+  'tideWave',
+  'treasureHunt',
+];
 
 export async function POST(req: NextRequest) {
   try {

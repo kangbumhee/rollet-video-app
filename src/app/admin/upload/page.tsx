@@ -14,13 +14,18 @@ import { apiCall } from "@/lib/api";
 import { ArrowLeft, Upload, Loader2, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-const GAME_OPTIONS = [
-  { type: "rps", icon: "✊", title: "가위바위보" },
-  { type: "roulette", icon: "🎰", title: "룰렛" },
-  { type: "numberGuess", icon: "🔢", title: "숫자맞추기" },
-  { type: "oxQuiz", icon: "⭕", title: "OX퀴즈" },
-  { type: "speedClick", icon: "👆", title: "빠른클릭" },
-];
+const GAME_TYPES = [
+  { id: "luckyDice", name: "운명의 주사위", emoji: "🎲", desc: "주사위 운빨 대결" },
+  { id: "stockRace", name: "주식 레이스", emoji: "📈", desc: "가상 주식 투자 대결" },
+  { id: "highLow", name: "하이 & 로우", emoji: "🃏", desc: "다음 카드가 높을까 낮을까" },
+  { id: "coinBet", name: "코인 베팅", emoji: "🪙", desc: "동전 앞뒤 베팅 대결" },
+  { id: "horseRace", name: "경마 레이스", emoji: "🏇", desc: "말에 베팅하고 응원" },
+  { id: "floorRoulette", name: "바닥 룰렛", emoji: "🟥", desc: "안전한 칸을 골라라" },
+  { id: "goldRush", name: "골드 러시", emoji: "⛏️", desc: "금맥을 찾아 채굴" },
+  { id: "bombDefuse", name: "폭탄 해제", emoji: "💣", desc: "올바른 선 끊기" },
+  { id: "tideWave", name: "파도 서바이벌", emoji: "🌊", desc: "파도 높이를 예측" },
+  { id: "treasureHunt", name: "보물찾기", emoji: "🗺️", desc: "숨겨진 보물 위치 추측" },
+] as const;
 
 type Step = "upload" | "processing" | "done";
 type PrizeCreateResponse = {
@@ -36,7 +41,7 @@ export default function AdminUploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
   const [title, setTitle] = useState("");
-  const [gameType, setGameType] = useState("rps");
+  const [gameType, setGameType] = useState<(typeof GAME_TYPES)[number]["id"]>("luckyDice");
   const [totalQuantity, setTotalQuantity] = useState(1);
   const [result, setResult] = useState<PrizeCreateResponse | null>(null);
   const [error, setError] = useState("");
@@ -133,21 +138,21 @@ export default function AdminUploadPage() {
             />
 
             {/* 게임 선택 */}
-            <p className="text-xs text-gray-400 mt-4 mb-2">미니게임 선택</p>
-            <div className="grid grid-cols-3 gap-2">
-              {GAME_OPTIONS.map((g) => (
+            <p className="text-xs text-gray-400 mt-4 mb-2">정규 게임 선택</p>
+            <div className="grid grid-cols-5 gap-2">
+              {GAME_TYPES.map((g) => (
                 <button
-                  key={g.type}
-                  onClick={() => setGameType(g.type)}
+                  key={g.id}
+                  onClick={() => setGameType(g.id)}
                   className={`p-3 rounded-xl text-center transition-all border-2
                     ${
-                      gameType === g.type
+                      gameType === g.id
                         ? "bg-yellow-500/20 border-yellow-400"
                         : "bg-gray-800 border-gray-700 hover:border-gray-600"
                     }`}
                 >
-                  <span className="text-xl block">{g.icon}</span>
-                  <span className="text-[10px] mt-1 block">{g.title}</span>
+                  <span className="text-xl block">{g.emoji}</span>
+                  <span className="text-[10px] mt-1 block leading-tight">{g.name}</span>
                 </button>
               ))}
             </div>

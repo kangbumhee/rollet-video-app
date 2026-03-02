@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     const scheduledAt = new Date(`${date}T${time}:00+09:00`).getTime();
     const prizeTitle = room.prize?.title || room.prizeTitle || '';
     const prizeImageURL = room.prize?.imageURL || room.prizeImageURL || '';
-    const gameType = room.gameType || 'rps';
+    const gameType = room.gameType || 'luckyDice';
 
     await adminFirestore.doc(`scheduleSlots/${slotId}`).set(
       {

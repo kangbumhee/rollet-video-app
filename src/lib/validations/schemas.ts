@@ -13,7 +13,20 @@ export const CreateRoomSchema = z
     imageURL: z.string().url("유효한 이미지 URL이 필요합니다"),
     videoURL: z.string().url().optional(),
     videoDuration: z.number().min(5, "동영상은 최소 5초 이상").max(120, "동영상은 최대 120초").optional(),
-    gameType: z.enum(["rps", "roulette", "numberGuess", "oxQuiz", "speedClick"]).default("rps"),
+    gameType: z
+      .enum([
+        "luckyDice",
+        "stockRace",
+        "highLow",
+        "coinBet",
+        "horseRace",
+        "floorRoulette",
+        "goldRush",
+        "bombDefuse",
+        "tideWave",
+        "treasureHunt",
+      ])
+      .default("luckyDice"),
     title: z.string().max(50, "경품명은 50자 이하").optional(),
     sellerAddress: z.string().max(200).optional(),
     sellerPhone: z.string().regex(/^01[0-9]-?[0-9]{3,4}-?[0-9]{4}$/, "올바른 전화번호 형식이 아닙니다").optional(),
@@ -64,7 +77,20 @@ export const ShippingInfoSchema = z.object({
 export const CreatePrizeSchema = z.object({
   imageURL: z.string().url("유효한 이미지 URL"),
   title: z.string().max(50).optional(),
-  gameType: z.enum(["rps", "roulette", "numberGuess", "oxQuiz", "speedClick"]).default("rps"),
+  gameType: z
+    .enum([
+      "luckyDice",
+      "stockRace",
+      "highLow",
+      "coinBet",
+      "horseRace",
+      "floorRoulette",
+      "goldRush",
+      "bombDefuse",
+      "tideWave",
+      "treasureHunt",
+    ])
+    .default("luckyDice"),
   totalQuantity: z.number().int().min(1).max(999).default(1),
 });
 
