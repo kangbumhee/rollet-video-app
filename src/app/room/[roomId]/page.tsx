@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/authStore';
-import { usePresence } from '@/hooks/usePresence';
+import { OnlineUser, usePresence } from '@/hooks/usePresence';
 import { useChat } from '@/hooks/useChat';
 import { useCycle } from '@/hooks/useCycle';
 import { useGameSounds } from '@/hooks/useGameSounds';
@@ -26,7 +26,7 @@ export default function RoomPage() {
   const roomId = params.roomId as string;
   const { user, profile, loading } = useAuthStore();
 
-  const { onlineCount } = usePresence(roomId, user?.uid || null);
+  const { onlineCount, onlineUsers } = usePresence(roomId, user?.uid || null);
   const { messages, sendMessage } = useChat(roomId, {
     uid: user?.uid || '',
     displayName: profile?.displayName || '익명',
@@ -40,6 +40,8 @@ export default function RoomPage() {
   const cyclePhase = cycle?.currentPhase;
 
   const [hasTicket, setHasTicket] = useState(false);
+  const [showUserList, setShowUserList] = useState(false);
+  const canSeeUserList = profile?.isAdmin || profile?.isModerator || false;
 
   const handleKick = useCallback(async (targetUid: string, targetDisplayName: string) => {
     if (!user) return;
@@ -231,7 +233,7 @@ export default function RoomPage() {
   return (
     <div className="h-[100dvh] flex flex-col bg-gray-950 overflow-hidden">
       {/* 헤더 */}
-      <header className="shrink-0 bg-gray-900/95 backdrop-blur border-b border-gray-800 z-50">
+      <header className="shrink-0 bg-gray-900/95 backdrop-blur border-b border-gray-800 z-50 relative">
         <div className="flex items-center justify-between px-3 py-2">
           <div className="flex items-center gap-2">
             <button onClick={() => router.push('/')} className="text-gray-400 hover:text-white">
@@ -241,15 +243,60 @@ export default function RoomPage() {
             <h1 className="text-white font-bold text-sm">PrizeLive</h1>
           </div>
           <div className="flex items-center gap-1.5">
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
-              👥 {onlineCount}
-            </Badge>
+            {canSeeUserList ? (
+              <button onClick={() => setShowUserList(!showUserList)} className="relative">
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 cursor-pointer hover:border-yellow-500/50 transition-colors">
+                  👥 {onlineCount}
+                </Badge>
+              </button>
+            ) : (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
+                👥 {onlineCount}
+              </Badge>
+            )}
             <SoundToggle />
             {hasTicket && <Badge className="bg-green-600 text-white text-[10px] px-1.5 py-0.5">🎫</Badge>}
             {profile && <LevelBadge level={profile.level} size="sm" />}
           </div>
         </div>
       </header>
+
+      {/* 참가자 목록 패널 */}
+      {showUserList && canSeeUserList && (
+        <div className="absolute top-12 right-2 z-[100] w-64 max-h-80 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800">
+            <span className="text-xs font-bold text-white">접속자 목록 ({onlineCount}명)</span>
+            <button onClick={() => setShowUserList(false)} className="text-gray-500 hover:text-white text-sm">
+              ✕
+            </button>
+          </div>
+          <div className="overflow-y-auto max-h-64 p-2 space-y-1">
+            {onlineUsers.map((u: OnlineUser) => (
+              <div
+                key={u.uid}
+                className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-gray-800/50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                  <span className="text-xs text-gray-300 truncate max-w-[120px]">{u.displayName}</span>
+                  <span className="text-[9px] text-gray-600">Lv.{u.level}</span>
+                </div>
+                {profile?.isAdmin && u.uid !== profile.uid && (
+                  <button
+                    onClick={() => void handleKick(u.uid, u.displayName)}
+                    className="text-[9px] text-red-400 hover:text-red-300 px-1.5 py-0.5 rounded bg-red-500/10 hover:bg-red-500/20 transition-colors"
+                  >
+                    강퇴
+                  </button>
+                )}
+              </div>
+            ))}
+            {onlineUsers.length === 0 && (
+              <p className="text-xs text-gray-600 text-center py-4">접속자가 없습니다</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* PC: 가로 배치, 모바일: 세로 배치 */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
