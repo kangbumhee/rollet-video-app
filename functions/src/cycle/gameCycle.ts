@@ -90,13 +90,20 @@ export const gameCycle = onSchedule(
       }
 
       await slotDoc.ref.update({ status: 'LIVE', updatedAt: now });
-      const roomDoc = await db.doc(`prizeRooms/${roomId}`).get();
+      const roomDoc = await db.doc(`rooms/${roomId}`).get();
       if (!roomDoc.exists) {
         await slotDoc.ref.update({ status: 'DISABLED', enabled: false, updatedAt: now });
         return;
       }
       const room = roomDoc.data() as Record<string, unknown>;
-      await db.doc(`prizeRooms/${roomId}`).update({ status: 'LIVE', updatedAt: now });
+      await db.doc(`rooms/${roomId}`).update({ status: 'LIVE', updatedAt: now });
+
+      const prizeTitle = (room as any).prize?.title || (room as any).prizeTitle || '';
+      const prizeImageURL = (room as any).prize?.imageURL || (room as any).prizeImageURL || '';
+      const estimatedValue = (room as any).prize?.estimatedValue || (room as any).estimatedValue || 0;
+      const gameType = (room as any).gameType || 'rps';
+      const entryType = (room as any).entryType || 'AD';
+      const videoURL = (room as any).videoURL || null;
 
       let phaseStartTime = now;
 
@@ -106,11 +113,11 @@ export const gameCycle = onSchedule(
         await rtdb.ref('cycle/main').update({
           currentPhase: phaseConfig.phase,
           currentRoomId: roomId,
-          currentPrizeTitle: (room.prizeTitle as string) || null,
-          currentPrizeImage: (room.prizeImageURL as string) || null,
-          currentGameType: (room.gameType as string) || null,
-          entryType: (room.entryType as string) || 'AD',
-          videoURL: (room.videoURL as string) || null,
+          currentPrizeTitle: prizeTitle,
+          currentPrizeImage: prizeImageURL,
+          currentGameType: gameType,
+          entryType: entryType,
+          videoURL: videoURL,
           phaseStartedAt: phaseStartTime,
           phaseEndsAt: phaseEndTime,
           nextSlot: calcNextSlot(now + 30 * 60 * 1000),
@@ -120,13 +127,12 @@ export const gameCycle = onSchedule(
           await sendBotChat(
             rtdb,
             roomId,
-            `🎁 이번 경품은 "${(room.prizeTitle as string) || ''}"입니다! 예상 가치: ${Number(room.estimatedValue || 0).toLocaleString()}원!`
+            `🎁 이번 경품은 "${prizeTitle}"입니다! 예상 가치: ${Number(estimatedValue).toLocaleString()}원!`
           );
         }
 
         if (phaseConfig.phase === 'ENTRY_GATE') {
-          const entryMsg =
-            room.entryType === 'VIDEO' ? '📹 제품 영상을 시청하고 참가 티켓을 받으세요!' : '📺 광고를 시청하고 참가 티켓을 받으세요!';
+          const entryMsg = entryType === 'VIDEO' ? '📹 제품 영상을 시청하고 참가 티켓을 받으세요!' : '📺 광고를 시청하고 참가 티켓을 받으세요!';
           await sendBotChat(rtdb, roomId, entryMsg);
         }
 
@@ -147,8 +153,8 @@ export const gameCycle = onSchedule(
         roomId,
         slot: calcNextSlot(now - 1000),
         startedAt: now,
-        prizeTitle: room.prizeTitle || '',
-        gameType: room.gameType || 'rps',
+        prizeTitle: prizeTitle,
+        gameType: gameType,
         completedAt: Date.now(),
       });
 
