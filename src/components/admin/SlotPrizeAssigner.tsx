@@ -3,9 +3,18 @@
 
 import React, { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api';
-import { Button } from '@/components/ui/button';
 import type { TimeSlot } from '@/types/schedule';
-import type { PrizeRoom } from '@/types/seller';
+
+interface RoomItem {
+  id: string;
+  prizeTitle: string;
+  prizeDescription: string;
+  prizeImageURL: string;
+  estimatedValue: number;
+  gameType: string;
+  deliveryType: string;
+  status: string;
+}
 
 interface SlotPrizeAssignerProps {
   slot: TimeSlot;
@@ -15,84 +24,139 @@ interface SlotPrizeAssignerProps {
 }
 
 export function SlotPrizeAssigner({ slot, onAssign, onUnassign, onClose }: SlotPrizeAssignerProps) {
-  const [availableRooms, setAvailableRooms] = useState<PrizeRoom[]>([]);
+  const [availableRooms, setAvailableRooms] = useState<RoomItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void loadAvailableRooms();
   }, []);
 
   const loadAvailableRooms = async () => {
+    setLoading(true);
+    setError(null);
     try {
       const res = await apiClient('/api/admin/rooms?status=APPROVED');
-      const data = (await res.json()) as { success?: boolean; rooms?: PrizeRoom[] };
+      const data = (await res.json()) as { success?: boolean; rooms?: RoomItem[]; error?: string };
       if (data.success) {
         setAvailableRooms(data.rooms || []);
+      } else {
+        setError(data.error || '경품 목록을 불러오지 못했습니다.');
       }
+    } catch {
+      setError('네트워크 오류');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-white font-medium text-sm">
-          📅 {slot.date} {slot.time} 슬롯
-        </h3>
-        <button onClick={onClose} className="text-gray-400 hover:text-white text-sm">
-          ✕
-        </button>
-      </div>
-
-      {slot.roomId && (
-        <div className="bg-gray-700/50 rounded-lg p-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {slot.prizeImageURL && <img src={slot.prizeImageURL} alt="" className="w-10 h-10 rounded object-cover" />}
-            <div>
-              <p className="text-sm text-white">{slot.prizeTitle}</p>
-              <p className="text-xs text-gray-400">{slot.gameType}</p>
-            </div>
-          </div>
-          <Button variant="destructive" size="sm" onClick={onUnassign} className="text-xs">
-            해제
-          </Button>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        className="bg-gray-800 rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+          <h3 className="text-white font-bold text-sm">
+            📅 {slot.date} {slot.time} 슬롯
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-lg">
+            ✕
+          </button>
         </div>
-      )}
 
-      <div>
-        <p className="text-xs text-gray-400 mb-2">배정 가능한 경품 ({availableRooms.length}개)</p>
-
-        {loading ? (
-          <div className="text-center py-4">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-prize-500 mx-auto" />
-          </div>
-        ) : availableRooms.length === 0 ? (
-          <p className="text-xs text-gray-500 text-center py-4">배정 가능한 승인된 경품이 없습니다</p>
-        ) : (
-          <div className="space-y-2 max-h-60 overflow-y-auto">
-            {availableRooms.map((room) => (
-              <button
-                key={room.id}
-                onClick={() => onAssign(room.id)}
-                className="w-full flex items-center gap-3 p-2 rounded-lg bg-gray-700/30 hover:bg-gray-700/60 transition-colors text-left"
-              >
-                {room.prizeImageURL ? (
-                  <img src={room.prizeImageURL} alt="" className="w-10 h-10 rounded object-cover" />
-                ) : (
-                  <div className="w-10 h-10 rounded bg-gray-600 flex items-center justify-center">🎁</div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white truncate">{room.prizeTitle}</p>
-                  <p className="text-xs text-gray-400">
-                    {room.deliveryType} · {room.gameType} · {(room.estimatedValue || 0).toLocaleString()}원
-                  </p>
+        <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+          {/* 현재 배정된 경품 */}
+          {slot.roomId && (
+            <div className="bg-gray-700/50 rounded-xl p-3">
+              <p className="text-xs text-gray-400 mb-2">현재 배정</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {slot.prizeImageURL && (
+                    <img src={slot.prizeImageURL} alt="" className="w-12 h-12 rounded-lg object-cover" />
+                  )}
+                  <div>
+                    <p className="text-sm text-white font-medium">{slot.prizeTitle}</p>
+                    <p className="text-xs text-gray-400">{slot.gameType}</p>
+                  </div>
                 </div>
-                <span className="text-xs text-prize-400">배정</span>
-              </button>
-            ))}
+                <button
+                  onClick={onUnassign}
+                  className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-lg text-xs font-medium
+                             hover:bg-red-500/30 transition-colors"
+                >
+                  해제
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 배정 가능한 경품 목록 */}
+          <div>
+            <p className="text-xs text-gray-400 mb-2">
+              배정 가능한 경품 ({availableRooms.length}개)
+            </p>
+
+            {loading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-yellow-500 mx-auto" />
+                <p className="text-xs text-gray-500 mt-2">경품 목록 로딩 중...</p>
+              </div>
+            ) : error ? (
+              <div className="text-center py-4">
+                <p className="text-xs text-red-400">{error}</p>
+                <button
+                  onClick={loadAvailableRooms}
+                  className="mt-2 text-xs text-yellow-400 underline"
+                >
+                  다시 시도
+                </button>
+              </div>
+            ) : availableRooms.length === 0 ? (
+              <div className="text-center py-8">
+                <span className="text-3xl">📭</span>
+                <p className="text-xs text-gray-500 mt-2">
+                  배정 가능한 경품이 없습니다.
+                  <br />
+                  관리자 → 경품 등록에서 먼저 등록하세요.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {availableRooms.map((room) => (
+                  <button
+                    key={room.id}
+                    onClick={() => onAssign(room.id)}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-700/30 
+                               hover:bg-gray-700/60 transition-colors text-left
+                               border border-transparent hover:border-yellow-500/30"
+                  >
+                    {room.prizeImageURL ? (
+                      <img src={room.prizeImageURL} alt="" className="w-12 h-12 rounded-lg object-cover" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-lg bg-gray-600 flex items-center justify-center text-xl">
+                        🎁
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white font-medium truncate">{room.prizeTitle}</p>
+                      <p className="text-xs text-gray-400">
+                        {room.gameType === 'rps' ? '✊ 가위바위보' :
+                         room.gameType === 'roulette' ? '🎰 룰렛' :
+                         room.gameType === 'oxQuiz' ? '⭕ OX퀴즈' :
+                         room.gameType === 'numberGuess' ? '🔢 숫자맞추기' :
+                         room.gameType === 'speedClick' ? '👆 빠른클릭' : room.gameType}
+                        {room.estimatedValue > 0 ? ` · ${room.estimatedValue.toLocaleString()}원` : ''}
+                      </p>
+                    </div>
+                    <span className="text-xs text-yellow-400 font-medium shrink-0">배정 →</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

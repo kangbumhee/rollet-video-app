@@ -27,18 +27,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: '방을 찾을 수 없습니다.' }, { status: 404 });
     }
 
-    const room = roomDoc.data() as {
+    const room = roomDoc.data() as Record<string, unknown> & {
       status: string;
-      prize?: {
-        title?: string;
-        imageURL?: string;
-      };
+      prize?: { title?: string; imageURL?: string; estimatedValue?: number };
       prizeTitle?: string;
       prizeImageURL?: string;
       gameType?: string;
     };
     if (!['APPROVED', 'SCHEDULED'].includes(room.status)) {
-      return NextResponse.json({ success: false, error: `이 방은 배정할 수 없는 상태입니다. (${room.status})` }, { status: 400 });
+      return NextResponse.json({ success: false, error: `배정 불가 상태 (${room.status})` }, { status: 400 });
     }
 
     const existingAssignment = await adminFirestore
@@ -61,6 +58,9 @@ export async function POST(req: NextRequest) {
 
     const { date, time } = parseSlotId(slotId);
     const scheduledAt = new Date(`${date}T${time}:00+09:00`).getTime();
+    const prizeTitle = room.prize?.title || room.prizeTitle || '';
+    const prizeImageURL = room.prize?.imageURL || room.prizeImageURL || '';
+    const gameType = room.gameType || 'rps';
 
     await adminFirestore.doc(`scheduleSlots/${slotId}`).set(
       {
@@ -69,9 +69,9 @@ export async function POST(req: NextRequest) {
         time,
         enabled: true,
         roomId,
-        prizeTitle: room.prize?.title || room.prizeTitle || '',
-        prizeImageURL: room.prize?.imageURL || room.prizeImageURL || '',
-        gameType: room.gameType || 'rps',
+        prizeTitle,
+        prizeImageURL,
+        gameType,
         status: 'ASSIGNED',
         scheduledAt,
         updatedAt: Date.now(),
@@ -88,9 +88,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      prizeTitle: room.prize?.title || room.prizeTitle || '',
-      prizeImageURL: room.prize?.imageURL || room.prizeImageURL || '',
-      gameType: room.gameType || 'rps',
+      prizeTitle,
+      prizeImageURL,
+      gameType,
     });
   } catch (error) {
     console.error('Schedule assign error:', error);

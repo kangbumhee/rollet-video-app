@@ -76,38 +76,74 @@ export function TimeSlotGrid({ date, slots, onToggle, onSlotClick, onApplyPreset
                 const statusColor = STATUS_COLORS[slot.status] || STATUS_COLORS.DISABLED;
 
                 return (
-                  <button
-                    key={slot.id}
-                    onClick={() => {
-                      if (past) return;
-                      if (slot.enabled && slot.roomId) {
-                        onSlotClick(slot);
-                      } else {
-                        onToggle(slot.id, !slot.enabled);
-                      }
-                    }}
-                    disabled={past}
-                    className={cn(
-                      'relative border rounded-lg p-2 text-center transition-all',
-                      statusColor,
-                      past && 'opacity-30 cursor-not-allowed',
-                      !past && 'hover:scale-105 cursor-pointer'
-                    )}
-                  >
-                    <div className="text-xs font-mono font-bold">{slot.time}</div>
-                    <div className="mt-1">
-                      {slot.enabled ? <span className="text-[10px]">{slot.roomId ? '🎁' : '✅'}</span> : <span className="text-[10px] text-gray-600">—</span>}
-                    </div>
+                  <div key={slot.id} className="relative">
+                    <button
+                      onClick={() => {
+                        if (past) return;
+                        if (slot.enabled) {
+                          // 활성 슬롯 클릭 → 배정/해제 패널 열기
+                          onSlotClick(slot);
+                        } else {
+                          // 비활성 슬롯 클릭 → 활성화
+                          onToggle(slot.id, true);
+                        }
+                      }}
+                      disabled={past}
+                      className={cn(
+                        'w-full border rounded-lg p-2 text-center transition-all',
+                        statusColor,
+                        past && 'opacity-30 cursor-not-allowed',
+                        !past && 'hover:scale-105 cursor-pointer',
+                        !past && slot.enabled && 'hover:ring-1 hover:ring-yellow-400/50'
+                      )}
+                    >
+                      <div className="text-xs font-mono font-bold">{slot.time}</div>
+                      <div className="mt-1">
+                        {slot.enabled ? (
+                          <span className="text-[10px]">{slot.roomId ? '🎁' : '⬚'}</span>
+                        ) : (
+                          <span className="text-[10px] text-gray-600">—</span>
+                        )}
+                      </div>
 
-                    {slot.prizeTitle && <p className="text-[8px] text-gray-400 truncate mt-0.5">{slot.prizeTitle}</p>}
-                    {slot.status === 'LIVE' && <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping" />}
-                  </button>
+                      {slot.prizeTitle && (
+                        <p className="text-[8px] text-gray-400 truncate mt-0.5">{slot.prizeTitle}</p>
+                      )}
+                      {slot.status === 'LIVE' && (
+                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping" />
+                      )}
+                    </button>
+
+                    {/* 활성 슬롯 비활성화 버튼 */}
+                    {slot.enabled && !past && !slot.roomId && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggle(slot.id, false);
+                        }}
+                        className="absolute -top-1 -right-1 w-4 h-4 bg-gray-600 hover:bg-red-500 
+                                   rounded-full text-[8px] text-white flex items-center justify-center
+                                   transition-colors z-10"
+                        title="슬롯 비활성화"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
           </div>
         );
       })}
+
+      {/* 범례 */}
+      <div className="flex flex-wrap items-center gap-3 pt-2 text-[10px] text-gray-500">
+        <span className="flex items-center gap-1"><span className="text-gray-600">—</span> 비활성</span>
+        <span className="flex items-center gap-1"><span>⬚</span> 빈 슬롯</span>
+        <span className="flex items-center gap-1"><span>🎁</span> 배정됨</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> 라이브</span>
+      </div>
     </div>
   );
 }

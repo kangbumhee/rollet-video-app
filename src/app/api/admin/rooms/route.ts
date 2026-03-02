@@ -17,19 +17,32 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get('status') || 'PENDING_REVIEW';
+    const status = searchParams.get('status') || 'APPROVED';
 
+    // rooms 컬렉션에서 조회 (prizeRooms가 아님)
     const snapshot = await adminFirestore
-      .collection('prizeRooms')
+      .collection('rooms')
       .where('status', '==', status)
       .orderBy('createdAt', 'desc')
       .limit(50)
       .get();
 
-    const rooms = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const rooms = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      // prize/create에서 저장한 nested 구조를 flat으로 변환
+      return {
+        id: doc.id,
+        prizeTitle: data.prize?.title || data.prizeTitle || '경품',
+        prizeDescription: data.prize?.description || data.prizeDescription || '',
+        prizeImageURL: data.prize?.imageURL || data.prizeImageURL || '',
+        estimatedValue: data.prize?.estimatedValue || data.estimatedValue || 0,
+        gameType: data.gameType || 'rps',
+        deliveryType: data.deliveryType || 'SELF_DELIVERY',
+        status: data.status,
+        scheduledAt: data.scheduledAt || null,
+        createdAt: data.createdAt,
+      };
+    });
 
     return NextResponse.json({ success: true, rooms });
   } catch (error) {
