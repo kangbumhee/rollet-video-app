@@ -17,6 +17,7 @@ interface GameCurrent {
   totalPlayers: number;
   scores: Record<string, number>;
   nameMap: Record<string, string>;
+  photoMap?: Record<string, string | null>;
   alive: Record<string, boolean>;
   startedAt: number;
   startedBy?: string;
@@ -39,7 +40,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
   const [timeLeft, setTimeLeft] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [roundResult, setRoundResult] = useState('');
-  const [rankings, setRankings] = useState<Array<{ uid: string; name: string; score: number }>>([]);
+  const [rankings, setRankings] = useState<Array<{ uid: string; name: string; score: number; photoURL: string | null }>>([]);
 
   const [strokes, setStrokes] = useState<Array<{ points: Array<{ x: number; y: number }>; color: string; width: number }>>([]);
   const [guessInput, setGuessInput] = useState('');
@@ -299,11 +300,17 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
 
   useEffect(() => {
     if (!current?.scores || !current?.nameMap) return;
+    const photoMap = current.photoMap || {};
     const sorted = Object.entries(current.scores)
-      .map(([id, score]) => ({ uid: id, name: current.nameMap[id] || id.slice(0, 6), score }))
+      .map(([id, score]) => ({
+        uid: id,
+        name: current.nameMap[id] || id.slice(0, 6),
+        score,
+        photoURL: photoMap[id] ?? null,
+      }))
       .sort((a, b) => b.score - a.score);
     setRankings(sorted);
-  }, [current?.scores, current?.nameMap]);
+  }, [current?.scores, current?.nameMap, current?.photoMap]);
 
   useEffect(() => {
     if (!current) return;
@@ -998,6 +1005,49 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     lineDistance, uid, advanceRound, submitBid, forgeLevel, roulettePhase, spinRoulette,
   ]);
 
+  const PlayerAvatar = ({ r, size = 28 }: { r: { uid: string; name: string; photoURL: string | null }; size?: number }) => (
+    <div
+      className={`rounded-full overflow-hidden flex-shrink-0 ${r.uid === uid ? 'ring-2 ring-amber-400' : 'ring-2 ring-gray-600'}`}
+      style={{ width: size, height: size }}
+    >
+      {r.photoURL ? (
+        <img
+          src={r.photoURL}
+          alt={r.name}
+          width={size}
+          height={size}
+          className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <div
+          className="w-full h-full bg-gray-600 flex items-center justify-center text-white font-bold"
+          style={{ fontSize: size * 0.5 }}
+        >
+          {r.name.charAt(0) || '?'}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderMiniRanking = () => (
+    <div className="bg-gray-800/30 rounded-xl p-3 mt-3">
+      <p className="text-gray-500 text-xs mb-2 font-bold">📊 실시간 순위</p>
+      <div className="space-y-1">
+        {rankings.slice(0, 5).map((r, i) => (
+          <div key={r.uid} className={`flex items-center justify-between gap-2 text-xs px-2 py-1.5 rounded ${r.uid === uid ? 'bg-purple-500/20' : ''}`}>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-gray-400 w-4 flex-shrink-0">{i + 1}.</span>
+              <PlayerAvatar r={r} size={24} />
+              <span className={`truncate ${r.uid === uid ? 'text-purple-300 font-bold' : 'text-white'}`}>{r.name}</span>
+            </div>
+            <span className="text-yellow-400 font-bold flex-shrink-0">{r.score}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   if (!current) return null;
 
   if (current.phase === 'game_intro') {
@@ -1016,22 +1066,34 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
       <div className="flex flex-col items-center p-4 space-y-4 overflow-y-auto">
         <div className="text-5xl mb-2">🏆</div>
         <h2 className="text-xl font-bold text-yellow-400">{current.gameName} 최종 결과</h2>
+        {rankings.length > 0 && (
+          <div className="w-full max-w-sm mb-4 text-center bg-gradient-to-b from-yellow-500/20 to-transparent rounded-2xl p-4 border border-yellow-500/30">
+            <div className="text-2xl mb-2">👑</div>
+            <PlayerAvatar r={rankings[0]} size={64} />
+            <p className={`text-lg font-bold mt-2 ${rankings[0].uid === uid ? 'text-amber-400' : 'text-yellow-400'}`}>
+              {rankings[0].name} {rankings[0].uid === uid && '(나)'}
+            </p>
+            <p className="text-white text-xl font-bold">{rankings[0].score}점</p>
+            {rankings[0].uid === uid && <p className="text-green-400 text-sm mt-1">🎉 축하합니다!</p>}
+          </div>
+        )}
         <div className="w-full max-w-sm space-y-2">
           {rankings.map((r, i) => (
-            <div key={r.uid} className={`flex items-center justify-between px-4 py-2 rounded-xl ${
+            <div key={r.uid} className={`flex items-center justify-between gap-3 px-4 py-2 rounded-xl ${
               i === 0 ? 'bg-yellow-500/20 border border-yellow-500/50' :
               i === 1 ? 'bg-gray-500/20 border border-gray-500/30' :
               i === 2 ? 'bg-orange-500/20 border border-orange-500/30' : 'bg-gray-800/50'
             } ${r.uid === uid ? 'ring-2 ring-purple-500' : ''}`}>
-              <div className="flex items-center gap-3">
-                <span className="text-lg font-bold w-8 text-center">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="text-lg font-bold w-8 text-center flex-shrink-0">
                   {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`}
                 </span>
-                <span className={`text-sm font-medium ${r.uid === uid ? 'text-purple-300' : 'text-white'}`}>
+                <PlayerAvatar r={r} size={36} />
+                <span className={`text-sm font-medium truncate ${r.uid === uid ? 'text-purple-300' : 'text-white'}`}>
                   {r.name} {r.uid === uid && '(나)'}
                 </span>
               </div>
-              <span className="text-sm font-bold text-yellow-400">{r.score}점</span>
+              <span className="text-sm font-bold text-yellow-400 flex-shrink-0">{r.score}점</span>
             </div>
           ))}
         </div>
@@ -1062,9 +1124,13 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
           <p className="text-gray-500 text-xs mb-2 font-bold">📊 실시간 순위</p>
           <div className="space-y-1">
             {rankings.slice(0, 5).map((r, i) => (
-              <div key={r.uid} className={`flex items-center justify-between text-xs px-2 py-1 rounded ${r.uid === uid ? 'bg-purple-500/20' : ''}`}>
-                <span className="text-gray-400">{i + 1}. <span className={r.uid === uid ? 'text-purple-300 font-bold' : 'text-white'}>{r.name}</span></span>
-                <span className="text-yellow-400 font-bold">{r.score}</span>
+              <div key={r.uid} className={`flex items-center justify-between gap-2 text-xs px-2 py-1.5 rounded ${r.uid === uid ? 'bg-purple-500/20' : ''}`}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-gray-400 w-4 flex-shrink-0">{i + 1}.</span>
+                  <PlayerAvatar r={r} size={24} />
+                  <span className={`truncate ${r.uid === uid ? 'text-purple-300 font-bold' : 'text-white'}`}>{r.name}</span>
+                </div>
+                <span className="text-yellow-400 font-bold flex-shrink-0">{r.score}</span>
               </div>
             ))}
           </div>
@@ -1087,9 +1153,13 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
           <p className="text-gray-500 text-xs mb-2 font-bold">📊 실시간 순위</p>
           <div className="space-y-1">
             {rankings.slice(0, 5).map((r, i) => (
-              <div key={r.uid} className={`flex items-center justify-between text-xs px-2 py-1 rounded ${r.uid === uid ? 'bg-purple-500/20' : ''}`}>
-                <span className="text-gray-400">{i + 1}. <span className={r.uid === uid ? 'text-purple-300 font-bold' : 'text-white'}>{r.name}</span></span>
-                <span className="text-yellow-400 font-bold">{r.score}</span>
+              <div key={r.uid} className={`flex items-center justify-between gap-2 text-xs px-2 py-1.5 rounded ${r.uid === uid ? 'bg-purple-500/20' : ''}`}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-gray-400 w-4 flex-shrink-0">{i + 1}.</span>
+                  <PlayerAvatar r={r} size={24} />
+                  <span className={`truncate ${r.uid === uid ? 'text-purple-300 font-bold' : 'text-white'}`}>{r.name}</span>
+                </div>
+                <span className="text-yellow-400 font-bold flex-shrink-0">{r.score}</span>
               </div>
             ))}
           </div>
@@ -1130,20 +1200,6 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
       <p className="text-gray-500 text-sm mt-1">다음 라운드 준비 중...</p>
     </div>
   ) : null;
-
-  const renderMiniRanking = () => (
-    <div className="bg-gray-800/30 rounded-xl p-3 mt-3">
-      <p className="text-gray-500 text-xs mb-2 font-bold">📊 실시간 순위</p>
-      <div className="space-y-1">
-        {rankings.slice(0, 5).map((r, i) => (
-          <div key={r.uid} className={`flex items-center justify-between text-xs px-2 py-1 rounded ${r.uid === uid ? 'bg-purple-500/20' : ''}`}>
-            <span className="text-gray-400">{i + 1}. <span className={r.uid === uid ? 'text-purple-300 font-bold' : 'text-white'}>{r.name}</span></span>
-            <span className="text-yellow-400 font-bold">{r.score}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 
   const gt = current.gameType;
 
@@ -1360,9 +1416,17 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
             <p className="text-gray-300 text-sm mt-2">{rouletteResultMsg}</p>
             <p className="text-yellow-400 font-bold mt-2">보유: 🪙{rouletteCoins}</p>
             {Object.keys(rouletteOtherCoins).length > 0 && (
-              <p className="text-gray-500 text-xs mt-1">
-                다른 플레이어: {Object.entries(rouletteOtherCoins).map(([id, c]) => `${current.nameMap[id] ?? id.slice(0, 6)} 🪙${c}`).join(', ')}
-              </p>
+              <div className="flex flex-wrap gap-2 justify-center mt-2">
+                {Object.entries(rouletteOtherCoins).map(([id, c]) => {
+                  const r = rankings.find(x => x.uid === id) ?? { uid: id, name: current.nameMap[id] ?? id.slice(0, 6), score: 0, photoURL: null as string | null };
+                  return (
+                    <div key={id} className="flex items-center gap-1.5 bg-gray-800/50 rounded-lg px-2 py-1">
+                      <PlayerAvatar r={r} size={18} />
+                      <span className="text-gray-400 text-xs">{r.name} 🪙{c}</span>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}
@@ -1519,12 +1583,22 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
           <p className="text-gray-500 text-xs mb-2 font-bold">⚔️ 실시간 강화 현황</p>
           <div className="space-y-1">
             {Object.entries(current.nameMap || {})
-              .map(([id, name]) => ({ uid: id, name, level: otherForge[id]?.level ?? 0, score: current.scores?.[id] || 0 }))
+              .map(([id, name]) => ({
+                uid: id,
+                name,
+                photoURL: rankings.find(r => r.uid === id)?.photoURL ?? null,
+                level: otherForge[id]?.level ?? 0,
+                score: current.scores?.[id] || 0,
+              }))
               .sort((a, b) => b.score - a.score)
               .map((p, i) => (
-                <div key={p.uid} className={`flex items-center justify-between text-xs px-2 py-1 rounded ${p.uid === uid ? 'bg-purple-500/20' : ''}`}>
-                  <span className="text-gray-400">{i + 1}. <span className={p.uid === uid ? 'text-purple-300 font-bold' : 'text-white'}>{p.name}</span></span>
-                  <div className="flex gap-3 items-center">
+                <div key={p.uid} className={`flex items-center justify-between gap-2 text-xs px-2 py-1.5 rounded ${p.uid === uid ? 'bg-purple-500/20' : ''}`}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-gray-400 w-4 flex-shrink-0">{i + 1}.</span>
+                    <PlayerAvatar r={{ uid: p.uid, name: p.name, photoURL: p.photoURL }} size={22} />
+                    <span className={`truncate ${p.uid === uid ? 'text-purple-300 font-bold' : 'text-white'}`}>{p.name}</span>
+                  </div>
+                  <div className="flex gap-3 items-center flex-shrink-0">
                     <span className={`font-bold ${p.level >= 8 ? 'text-red-400' : p.level >= 5 ? 'text-purple-400' : 'text-green-400'}`}>+{p.level}</span>
                     <span className="text-yellow-400 font-bold">{p.score}점</span>
                   </div>
@@ -1747,14 +1821,21 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
           <div className="bg-gray-800/60 border border-yellow-500/30 rounded-xl p-4 text-center mb-3">
             <p className="text-white font-bold text-base mb-2">{auctionResult.message}</p>
             <div className="space-y-1">
-              {auctionResult.allBids.map((b, i) => (
-                <div key={b.uid} className={`flex justify-between text-xs px-2 py-1 rounded ${b.uid === uid ? 'bg-purple-500/20' : ''} ${b.uid === auctionResult.winnerId ? 'border border-yellow-500/50' : ''}`}>
-                  <span className={b.uid === uid ? 'text-purple-300' : 'text-gray-400'}>
-                    {i === 0 ? '👑 ' : ''}{b.name}{b.uid === uid ? ' (나)' : ''}
-                  </span>
-                  <span className="text-yellow-400 font-bold">🪙 {b.bid}</span>
-                </div>
-              ))}
+              {auctionResult.allBids.map((b, i) => {
+                const photoURL = rankings.find(r => r.uid === b.uid)?.photoURL ?? null;
+                return (
+                  <div key={b.uid} className={`flex items-center justify-between gap-2 text-xs px-2 py-1.5 rounded ${b.uid === uid ? 'bg-purple-500/20' : ''} ${b.uid === auctionResult.winnerId ? 'border border-yellow-500/50' : ''}`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      {i === 0 ? <span className="text-base">👑</span> : null}
+                      <PlayerAvatar r={{ uid: b.uid, name: b.name, photoURL }} size={22} />
+                      <span className={`truncate ${b.uid === uid ? 'text-purple-300' : 'text-gray-400'}`}>
+                        {b.name}{b.uid === uid ? ' (나)' : ''}
+                      </span>
+                    </div>
+                    <span className="text-yellow-400 font-bold flex-shrink-0">🪙 {b.bid}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -1770,15 +1851,25 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
           <p className="text-gray-500 text-xs mb-2 font-bold">🪙 참가자 칩 현황</p>
           <div className="space-y-1">
             {Object.entries(current.nameMap || {})
-              .map(([id, name]) => ({ uid: id, name, chips: chipsMap[id] ?? 0, score: current.scores?.[id] || 0, alive: current.alive?.[id] }))
+              .map(([id, name]) => ({
+                uid: id,
+                name,
+                photoURL: rankings.find(r => r.uid === id)?.photoURL ?? null,
+                chips: chipsMap[id] ?? 0,
+                score: current.scores?.[id] || 0,
+                alive: current.alive?.[id],
+              }))
               .sort((a, b) => b.score - a.score)
               .map((p, i) => (
-                <div key={p.uid} className={`flex items-center justify-between text-xs px-2 py-1 rounded ${p.uid === uid ? 'bg-purple-500/20' : ''} ${!p.alive ? 'opacity-40' : ''}`}>
-                  <span className="text-gray-400">
-                    {i + 1}. <span className={p.uid === uid ? 'text-purple-300 font-bold' : 'text-white'}>{p.name}</span>
-                    {!p.alive && ' 💀'}
-                  </span>
-                  <div className="flex gap-3">
+                <div key={p.uid} className={`flex items-center justify-between gap-2 text-xs px-2 py-1.5 rounded ${p.uid === uid ? 'bg-purple-500/20' : ''} ${!p.alive ? 'opacity-40' : ''}`}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-gray-400 w-4 flex-shrink-0">{i + 1}.</span>
+                    <PlayerAvatar r={{ uid: p.uid, name: p.name, photoURL: p.photoURL }} size={22} />
+                    <span className={`truncate ${p.uid === uid ? 'text-purple-300 font-bold' : 'text-white'}`}>
+                      {p.name}{!p.alive && ' 💀'}
+                    </span>
+                  </div>
+                  <div className="flex gap-3 flex-shrink-0">
                     <span className="text-green-400">🪙{p.chips}</span>
                     <span className="text-yellow-400 font-bold">{p.score}점</span>
                   </div>

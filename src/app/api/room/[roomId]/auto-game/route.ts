@@ -210,12 +210,17 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
         }
         await adminRealtimeDb.ref(`games/${roomId}`).remove();
       }
+
+    const presSnap = await adminRealtimeDb.ref(`rooms/${roomId}/presence`).get();
+    const presVal = presSnap.exists() ? (presSnap.val() as Record<string, { photoURL?: string | null }>) : {};
     const scores: Record<string, number> = {};
     const nameMap: Record<string, string> = {};
+    const photoMap: Record<string, string | null> = {};
     const alive: Record<string, boolean> = {};
     for (const p of players) {
       scores[p.uid] = 0;
       nameMap[p.uid] = p.displayName || p.uid.slice(0, 6);
+      photoMap[p.uid] = presVal[p.uid]?.photoURL ?? null;
       alive[p.uid] = true;
     }
 
@@ -437,6 +442,7 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
         round: 0,
         scores,
         nameMap,
+        photoMap,
         alive,
         startedAt: Date.now(),
         startedBy: allPlayerIds[0],

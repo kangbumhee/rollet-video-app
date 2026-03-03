@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/authStore';
 export interface OnlineUser {
   uid: string;
   displayName: string;
+  photoURL: string | null;
   level: number;
   joinedAt: number;
 }
@@ -29,8 +30,14 @@ export function usePresence(roomId: string, uid?: string | null) {
     // presence 목록 변화를 감지하여 접속자 수/목록 계산
     const unsubPresence = onValue(presenceListRef, (snap) => {
       if (snap.exists()) {
-        const data = snap.val() as Record<string, OnlineUser>;
-        const users = Object.values(data);
+        const data = snap.val() as Record<string, Record<string, unknown>>;
+        const users: OnlineUser[] = Object.values(data).map((u) => ({
+          uid: (u.uid as string) || '',
+          displayName: (u.displayName as string) || '',
+          photoURL: (u.photoURL as string) || null,
+          level: (u.level as number) || 1,
+          joinedAt: (u.joinedAt as number) || 0,
+        }));
         setOnlineCount(users.length);
         setOnlineUsers(users);
       } else {
@@ -41,10 +48,11 @@ export function usePresence(roomId: string, uid?: string | null) {
 
     const unsubConnected = onValue(connectedRef, (snap) => {
       if (snap.val() === true) {
-        // 접속 등록
+        // 접속 등록 (구글 이름·프로필 사진 포함)
         set(presenceRef, {
           uid: profile.uid,
-          displayName: profile.displayName,
+          displayName: profile.displayName || '익명',
+          photoURL: profile.photoURL || null,
           level: profile.level,
           joinedAt: Date.now(),
         });

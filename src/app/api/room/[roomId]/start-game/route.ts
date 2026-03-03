@@ -79,7 +79,7 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
 
     const presSnap = await adminRealtimeDb.ref(`rooms/${roomId}/presence`).get();
     const presData = presSnap.exists()
-      ? (presSnap.val() as Record<string, { uid: string; displayName: string; level?: number }>)
+      ? (presSnap.val() as Record<string, { uid: string; displayName: string; photoURL?: string | null; level?: number }>)
       : {};
     const players = Object.values(presData);
     if (players.length < 2) {
@@ -102,10 +102,12 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
     const allPlayerIds = players.map((p) => p.uid);
     const scores: Record<string, number> = {};
     const nameMap: Record<string, string> = {};
+    const photoMap: Record<string, string | null> = {};
     const alive: Record<string, boolean> = {};
     for (const p of players) {
       scores[p.uid] = 0;
       nameMap[p.uid] = p.displayName || p.uid.slice(0, 6);
+      photoMap[p.uid] = p.photoURL ?? null;
       alive[p.uid] = true;
     }
 
@@ -360,6 +362,7 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
         round: 0,
         scores,
         nameMap,
+        photoMap,
         alive,
         startedAt: Date.now(),
         startedBy: decoded.uid,
