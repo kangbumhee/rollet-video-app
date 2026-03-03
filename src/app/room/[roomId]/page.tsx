@@ -20,7 +20,7 @@ import MiniGameLauncher from '@/components/minigame/MiniGameLauncher';
 import FreePlayLobby from '@/components/game/FreePlayLobby';
 import { Badge } from '@/components/ui/badge';
 import { SoundToggle } from '@/components/ui/SoundToggle';
-import { onValue, ref } from 'firebase/database';
+import { onValue, ref, set } from 'firebase/database';
 import { realtimeDb } from '@/lib/firebase/config';
 import Image from 'next/image';
 
@@ -66,6 +66,14 @@ export default function RoomPage() {
   const [startingGame, setStartingGame] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeGame, setActiveGame] = useState<{ phase: string; gameName: string } | null>(null);
+  const [autoGame, setAutoGame] = useState<{
+    nextGameAt: number;
+    nextGameType: string;
+    nextGameName: string;
+    reward: { type: string; amount: number; label: string };
+  } | null>(null);
+  const [autoCountdown, setAutoCountdown] = useState('');
+  const autoGameTriggeredRef = React.useRef(false);
   const canSeeUserList = profile?.isAdmin || profile?.isModerator || false;
   const canStartGame = profile?.isAdmin || profile?.isModerator || false;
 
@@ -166,6 +174,75 @@ export default function RoomPage() {
     });
     return () => unsub();
   }, [roomId, isMainRoom]);
+
+  const triggerAutoGame = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/room/${roomId}/auto-game`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: 'auto-game-secret-key' }),
+      });
+      const data = await res.json();
+      if (!data.success && !data.skipped) {
+        console.error('[AutoGame] Failed:', data.error);
+      }
+    } catch (err) {
+      console.error('[AutoGame] Network error:', err);
+    }
+  }, [roomId]);
+
+  useEffect(() => {
+    if (isMainRoom) return;
+    const autoRef = ref(realtimeDb, `rooms/${roomId}/autoGame`);
+    const unsub = onValue(autoRef, async (snap) => {
+      if (snap.exists()) {
+        setAutoGame(snap.val() as typeof autoGame);
+      } else {
+        setAutoGame(null);
+        if (user?.uid) {
+          const GAME_LIST = [
+            { id: 'oxSurvival', name: '⭕ OX 서바이벌' },
+            { id: 'tapSurvival', name: '👆 탭 서바이벌' },
+            { id: 'priceGuess', name: '💰 가격 맞추기' },
+            { id: 'typingBattle', name: '⌨️ 타이핑 배틀' },
+            { id: 'quickTouch', name: '🎯 순발력 터치' },
+          ];
+          const next = GAME_LIST[Math.floor(Math.random() * GAME_LIST.length)];
+          await set(autoRef, {
+            nextGameAt: Date.now() + 30 * 60 * 1000,
+            nextGameType: next.id,
+            nextGameName: next.name,
+            reward: { type: 'point', amount: 100, label: '100 포인트' },
+          });
+        }
+      }
+    });
+    return () => unsub();
+  }, [roomId, isMainRoom, user?.uid]);
+
+  useEffect(() => {
+    if (!autoGame?.nextGameAt) return;
+
+    const tick = () => {
+      const diff = autoGame.nextGameAt - Date.now();
+      if (diff <= 0) {
+        setAutoCountdown('게임 시작 중...');
+        if (!autoGameTriggeredRef.current && onlineUsers.length > 0 && onlineUsers[0]?.uid === user?.uid) {
+          autoGameTriggeredRef.current = true;
+          void triggerAutoGame();
+        }
+        return;
+      }
+      autoGameTriggeredRef.current = false;
+      const min = Math.floor(diff / 60000);
+      const sec = Math.floor((diff % 60000) / 1000);
+      setAutoCountdown(`${min}분 ${sec.toString().padStart(2, '0')}초`);
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [autoGame?.nextGameAt, onlineUsers, user?.uid, triggerAutoGame]);
 
   const handleResetGame = useCallback(async (forceConfirm = false) => {
     if (!user) return;
@@ -426,12 +503,35 @@ export default function RoomPage() {
           </div>
         )}
 
-        {/* 방 상태 */}
-        <div className="text-center py-6">
+        {/* 자동 게임 대기 정보 */}
+        <div className="bg-gradient-to-b from-gray-800/60 to-gray-900/60 border border-gray-700/50 rounded-2xl p-5 text-center">
           <div className="text-5xl mb-3">🎮</div>
           <h2 className="text-xl font-bold text-white mb-1">자유 게임방</h2>
-          <p className="text-gray-400 text-sm">참여하고 싶은 미니게임을 선택하세요</p>
-          <p className="text-green-400 text-xs mt-2 font-bold">👥 {fmtCount(onlineCount)}명 접속 중</p>
+          <p className="text-green-400 text-xs font-bold mb-4">👥 {fmtCount(onlineCount)}명 접속 중</p>
+
+          {autoGame && (
+            <div className="space-y-3">
+              <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4">
+                <p className="text-purple-400 text-xs font-bold mb-1">⏰ 다음 자동 게임</p>
+                <p className="text-white text-lg font-bold">{autoGame.nextGameName}</p>
+                <p className="text-yellow-400 text-2xl font-bold mt-2">{autoCountdown}</p>
+                <p className="text-gray-400 text-xs mt-1">🏆 보상: {autoGame.reward?.label || '100 포인트'}</p>
+              </div>
+
+              {cycle?.nextSlot && (
+                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
+                  <p className="text-yellow-400 text-xs font-bold">🎁 다음 경품 게임</p>
+                  <p className="text-white text-sm font-bold mt-1">
+                    {new Date(cycle.nextSlot).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!autoGame && (
+            <p className="text-gray-400 text-sm">참여하고 싶은 미니게임을 선택하세요</p>
+          )}
         </div>
 
         {/* 미니게임 */}

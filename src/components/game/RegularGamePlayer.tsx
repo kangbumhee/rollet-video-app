@@ -21,6 +21,9 @@ interface GameCurrent {
   startedAt: number;
   startedBy?: string;
   config?: Record<string, unknown>;
+  isAutoGame?: boolean;
+  reward?: { type: string; amount: number; label: string };
+  rewardDistributed?: boolean;
 }
 
 interface RegularGamePlayerProps {
@@ -248,6 +251,34 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     }
     finalSoundPlayedRef.current = false;
   }, [current?.phase, current]);
+
+  const rewardCalledRef = useRef(false);
+  useEffect(() => {
+    if (!current || !uid) return;
+    if (current.phase !== 'final_result') {
+      rewardCalledRef.current = false;
+      return;
+    }
+    if (!current.isAutoGame) return;
+    if (current.rewardDistributed) return;
+    if (rewardCalledRef.current) return;
+    if (!current.startedBy || current.startedBy !== uid) return;
+
+    rewardCalledRef.current = true;
+
+    const callReward = async () => {
+      try {
+        await fetch(`/api/room/${roomId}/reward-points`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ secret: 'auto-game-secret-key' }),
+        });
+      } catch (err) {
+        console.error('[RegularGamePlayer] Reward API error:', err);
+      }
+    };
+    void callReward();
+  }, [current?.phase, current?.isAutoGame, current?.rewardDistributed, current?.startedBy, uid, roomId]);
 
   useEffect(() => {
     if (!current || current.gameType !== 'lineRunner') return;
@@ -533,6 +564,19 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
             </div>
           ))}
         </div>
+        {current.isAutoGame && current.reward && (
+          <div className="w-full max-w-sm mt-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 text-center">
+            <p className="text-yellow-400 font-bold text-sm mb-2">🎁 자동 게임 보상</p>
+            <div className="space-y-1 text-xs">
+              <p className="text-white">🥇 1등: +{current.reward.amount}P</p>
+              <p className="text-gray-300">🥈 2등: +{Math.floor(current.reward.amount / 2)}P</p>
+              <p className="text-gray-300">🥉 3등: +{Math.floor(current.reward.amount / 4)}P</p>
+            </div>
+            {current.rewardDistributed && (
+              <p className="text-green-400 text-xs mt-2 font-bold">✅ 포인트 지급 완료!</p>
+            )}
+          </div>
+        )}
       </div>
     );
   }
