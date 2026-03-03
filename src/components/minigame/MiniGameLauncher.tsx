@@ -26,6 +26,16 @@ import OddOneOut from './OddOneOut';
 import SpeedCalc from './SpeedCalc';
 import EmojiQuiz from './EmojiQuiz';
 import StackTower from './StackTower';
+import LuckyDoor from './LuckyDoor';
+import FortuneWheel from './FortuneWheel';
+import CardBattle from './CardBattle';
+import TreasureDive from './TreasureDive';
+import RockDraw from './RockDraw';
+import AnimalRace from './AnimalRace';
+import LottoPick from './LottoPick';
+import CrystalBall from './CrystalBall';
+import PirateGold from './PirateGold';
+import ShootingStar from './ShootingStar';
 
 interface GameInfo {
   id: string;
@@ -55,6 +65,16 @@ const GAMES: GameInfo[] = [
   { id: 'speedcalc', name: '빠른 계산', emoji: '➕', desc: '누가 더 빨리 풀까' },
   { id: 'emojiquiz', name: '이모지 퀴즈', emoji: '😎', desc: '이모지로 단어 맞추기' },
   { id: 'stacktower', name: '탑 쌓기', emoji: '🏗️', desc: '타이밍 맞춰 탑을 쌓아라' },
+  { id: 'luckydoor', name: '행운의 문', emoji: '🚪', desc: '3개 문 중 보물 찾기' },
+  { id: 'fortunewheel', name: '운명의 룰렛', emoji: '🎡', desc: '룰렛 돌려 점수 획득' },
+  { id: 'cardbattle', name: '카드 대결', emoji: '🃏', desc: '봇과 카드 승부' },
+  { id: 'treasuredive', name: '보물 다이빙', emoji: '🤿', desc: '깊이별 보물 탐색' },
+  { id: 'rockdraw', name: '행운 추첨기', emoji: '🎱', desc: '공 3개 뽑기 조합' },
+  { id: 'animalrace', name: '동물 경주', emoji: '🐎', desc: '1등 동물 예측' },
+  { id: 'lottopick', name: '미니 복권', emoji: '🎫', desc: '번호 맞추기' },
+  { id: 'crystalball', name: '수정구슬', emoji: '🔮', desc: '색상 예측' },
+  { id: 'pirategold', name: '해적 금화', emoji: '🏴‍☠️', desc: '폭탄 피해 금화 획득' },
+  { id: 'shootingstar', name: '별똥별 소원', emoji: '🌠', desc: '별똥별 잡기' },
 ];
 
 const RECORD_MESSAGES: Record<string, (name: string, score: string) => string[]> = {
@@ -78,6 +98,16 @@ const RECORD_MESSAGES: Record<string, (name: string, score: string) => string[]>
   speedcalc: (n, s) => [`➕ ${n}님 빠른 계산 ${s} 신기록!`],
   emojiquiz: (n, s) => [`😎 ${n}님 이모지 퀴즈 ${s} 신기록!`],
   stacktower: (n, s) => [`🏗️ ${n}님 탑 쌓기 ${s} 신기록!`],
+  luckydoor: (n, s) => [`🚪 ${n}님이 행운의 문 ${s} 신기록!`],
+  fortunewheel: (n, s) => [`🎡 ${n}님이 운명의 룰렛 ${s} 신기록!`],
+  cardbattle: (n, s) => [`🃏 ${n}님이 카드 대결 ${s} 신기록!`],
+  treasuredive: (n, s) => [`🤿 ${n}님이 보물 다이빙 ${s} 신기록!`],
+  rockdraw: (n, s) => [`🎱 ${n}님이 행운 추첨기 ${s} 신기록!`],
+  animalrace: (n, s) => [`🐎 ${n}님이 동물 경주 ${s} 신기록!`],
+  lottopick: (n, s) => [`🎫 ${n}님이 미니 복권 ${s} 신기록!`],
+  crystalball: (n, s) => [`🔮 ${n}님이 수정구슬 ${s} 신기록!`],
+  pirategold: (n, s) => [`🏴‍☠️ ${n}님이 해적 금화 ${s} 신기록!`],
+  shootingstar: (n, s) => [`🌠 ${n}님이 별똥별 소원 ${s} 신기록!`],
 };
 
 interface MiniGameLauncherProps {
@@ -272,7 +302,32 @@ export default function MiniGameLauncher({ roomId = 'main' }: MiniGameLauncherPr
       case 'emojiquiz':
         return <EmojiQuiz {...props} />;
       case 'stacktower':
-        return <StackTower {...props} />;
+        return (
+          <>
+            {recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}
+            <StackTower {...props} />
+          </>
+        );
+      case 'luckydoor':
+        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<LuckyDoor {...props} /></>;
+      case 'fortunewheel':
+        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<FortuneWheel {...props} /></>;
+      case 'cardbattle':
+        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<CardBattle {...props} /></>;
+      case 'treasuredive':
+        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<TreasureDive {...props} /></>;
+      case 'rockdraw':
+        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<RockDraw {...props} /></>;
+      case 'animalrace':
+        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<AnimalRace {...props} /></>;
+      case 'lottopick':
+        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<LottoPick {...props} /></>;
+      case 'crystalball':
+        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<CrystalBall {...props} /></>;
+      case 'pirategold':
+        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<PirateGold {...props} /></>;
+      case 'shootingstar':
+        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<ShootingStar {...props} /></>;
       default:
         return null;
     }

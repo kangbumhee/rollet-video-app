@@ -286,8 +286,6 @@ exports.gameCycle = (0, scheduler_1.onSchedule)({
         const GAME_TYPES = [
             'drawGuess', 'lineRunner', 'bigRoulette', 'typingBattle', 'weaponForge',
             'priceGuess', 'oxSurvival', 'destinyAuction', 'nunchiGame', 'quickTouch',
-            'luckyCard', 'coinToss', 'mysteryBox', 'colorRace', 'highLow',
-            'minefield', 'slotMachine', 'diceKing', 'treasureMap', 'luckyWheel',
         ];
         const GAME_NAMES = {
             drawGuess: '🎨 그림 맞추기',
@@ -300,16 +298,6 @@ exports.gameCycle = (0, scheduler_1.onSchedule)({
             destinyAuction: '🎰 운명의 경매',
             nunchiGame: '👀 눈치 게임',
             quickTouch: '🎯 순발력 터치',
-            luckyCard: '🃏 행운의 카드',
-            coinToss: '🪙 동전 던지기',
-            mysteryBox: '📦 미스터리 박스',
-            colorRace: '🏇 컬러 레이스',
-            highLow: '🔮 하이 & 로우',
-            minefield: '💣 지뢰밭',
-            slotMachine: '🎰 슬롯머신',
-            diceKing: '🎲 주사위 킹',
-            treasureMap: '🗺️ 보물찾기',
-            luckyWheel: '🎡 행운의 수레바퀴',
         };
         const LIAR_WORDS = [
             { category: '음식', words: ['떡볶이', '김치찌개', '치킨', '삼겹살', '비빔밥', '짜장면', '떡국', '불고기', '냉면', '김밥'] },
@@ -534,110 +522,6 @@ exports.gameCycle = (0, scheduler_1.onSchedule)({
                     roundsData[`round${r}`] = { round: r, targets, duration: 15 };
                 }
                 gameConfig = { type: 'quickTouch' };
-                break;
-            }
-            case 'luckyCard': {
-                totalRoundsForGame = 5;
-                for (let r = 1; r <= 5; r++) {
-                    const cardValues = [1, 2, 3, 5, 10].sort(() => Math.random() - 0.5);
-                    roundsData[`round${r}`] = { round: r, cardValues, timeLimit: 8 };
-                }
-                gameConfig = { type: 'luckyCard' };
-                break;
-            }
-            case 'coinToss': {
-                totalRoundsForGame = 3;
-                for (let r = 1; r <= 3; r++) {
-                    const result = Math.random() < 0.5 ? 'heads' : 'tails';
-                    roundsData[`round${r}`] = { round: r, result, timeLimit: 6 };
-                }
-                gameConfig = { type: 'coinToss' };
-                break;
-            }
-            case 'mysteryBox': {
-                totalRoundsForGame = 1;
-                const boxValues = [50, 30, 20, 10, 5, 0, 0, -10, -20].sort(() => Math.random() - 0.5);
-                roundsData['round1'] = { round: 1, boxValues, timeLimit: 15 };
-                gameConfig = { type: 'mysteryBox', maxPicks: 3 };
-                break;
-            }
-            case 'colorRace': {
-                totalRoundsForGame = 3;
-                const colors = ['🔴', '🔵', '🟢', '🟡', '🟣', '🟠'];
-                for (let r = 1; r <= 3; r++) {
-                    const speeds = colors.map(() => Math.random());
-                    const winnerIdx = speeds.indexOf(Math.max(...speeds));
-                    roundsData[`round${r}`] = { round: r, colors, winnerIdx, speeds, timeLimit: 8 };
-                }
-                gameConfig = { type: 'colorRace' };
-                break;
-            }
-            case 'highLow': {
-                totalRoundsForGame = 5;
-                let prev = Math.floor(Math.random() * 10) + 1;
-                for (let r = 1; r <= 5; r++) {
-                    const next = Math.floor(Math.random() * 10) + 1;
-                    roundsData[`round${r}`] = { round: r, currentNumber: prev, nextNumber: next, timeLimit: 6 };
-                    prev = next;
-                }
-                gameConfig = { type: 'highLow' };
-                break;
-            }
-            case 'minefield': {
-                totalRoundsForGame = 1;
-                const grid = Array(25).fill(false);
-                const minePositions = new Set();
-                while (minePositions.size < 8)
-                    minePositions.add(Math.floor(Math.random() * 25));
-                minePositions.forEach((p) => (grid[p] = true));
-                roundsData['round1'] = { round: 1, grid, timeLimit: 20 };
-                gameConfig = { type: 'minefield', maxSteps: 5 };
-                break;
-            }
-            case 'slotMachine': {
-                totalRoundsForGame = 3;
-                const symbols = ['🍒', '🍋', '🍊', '🍇', '💎', '7️⃣', '⭐'];
-                for (let r = 1; r <= 3; r++) {
-                    const result = [
-                        symbols[Math.floor(Math.random() * symbols.length)],
-                        symbols[Math.floor(Math.random() * symbols.length)],
-                        symbols[Math.floor(Math.random() * symbols.length)],
-                    ];
-                    roundsData[`round${r}`] = { round: r, result, timeLimit: 5 };
-                }
-                gameConfig = { type: 'slotMachine', symbols };
-                break;
-            }
-            case 'diceKing': {
-                totalRoundsForGame = 3;
-                for (let r = 1; r <= 3; r++) {
-                    roundsData[`round${r}`] = { round: r, timeLimit: 5 };
-                }
-                gameConfig = { type: 'diceKing' };
-                break;
-            }
-            case 'treasureMap': {
-                totalRoundsForGame = 4;
-                const directions = ['⬆️', '➡️', '⬇️', '⬅️'];
-                for (let r = 1; r <= 4; r++) {
-                    const treasureDir = Math.floor(Math.random() * 4);
-                    const pointValues = [0, 0, 0, 0];
-                    pointValues[treasureDir] = 30;
-                    const otherIdx = (treasureDir + 1 + Math.floor(Math.random() * 3)) % 4;
-                    pointValues[otherIdx] = 10;
-                    roundsData[`round${r}`] = { round: r, treasureDir, pointValues, directions, timeLimit: 6 };
-                }
-                gameConfig = { type: 'treasureMap', directions };
-                break;
-            }
-            case 'luckyWheel': {
-                totalRoundsForGame = 3;
-                const wheelValues = [5, 10, 15, 20, 0, 25, 5, 30, 10, -10];
-                for (let r = 1; r <= 3; r++) {
-                    const targetIdx = Math.floor(Math.random() * wheelValues.length);
-                    roundsData[`round${r}`] = { round: r, targetIdx, wheelValues, timeLimit: 10 };
-                }
-                gameConfig = { type: 'luckyWheel', wheelValues };
                 break;
             }
         }

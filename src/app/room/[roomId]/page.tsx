@@ -32,19 +32,9 @@ const REGULAR_GAMES = [
   { id: 'weaponForge', name: '무기 강화 대전', emoji: '⚔️' },
   { id: 'priceGuess', name: '가격 맞추기', emoji: '💰' },
   { id: 'oxSurvival', name: 'OX 서바이벌', emoji: '⭕' },
-  { id: 'destinyAuction', name: '운명의 경매', emoji: '🎰' },
+  { id: 'destinyAuction', name: '운명의 경매', emoji: '🏹' },
   { id: 'nunchiGame', name: '눈치 게임', emoji: '👀' },
   { id: 'quickTouch', name: '순발력 터치', emoji: '🎯' },
-  { id: 'luckyCard', name: '행운의 카드', emoji: '🃏' },
-  { id: 'coinToss', name: '동전 던지기', emoji: '🪙' },
-  { id: 'mysteryBox', name: '미스터리 박스', emoji: '📦' },
-  { id: 'colorRace', name: '컬러 레이스', emoji: '🏇' },
-  { id: 'highLow', name: '하이 & 로우', emoji: '🔮' },
-  { id: 'minefield', name: '지뢰밭', emoji: '💣' },
-  { id: 'slotMachine', name: '슬롯머신', emoji: '🎰' },
-  { id: 'diceKing', name: '주사위 킹', emoji: '🎲' },
-  { id: 'treasureMap', name: '보물찾기', emoji: '🗺️' },
-  { id: 'luckyWheel', name: '행운의 수레바퀴', emoji: '🎡' },
 ];
 
 export default function RoomPage() {

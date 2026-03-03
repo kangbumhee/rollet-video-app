@@ -88,52 +88,6 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
   const rouletteAnimRef = useRef(0);
   const rouletteAngleRef = useRef(0);
 
-  // ─── 운 기반 미니게임 10종 상태 ───
-  const [lcCards, setLcCards] = useState<number[]>([]);
-  const [lcFlipped, setLcFlipped] = useState<boolean[]>([]);
-  const [lcPicked, setLcPicked] = useState(-1);
-  const [lcRevealed, setLcRevealed] = useState(false);
-  const [ctChoice, setCtChoice] = useState<'heads' | 'tails' | null>(null);
-  const [ctFlipping, setCtFlipping] = useState(false);
-  const [ctResult, setCtResult] = useState<string | null>(null);
-  const [ctDone, setCtDone] = useState(false);
-  const [mbBoxes, setMbBoxes] = useState<number[]>([]);
-  const [mbOpened, setMbOpened] = useState<boolean[]>([]);
-  const [mbPicksLeft, setMbPicksLeft] = useState(3);
-  const [mbScore, setMbScore] = useState(0);
-  const [mbDone, setMbDone] = useState(false);
-  const [crChoice, setCrChoice] = useState(-1);
-  const [crRacing, setCrRacing] = useState(false);
-  const [crPositions, setCrPositions] = useState<number[]>([]);
-  const [crFinished, setCrFinished] = useState(false);
-  const [crScore, setCrScore] = useState(0);
-  const [hlChoice, setHlChoice] = useState<'high' | 'low' | null>(null);
-  const [hlRevealed, setHlRevealed] = useState(false);
-  const [hlDone, setHlDone] = useState(false);
-  const [mfGrid, setMfGrid] = useState<boolean[]>([]);
-  const [mfRevealed, setMfRevealed] = useState<boolean[]>([]);
-  const [mfSteps, setMfSteps] = useState(0);
-  const [mfDead, setMfDead] = useState(false);
-  const [mfScore, setMfScore] = useState(0);
-  const [smSpinning, setSmSpinning] = useState(false);
-  const [smReels, setSmReels] = useState<string[]>(['?', '?', '?']);
-  const [smDone, setSmDone] = useState(false);
-  const [smScore, setSmScore] = useState(0);
-  const [dkRolling, setDkRolling] = useState(false);
-  const [dkDice, setDkDice] = useState<number[]>([0, 0, 0]);
-  const [dkDone, setDkDone] = useState(false);
-  const [tmChoice, setTmChoice] = useState(-1);
-  const [tmRevealed, setTmRevealed] = useState(false);
-  const [tmDone, setTmDone] = useState(false);
-  const lwCanvasRef = useRef<HTMLCanvasElement>(null);
-  const lwSpinningRef = useRef(false);
-  const lwAnimRef = useRef(0);
-  const lwAngleRef = useRef(0);
-  const [lwSpinning, setLwSpinning] = useState(false);
-  const [lwResult, setLwResult] = useState<number | null>(null);
-  const [lwScore, setLwScore] = useState(0);
-  const [lwDone, setLwDone] = useState(false);
-
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const scoreSubmittedRef = useRef(false);
   const lastTransitionedRoundRef = useRef<number>(0);
@@ -220,78 +174,40 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
         setActiveTarget(null);
         quickTouchTimersRef.current.forEach(clearTimeout);
         quickTouchTimersRef.current = [];
-        setRouletteBets({});
-        setRouletteSelectedMult(null);
-        setRoulettePhase('betting');
-        setRouletteWinIdx(-1);
-        setRouletteResultMsg('');
-        rouletteSpinningRef.current = false;
-        rouletteAngleRef.current = 0;
-        if (rouletteAnimRef.current) cancelAnimationFrame(rouletteAnimRef.current);
+        if (!rouletteSpinningRef.current) {
+          setRouletteBets({});
+          setRouletteSelectedMult(null);
+          setRoulettePhase('betting');
+          setRouletteWinIdx(-1);
+          setRouletteResultMsg('');
+          rouletteAngleRef.current = 0;
+          if (rouletteAnimRef.current) cancelAnimationFrame(rouletteAnimRef.current);
+        } else {
+          const waitForSpin = setInterval(() => {
+            if (!rouletteSpinningRef.current) {
+              clearInterval(waitForSpin);
+              setRouletteBets({});
+              setRouletteSelectedMult(null);
+              setRoulettePhase('betting');
+              setRouletteWinIdx(-1);
+              setRouletteResultMsg('');
+              rouletteAngleRef.current = 0;
+            }
+          }, 200);
+          setTimeout(() => {
+            clearInterval(waitForSpin);
+            rouletteSpinningRef.current = false;
+            if (rouletteAnimRef.current) cancelAnimationFrame(rouletteAnimRef.current);
+            setRouletteBets({});
+            setRouletteSelectedMult(null);
+            setRoulettePhase('betting');
+            setRouletteWinIdx(-1);
+            setRouletteResultMsg('');
+            rouletteAngleRef.current = 0;
+          }, 5000);
+        }
         setStrokes([]);
         setGuessInput('');
-
-        const gt = current.gameType;
-        if (gt === 'luckyCard') {
-          setLcCards((data.cardValues as number[]) || [1, 2, 3, 5, 10]);
-          setLcFlipped(Array(5).fill(false));
-          setLcPicked(-1);
-          setLcRevealed(false);
-        }
-        if (gt === 'coinToss') {
-          setCtChoice(null);
-          setCtFlipping(false);
-          setCtResult(null);
-          setCtDone(false);
-        }
-        if (gt === 'mysteryBox') {
-          setMbBoxes((data.boxValues as number[]) || []);
-          setMbOpened(Array(9).fill(false));
-          setMbPicksLeft(3);
-          setMbScore(0);
-          setMbDone(false);
-        }
-        if (gt === 'colorRace') {
-          setCrChoice(-1);
-          setCrRacing(false);
-          setCrPositions([0, 0, 0, 0, 0, 0]);
-          setCrFinished(false);
-          setCrScore(0);
-        }
-        if (gt === 'highLow') {
-          setHlChoice(null);
-          setHlRevealed(false);
-          setHlDone(false);
-        }
-        if (gt === 'minefield') {
-          setMfGrid((data.grid as boolean[]) || []);
-          setMfRevealed(Array(25).fill(false));
-          setMfSteps(0);
-          setMfDead(false);
-          setMfScore(0);
-        }
-        if (gt === 'slotMachine') {
-          setSmSpinning(false);
-          setSmReels(['?', '?', '?']);
-          setSmDone(false);
-          setSmScore(0);
-        }
-        if (gt === 'diceKing') {
-          setDkRolling(false);
-          setDkDice([0, 0, 0]);
-          setDkDone(false);
-        }
-        if (gt === 'treasureMap') {
-          setTmChoice(-1);
-          setTmRevealed(false);
-          setTmDone(false);
-        }
-        if (gt === 'luckyWheel') {
-          setLwSpinning(false);
-          setLwResult(null);
-          setLwDone(false);
-          lwSpinningRef.current = false;
-        }
 
         const tl = (data.timeLimit as number) || (data.duration as number) || (data.discussionTime as number) || 15;
         setTimeLeft(tl);
@@ -814,10 +730,17 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     };
   }, []);
 
+  // 빅 룰렛 캔버스 초기 그리기 — betting/result에서 캔버스 마운트 후 한 프레임 대기
   useEffect(() => {
-    if (current?.gameType !== 'bigRoulette' || roulettePhase !== 'betting') return;
-    drawRouletteWheel(rouletteAngleRef.current);
-  }, [current?.gameType, roulettePhase, drawRouletteWheel]);
+    if (current?.gameType !== 'bigRoulette') return;
+    if (roulettePhase === 'spinning') return;
+
+    const drawId = requestAnimationFrame(() => {
+      const highlightIdx = roulettePhase === 'result' && rouletteWinIdx >= 0 ? rouletteWinIdx : undefined;
+      drawRouletteWheel(rouletteAngleRef.current, highlightIdx);
+    });
+    return () => cancelAnimationFrame(drawId);
+  }, [current?.gameType, roulettePhase, rouletteWinIdx, drawRouletteWheel, rouletteBets]);
 
   const submitScore = async (points: number) => {
     if (scoreSubmittedRef.current) return;
@@ -1101,8 +1024,17 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
       await submitChoice('0');
     } else if (gt === 'lineRunner' && !myChoice) {
       await submitScore(lineDistance);
-    } else if (gt === 'bigRoulette' && roulettePhase === 'betting' && !scoreSubmittedRef.current) {
-      void spinRoulette();
+    } else if (gt === 'bigRoulette') {
+      if (rouletteSpinningRef.current) return;
+      if (roulettePhase === 'betting') {
+        void spinRoulette();
+        return;
+      }
+      if (roulettePhase === 'result' && !scoreSubmittedRef.current) {
+        const baseCoins = (roundData.baseCoins as number) || 100;
+        void submitScore(baseCoins);
+      }
+      return;
     } else if (gt === 'nunchiGame' && !myChoice) {
       await submitChoice('timeout');
     } else if (gt === 'weaponForge' && !scoreSubmittedRef.current) {
@@ -1112,35 +1044,14 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
       await submitScore(points);
     } else if (gt === 'drawGuess' && !myChoice) {
       await submitScore(0);
-    } else if (gt === 'luckyCard' && lcPicked < 0) {
-      await submitScore(0);
-    } else if (gt === 'coinToss' && !ctDone) {
-      await submitScore(0);
-    } else if (gt === 'mysteryBox' && !mbDone) {
-      await submitScore(Math.max(0, mbScore));
-    } else if (gt === 'colorRace' && crChoice < 0) {
-      await submitScore(0);
-    } else if (gt === 'highLow' && !hlDone) {
-      await submitScore(0);
-    } else if (gt === 'minefield' && !mfDead && mfSteps < 5) {
-      await submitScore(mfScore);
-    } else if (gt === 'slotMachine' && !smDone) {
-      await submitScore(0);
-    } else if (gt === 'diceKing' && !dkDone) {
-      await submitScore(0);
-    } else if (gt === 'treasureMap' && !tmDone) {
-      await submitScore(0);
-    } else if (gt === 'luckyWheel' && !lwDone) {
-      await submitScore(Math.max(0, lwScore));
     }
 
-    if (gt !== 'destinyAuction') {
+    if (gt !== 'destinyAuction' && gt !== 'bigRoulette') {
       void advanceRound();
     }
   }, [
     current, roundData, bidSubmitted, touchScore, typingDone, myChoice,
     lineDistance, uid, advanceRound, submitBid, forgeLevel, roulettePhase, spinRoulette,
-    lcPicked, ctDone, mbDone, mbScore, crChoice, hlDone, mfDead, mfSteps, mfScore, smDone, dkDone, tmDone, lwDone, lwScore,
   ]);
 
   const PlayerAvatar = ({ r, size = 28 }: { r: { uid: string; name: string; photoURL: string | null }; size?: number }) => (
@@ -1339,700 +1250,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     </div>
   ) : null;
 
-  // ─── 운 기반 미니게임 핸들러 ───
-  const pickCard = (idx: number) => {
-    if (lcPicked >= 0 || lcRevealed) return;
-    soundManager.play('card-flip');
-    setLcPicked(idx);
-    setTimeout(() => {
-      const newFlipped = [...lcFlipped];
-      newFlipped[idx] = true;
-      setLcFlipped(newFlipped);
-      const val = lcCards[idx];
-      if (val >= 5) soundManager.play('cash-register');
-      else if (val >= 3) soundManager.play('correct');
-      else soundManager.play('pop-up');
-      setTimeout(() => {
-        setLcFlipped(Array(5).fill(true));
-        setLcRevealed(true);
-        soundManager.play('prize-reveal');
-        const score = val * 10;
-        submitScore(score).then(() => void advanceRound());
-      }, 1200);
-    }, 400);
-  };
-
-  const tossCoin = (choice: 'heads' | 'tails') => {
-    if (ctFlipping || ctDone) return;
-    setCtChoice(choice);
-    setCtFlipping(true);
-    soundManager.play('coin-flip');
-    const actual = (roundData?.result as string) || (Math.random() < 0.5 ? 'heads' : 'tails');
-    setTimeout(() => {
-      setCtResult(actual);
-      setCtFlipping(false);
-      const isCorrect = choice === actual;
-      if (isCorrect) soundManager.play('correct');
-      else soundManager.play('wrong');
-      setCtDone(true);
-      submitScore(isCorrect ? 30 : 0).then(() => void advanceRound());
-    }, 1500);
-  };
-
-  const openBox = (idx: number) => {
-    if (mbOpened[idx] || mbPicksLeft <= 0 || mbDone) return;
-    soundManager.play('card-flip');
-    const newOpened = [...mbOpened];
-    newOpened[idx] = true;
-    setMbOpened(newOpened);
-    const val = mbBoxes[idx];
-    setTimeout(() => {
-      if (val > 0) soundManager.play('cash-register');
-      else if (val === 0) soundManager.play('pop-up');
-      else soundManager.play('wrong');
-    }, 300);
-    const newScore = mbScore + val;
-    setMbScore(newScore);
-    const left = mbPicksLeft - 1;
-    setMbPicksLeft(left);
-    if (left <= 0) {
-      setMbDone(true);
-      setTimeout(() => {
-        setMbOpened(Array(9).fill(true));
-        soundManager.play('prize-reveal');
-        submitScore(Math.max(0, newScore)).then(() => void advanceRound());
-      }, 800);
-    }
-  };
-
-  const pickHorse = (idx: number) => {
-    if (crChoice >= 0 || crRacing) return;
-    setCrChoice(idx);
-    soundManager.play('click');
-    setCrRacing(true);
-    soundManager.play('horse-gallop');
-    const speeds = (roundData?.speeds as number[]) || [0.5, 0.3, 0.7, 0.4, 0.6, 0.2];
-    const winnerIdx = (roundData?.winnerIdx as number) ?? speeds.indexOf(Math.max(...speeds));
-    let frame = 0;
-    const maxFrames = 60;
-    const interval = setInterval(() => {
-      frame++;
-      const progress = frame / maxFrames;
-      const newPos = speeds.map((s: number, i: number) => {
-        const base = s * progress * 100;
-        const wobble = Math.sin(frame * 0.3 + i) * 3;
-        const boost = i === winnerIdx && progress > 0.7 ? (progress - 0.7) * 80 : 0;
-        return Math.min(100, base + wobble + boost);
-      });
-      setCrPositions(newPos);
-      if (frame >= maxFrames) {
-        clearInterval(interval);
-        setCrFinished(true);
-        const myScore = idx === winnerIdx ? 50 : 10;
-        setCrScore(myScore);
-        if (idx === winnerIdx) soundManager.play('win-fanfare');
-        else soundManager.play('lose');
-        submitScore(myScore).then(() => void advanceRound());
-      }
-    }, 50);
-  };
-
-  const guessHighLow = (choice: 'high' | 'low') => {
-    if (hlChoice || hlDone) return;
-    setHlChoice(choice);
-    soundManager.play('click');
-    const currentNum = (roundData?.currentNumber as number) ?? 5;
-    const nextNum = (roundData?.nextNumber as number) ?? 5;
-    setTimeout(() => {
-      setHlRevealed(true);
-      const isCorrect = (choice === 'high' && nextNum >= currentNum) || (choice === 'low' && nextNum < currentNum);
-      if (isCorrect) {
-        soundManager.play('correct');
-        submitScore(20).then(() => void advanceRound());
-      } else {
-        soundManager.play('wrong');
-        submitScore(0).then(() => void advanceRound());
-      }
-      setHlDone(true);
-    }, 800);
-  };
-
-  const stepOnTile = (idx: number) => {
-    if (mfRevealed[idx] || mfDead || mfSteps >= 5) return;
-    soundManager.play('click');
-    const newRevealed = [...mfRevealed];
-    newRevealed[idx] = true;
-    setMfRevealed(newRevealed);
-    if (mfGrid[idx]) {
-      soundManager.play('explosion');
-      setMfDead(true);
-      setTimeout(() => {
-        setMfRevealed(Array(25).fill(true));
-        submitScore(mfScore).then(() => void advanceRound());
-      }, 500);
-    } else {
-      soundManager.play('correct');
-      const newScore = mfScore + 15;
-      setMfScore(newScore);
-      const newSteps = mfSteps + 1;
-      setMfSteps(newSteps);
-      if (newSteps >= 5) {
-        soundManager.play('win-fanfare');
-        submitScore(newScore).then(() => void advanceRound());
-      }
-    }
-  };
-
-  const pullSlot = () => {
-    if (smSpinning || smDone) return;
-    setSmSpinning(true);
-    soundManager.play('slot-spin');
-    const finalResult = (roundData?.result as string[]) || ['🍒', '🍋', '🍊'];
-    const symbols = ['🍒', '🍋', '🍊', '🍇', '💎', '7️⃣', '⭐'];
-    let frame = 0;
-    const interval = setInterval(() => {
-      frame++;
-      setSmReels([
-        frame > 20 ? finalResult[0] : symbols[Math.floor(Math.random() * symbols.length)],
-        frame > 30 ? finalResult[1] : symbols[Math.floor(Math.random() * symbols.length)],
-        frame > 40 ? finalResult[2] : symbols[Math.floor(Math.random() * symbols.length)],
-      ]);
-      if (frame >= 45) {
-        clearInterval(interval);
-        setSmReels(finalResult);
-        setSmSpinning(false);
-        setSmDone(true);
-        let score = 0;
-        if (finalResult[0] === finalResult[1] && finalResult[1] === finalResult[2]) {
-          if (finalResult[0] === '7️⃣') { score = 100; soundManager.play('win-fanfare'); }
-          else if (finalResult[0] === '💎') { score = 70; soundManager.play('win-fanfare'); }
-          else { score = 50; soundManager.play('cash-register'); }
-        } else if (finalResult[0] === finalResult[1] || finalResult[1] === finalResult[2]) {
-          score = 20;
-          soundManager.play('correct');
-        } else {
-          score = 5;
-          soundManager.play('pop-up');
-        }
-        setSmScore((prev) => prev + score);
-        submitScore(score).then(() => void advanceRound());
-      }
-    }, 60);
-  };
-
-  const rollDice = () => {
-    if (dkRolling || dkDone) return;
-    setDkRolling(true);
-    soundManager.play('dice-roll');
-    let frame = 0;
-    const interval = setInterval(() => {
-      frame++;
-      setDkDice([Math.ceil(Math.random() * 6), Math.ceil(Math.random() * 6), Math.ceil(Math.random() * 6)]);
-      if (frame >= 20) {
-        clearInterval(interval);
-        const finalDice = [Math.ceil(Math.random() * 6), Math.ceil(Math.random() * 6), Math.ceil(Math.random() * 6)];
-        setDkDice(finalDice);
-        setDkRolling(false);
-        setDkDone(true);
-        const sum = finalDice[0] + finalDice[1] + finalDice[2];
-        if (finalDice[0] === finalDice[1] && finalDice[1] === finalDice[2]) {
-          soundManager.play('win-fanfare');
-          submitScore(sum * 3).then(() => void advanceRound());
-        } else {
-          soundManager.play(sum >= 15 ? 'cash-register' : 'pop-up');
-          submitScore(sum).then(() => void advanceRound());
-        }
-      }
-    }, 80);
-  };
-
-  const choosePath = (dirIdx: number) => {
-    if (tmChoice >= 0 || tmDone) return;
-    setTmChoice(dirIdx);
-    soundManager.play('whoosh');
-    const pointValues = (roundData?.pointValues as number[]) || [0, 0, 30, 0];
-    setTimeout(() => {
-      setTmRevealed(true);
-      const val = pointValues[dirIdx];
-      if (val >= 30) soundManager.play('cash-register');
-      else if (val > 0) soundManager.play('correct');
-      else soundManager.play('wrong');
-      setTmDone(true);
-      submitScore(val).then(() => void advanceRound());
-    }, 800);
-  };
-
-  const drawLuckyWheel = (angle: number, values: number[], highlightIdx?: number) => {
-    const canvas = lwCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
-    const R = 110;
-    const segCount = values.length;
-    const segAngle = (2 * Math.PI) / segCount;
-    const colors = ['#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#6b7280', '#ec4899', '#34d399', '#f97316', '#06b6d4', '#dc2626'];
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (let i = 0; i < segCount; i++) {
-      const startA = angle + i * segAngle - Math.PI / 2;
-      const endA = startA + segAngle;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, R, startA, endA);
-      ctx.closePath();
-      ctx.fillStyle = highlightIdx === i ? '#fef3c7' : colors[i % colors.length];
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      const midA = startA + segAngle / 2;
-      const tx = cx + Math.cos(midA) * (R * 0.65);
-      const ty = cy + Math.sin(midA) * (R * 0.65);
-      ctx.save();
-      ctx.translate(tx, ty);
-      ctx.rotate(midA + Math.PI / 2);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(values[i] >= 0 ? `+${values[i]}` : `${values[i]}`, 0, 0);
-      ctx.restore();
-    }
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - R - 6);
-    ctx.lineTo(cx - 7, cy - R - 18);
-    ctx.lineTo(cx + 7, cy - R - 18);
-    ctx.closePath();
-    ctx.fillStyle = '#fbbf24';
-    ctx.fill();
-  };
-
-  const spinLuckyWheel = () => {
-    if (lwSpinningRef.current || lwDone) return;
-    setLwSpinning(true);
-    lwSpinningRef.current = true;
-    soundManager.play('roulette-spin');
-    const wheelValues = (roundData?.wheelValues as number[]) || [5, 10, 15, 20, 0, 25, 5, 30, 10, -10];
-    const targetIdx = (roundData?.targetIdx as number) ?? Math.floor(Math.random() * wheelValues.length);
-    const segCount = wheelValues.length;
-    const segAngle = (2 * Math.PI) / segCount;
-    const targetAngle = targetIdx * segAngle + segAngle / 2;
-    const fullRotations = 6 + Math.floor(Math.random() * 4);
-    const totalAngle = fullRotations * 2 * Math.PI + (2 * Math.PI - targetAngle);
-    const startAngle = lwAngleRef.current;
-    const startTime = performance.now();
-    const duration = 8000;
-    let lastSeg = -1;
-    const animate = (now: number) => {
-      if (!lwSpinningRef.current) return;
-      const t = Math.min((now - startTime) / duration, 1);
-      const eased = 1 - Math.pow(1 - t, 4);
-      const angle = startAngle + eased * totalAngle;
-      lwAngleRef.current = angle;
-      if (t > 0.6) {
-        const pAngle = ((-angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-        const curSeg = Math.floor(pAngle / segAngle) % segCount;
-        if (curSeg !== lastSeg) {
-          lastSeg = curSeg;
-          soundManager.play('bomb-tick');
-        }
-      }
-      drawLuckyWheel(angle, wheelValues, t > 0.85 ? lastSeg : undefined);
-      if (t < 1) {
-        lwAnimRef.current = requestAnimationFrame(animate);
-      } else {
-        lwSpinningRef.current = false;
-        setLwSpinning(false);
-        const finalNorm = ((-angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-        const winIdx = Math.floor(finalNorm / segAngle) % segCount;
-        const val = wheelValues[winIdx];
-        setLwResult(val);
-        setLwDone(true);
-        drawLuckyWheel(angle, wheelValues, winIdx);
-        if (val >= 25) soundManager.play('win-fanfare');
-        else if (val > 0) soundManager.play('cash-register');
-        else if (val === 0) soundManager.play('pop-up');
-        else soundManager.play('lose');
-        setLwScore((prev) => prev + val);
-        submitScore(Math.max(0, val)).then(() => void advanceRound());
-      }
-    };
-    lwAnimRef.current = requestAnimationFrame(animate);
-  };
-
   const gt = current.gameType;
-
-  if (gt === 'luckyCard') {
-    return (
-      <div className="flex flex-col p-3 overflow-y-auto">
-        {renderHeader()}
-        {renderScoreBar()}
-        <div className="text-center py-4">
-          <p className="text-yellow-400 text-base font-bold mb-3">🃏 카드 한 장을 선택하세요! 높은 숫자가 점수!</p>
-          <div className="flex gap-2 justify-center flex-wrap mb-4">
-            {lcCards.map((val, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => pickCard(i)}
-                disabled={lcPicked >= 0}
-                className={`w-14 h-20 rounded-xl border-0 font-extrabold text-white transition-all flex-shrink-0 ${
-                  lcFlipped[i]
-                    ? val >= 5
-                      ? 'bg-gradient-to-br from-amber-400 to-amber-600'
-                      : 'bg-gradient-to-br from-blue-500 to-blue-700'
-                    : lcPicked === i
-                      ? 'bg-gray-600 shadow-[0_0_15px_#fbbf24]'
-                      : 'bg-gray-800'
-                } ${lcPicked >= 0 ? 'cursor-default' : 'cursor-pointer'}`}
-                style={{ fontSize: lcFlipped[i] ? 18 : 28 }}
-              >
-                {lcFlipped[i] ? `×${val}` : '?'}
-              </button>
-            ))}
-          </div>
-          {lcRevealed && lcPicked >= 0 && (
-            <p className={lcCards[lcPicked] >= 5 ? 'text-green-400' : 'text-gray-300'} style={{ fontSize: 18, fontWeight: 700 }}>
-              당신의 카드: ×{lcCards[lcPicked]} → +{lcCards[lcPicked] * 10}점!
-            </p>
-          )}
-        </div>
-        {renderResult()}
-        {renderMiniRanking()}
-      </div>
-    );
-  }
-
-  if (gt === 'coinToss') {
-    return (
-      <div className="flex flex-col p-3 overflow-y-auto">
-        {renderHeader()}
-        {renderScoreBar()}
-        <div className="text-center py-4">
-          <p className="text-yellow-400 text-base font-bold mb-3">🪙 동전의 앞/뒤를 맞혀보세요!</p>
-          <div className="text-6xl mb-4" style={{ animation: ctFlipping ? 'coinSpin 0.3s linear infinite' : 'none' }}>
-            {ctResult ? (ctResult === 'heads' ? '😀' : '🌙') : '🪙'}
-          </div>
-          <style>{`@keyframes coinSpin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }`}</style>
-          {!ctDone && !ctFlipping && (
-            <div className="flex gap-3 justify-center">
-              <button type="button" onClick={() => tossCoin('heads')} className="px-7 py-3 rounded-xl bg-blue-500 text-white font-bold text-base cursor-pointer">
-                😀 앞면
-              </button>
-              <button type="button" onClick={() => tossCoin('tails')} className="px-7 py-3 rounded-xl bg-purple-500 text-white font-bold text-base cursor-pointer">
-                🌙 뒷면
-              </button>
-            </div>
-          )}
-          {ctFlipping && <p className="text-gray-400 text-sm">동전이 돌아가는 중...</p>}
-          {ctDone && (
-            <p className={`text-lg font-bold ${ctChoice === ctResult ? 'text-green-400' : 'text-red-400'}`}>
-              결과: {ctResult === 'heads' ? '😀 앞면' : '🌙 뒷면'}
-              {ctChoice === ctResult ? ' — 정답! +30점! ✅' : ' — 틀렸습니다! ❌'}
-            </p>
-          )}
-        </div>
-        {renderResult()}
-        {renderMiniRanking()}
-      </div>
-    );
-  }
-
-  if (gt === 'mysteryBox') {
-    return (
-      <div className="flex flex-col p-3 overflow-y-auto">
-        {renderHeader()}
-        {renderScoreBar()}
-        <div className="text-center py-4">
-          <p className="text-yellow-400 text-base font-bold mb-2">📦 9개 상자 중 {mbPicksLeft}개 더 열 수 있습니다!</p>
-          <p className="text-gray-400 text-sm mb-3">현재 점수: {mbScore}</p>
-          <div className="grid grid-cols-3 gap-2 max-w-[240px] mx-auto mb-4">
-            {mbBoxes.map((val, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => openBox(i)}
-                disabled={mbOpened[i] || mbPicksLeft <= 0}
-                className={`w-[72px] h-[72px] rounded-xl border-0 font-bold text-white flex-shrink-0 ${
-                  mbOpened[i]
-                    ? val > 0 ? 'bg-green-600' : val === 0 ? 'bg-gray-600' : 'bg-red-600'
-                    : 'bg-gray-800'
-                } ${mbOpened[i] || mbPicksLeft <= 0 ? 'cursor-default' : 'cursor-pointer'}`}
-                style={{ fontSize: mbOpened[i] ? 14 : 28 }}
-              >
-                {mbOpened[i] ? (val > 0 ? `+${val}` : val === 0 ? '0' : `${val}`) : '📦'}
-              </button>
-            ))}
-          </div>
-          {mbDone && <p className={mbScore > 0 ? 'text-green-400' : 'text-red-400'} style={{ fontSize: 18, fontWeight: 700 }}>최종 점수: {mbScore}점!</p>}
-        </div>
-        {renderResult()}
-        {renderMiniRanking()}
-      </div>
-    );
-  }
-
-  if (gt === 'colorRace') {
-    const colors = ['🔴', '🔵', '🟢', '🟡', '🟣', '🟠'];
-    return (
-      <div className="flex flex-col p-3 overflow-y-auto">
-        {renderHeader()}
-        {renderScoreBar()}
-        <div className="py-4">
-          <p className="text-center text-yellow-400 text-base font-bold mb-3">🏇 말을 선택하세요!</p>
-          {crChoice < 0 && (
-            <div className="flex gap-2 justify-center flex-wrap mb-3">
-              {colors.map((c, i) => (
-                <button key={i} type="button" onClick={() => pickHorse(i)} className="py-2.5 px-3.5 rounded-xl border-0 bg-gray-800 text-2xl cursor-pointer">
-                  {c}
-                </button>
-              ))}
-            </div>
-          )}
-          {crChoice >= 0 && (
-            <div className="bg-black/30 rounded-xl p-3">
-              {colors.map((c, i) => (
-                <div key={i} className="flex items-center gap-2 mb-1">
-                  <span className="text-xl min-w-[30px]">{c}</span>
-                  <div className="flex-1 bg-gray-600 rounded-lg h-6 relative overflow-hidden">
-                    <div
-                      className="absolute left-0 top-0 h-full bg-gray-500 rounded-lg transition-[width] duration-75"
-                      style={{ width: `${crPositions[i]}%`, background: i === crChoice ? '#fbbf24' : undefined }}
-                    />
-                    <span className="absolute right-1 top-0.5 text-white text-xs">
-                      {i === crChoice ? '⭐' : ''}{crFinished && crPositions[i] >= 98 ? '🏆' : ''}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              {crFinished && (
-                <p className={`text-center mt-2 text-base font-bold ${crScore >= 50 ? 'text-green-400' : 'text-red-400'}`}>
-                  {crScore >= 50 ? '🎉 내 말이 1등! +50점!' : '😢 아쉽... +10점'}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-        {renderResult()}
-        {renderMiniRanking()}
-      </div>
-    );
-  }
-
-  if (gt === 'highLow') {
-    const rd = roundData;
-    return (
-      <div className="flex flex-col p-3 overflow-y-auto">
-        {renderHeader()}
-        {renderScoreBar()}
-        <div className="text-center py-4">
-          <p className="text-yellow-400 text-base font-bold mb-3">🔮 다음 숫자는 높을까? 낮을까?</p>
-          <div className="flex gap-5 justify-center items-center mb-4">
-            <div className="w-20 h-24 rounded-xl bg-blue-500 flex items-center justify-center text-3xl font-extrabold text-white">
-              {typeof rd?.currentNumber === 'number' ? rd.currentNumber : '?'}
-            </div>
-            <span className="text-2xl text-gray-400">vs</span>
-            <div className={`w-20 h-24 rounded-xl flex items-center justify-center text-3xl font-extrabold text-white ${hlRevealed ? 'bg-purple-500' : 'bg-gray-600'}`}>
-              {hlRevealed ? (typeof rd?.nextNumber === 'number' ? rd.nextNumber : '?') : '?'}
-            </div>
-          </div>
-          {!hlChoice && !hlDone && (
-            <div className="flex gap-3 justify-center">
-              <button type="button" onClick={() => guessHighLow('high')} className="py-3 px-7 rounded-xl bg-red-500 text-white font-bold text-base cursor-pointer">
-                ⬆️ HIGH
-              </button>
-              <button type="button" onClick={() => guessHighLow('low')} className="py-3 px-7 rounded-xl bg-blue-500 text-white font-bold text-base cursor-pointer">
-                ⬇️ LOW
-              </button>
-            </div>
-          )}
-          {hlDone && (
-            <p className={`text-lg font-bold ${
-              ((hlChoice === 'high' && (rd?.nextNumber as number) >= (rd?.currentNumber as number)) ||
-               (hlChoice === 'low' && (rd?.nextNumber as number) < (rd?.currentNumber as number))) ? 'text-green-400' : 'text-red-400'
-            }`}>
-              {((hlChoice === 'high' && (rd?.nextNumber as number) >= (rd?.currentNumber as number)) ||
-                (hlChoice === 'low' && (rd?.nextNumber as number) < (rd?.currentNumber as number))) ? '✅ 정답! +20점!' : '❌ 틀렸습니다!'}
-            </p>
-          )}
-        </div>
-        {renderResult()}
-        {renderMiniRanking()}
-      </div>
-    );
-  }
-
-  if (gt === 'minefield') {
-    return (
-      <div className="flex flex-col p-3 overflow-y-auto">
-        {renderHeader()}
-        {renderScoreBar()}
-        <div className="text-center py-4">
-          <p className="text-yellow-400 text-base font-bold mb-2">💣 안전한 칸을 밟으세요! ({mfSteps}/5칸)</p>
-          <p className="text-gray-400 text-sm mb-2">현재 점수: {mfScore} | 지뢰 8개</p>
-          <div className="grid grid-cols-5 gap-1 max-w-[260px] mx-auto">
-            {Array(25).fill(0).map((_, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => stepOnTile(i)}
-                disabled={mfRevealed[i] || mfDead || mfSteps >= 5}
-                className={`w-12 h-12 rounded-lg border-0 text-white font-bold flex-shrink-0 ${
-                  mfRevealed[i] ? (mfGrid[i] ? 'bg-red-600' : 'bg-green-600') : 'bg-gray-800'
-                } ${mfRevealed[i] || mfDead || mfSteps >= 5 ? 'cursor-default' : 'cursor-pointer'}`}
-                style={{ fontSize: mfRevealed[i] ? 18 : 14 }}
-              >
-                {mfRevealed[i] ? (mfGrid[i] ? '💣' : '✅') : '·'}
-              </button>
-            ))}
-          </div>
-          {mfDead && <p className="text-red-400 text-lg font-bold mt-2">💥 지뢰! 최종 {mfScore}점</p>}
-          {!mfDead && mfSteps >= 5 && <p className="text-green-400 text-lg font-bold mt-2">🎉 5칸 생존! {mfScore}점!</p>}
-        </div>
-        {renderResult()}
-        {renderMiniRanking()}
-      </div>
-    );
-  }
-
-  if (gt === 'slotMachine') {
-    return (
-      <div className="flex flex-col p-3 overflow-y-auto">
-        {renderHeader()}
-        {renderScoreBar()}
-        <div className="text-center py-4">
-          <p className="text-yellow-400 text-base font-bold mb-3">🎰 레버를 당겨라!</p>
-          <div className="flex gap-1 justify-center mb-4 bg-black/40 rounded-2xl py-4 px-6">
-            {smReels.map((r, i) => (
-              <div key={i} className="w-16 h-20 rounded-xl bg-gray-800 flex items-center justify-center text-4xl border-2 border-gray-600">
-                {r}
-              </div>
-            ))}
-          </div>
-          {!smDone && (
-            <button type="button" onClick={pullSlot} disabled={smSpinning} className={`py-3 px-10 rounded-xl border-0 text-white font-bold text-base ${smSpinning ? 'bg-gray-600 cursor-default' : 'bg-gradient-to-br from-red-500 to-red-700 cursor-pointer'}`}>
-              {smSpinning ? '돌아가는 중...' : '🎰 PULL!'}
-            </button>
-          )}
-          {smDone && (
-            <p className={`font-bold text-lg ${smScore >= 50 ? 'text-yellow-400' : smScore >= 20 ? 'text-green-400' : 'text-gray-400'}`}>
-              {smScore >= 50 ? `🎉 잭팟! +${smScore}점!` : smScore >= 20 ? `✨ 2개 일치! +${smScore}점!` : `+${smScore}점`}
-            </p>
-          )}
-        </div>
-        {renderResult()}
-        {renderMiniRanking()}
-      </div>
-    );
-  }
-
-  if (gt === 'diceKing') {
-    const diceEmoji = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-    return (
-      <div className="flex flex-col p-3 overflow-y-auto">
-        {renderHeader()}
-        {renderScoreBar()}
-        <div className="text-center py-4">
-          <p className="text-yellow-400 text-base font-bold mb-3">🎲 주사위 3개를 굴려라!</p>
-          <style>{`@keyframes diceShake { 0%{transform:rotate(-5deg)} 50%{transform:rotate(5deg)} 100%{transform:rotate(-5deg)} }`}</style>
-          <div className="flex gap-3 justify-center mb-4">
-            {dkDice.map((d, i) => (
-              <div key={i} className="w-16 h-16 rounded-xl bg-gray-800 flex items-center justify-center text-4xl border-2 border-gray-600" style={{ animation: dkRolling ? 'diceShake 0.1s infinite' : 'none' }}>
-                {d > 0 ? diceEmoji[d] : '?'}
-              </div>
-            ))}
-          </div>
-          {!dkDone && (
-            <button type="button" onClick={rollDice} disabled={dkRolling} className={`py-3 px-10 rounded-xl border-0 text-white font-bold text-base ${dkRolling ? 'bg-gray-600 cursor-default' : 'bg-gradient-to-br from-blue-500 to-blue-700 cursor-pointer'}`}>
-              {dkRolling ? '굴리는 중...' : '🎲 굴리기!'}
-            </button>
-          )}
-          {dkDone && (
-            <div>
-              <p className="text-xl font-extrabold text-yellow-400">합: {dkDice[0] + dkDice[1] + dkDice[2]}</p>
-              {dkDice[0] === dkDice[1] && dkDice[1] === dkDice[2] && <p className="text-pink-400 text-base font-bold mt-1">🎯 트리플! ×3 보너스!</p>}
-            </div>
-          )}
-        </div>
-        {renderResult()}
-        {renderMiniRanking()}
-      </div>
-    );
-  }
-
-  if (gt === 'treasureMap') {
-    const dirs = ['⬆️ 북쪽', '➡️ 동쪽', '⬇️ 남쪽', '⬅️ 서쪽'];
-    const pointValues = (roundData?.pointValues as number[]) || [0, 0, 30, 0];
-    return (
-      <div className="flex flex-col p-3 overflow-y-auto">
-        {renderHeader()}
-        {renderScoreBar()}
-        <div className="text-center py-4">
-          <p className="text-yellow-400 text-base font-bold mb-3">🗺️ 보물이 숨겨진 방향을 선택하세요!</p>
-          <div className="text-5xl mb-3">🧭</div>
-          {tmChoice < 0 && (
-            <div className="grid grid-cols-2 gap-2 max-w-[240px] mx-auto">
-              {dirs.map((d, i) => (
-                <button key={i} type="button" onClick={() => choosePath(i)} className="py-3.5 px-2 rounded-xl border-0 bg-gray-800 text-gray-200 font-bold text-sm cursor-pointer">
-                  {d}
-                </button>
-              ))}
-            </div>
-          )}
-          {tmRevealed && (
-            <div>
-              <div className="grid grid-cols-2 gap-2 max-w-[240px] mx-auto mb-3">
-                {dirs.map((d, i) => (
-                  <div
-                    key={i}
-                    className={`py-2.5 px-2 rounded-xl font-bold text-sm text-white border-2 ${tmChoice === i ? 'border-amber-400' : 'border-transparent'} ${
-                      pointValues[i] >= 30 ? 'bg-green-600' : pointValues[i] > 0 ? 'bg-blue-500' : 'bg-gray-600'
-                    }`}
-                  >
-                    {d}: {pointValues[i] >= 30 ? '💰' : pointValues[i] > 0 ? '🪙' : '💨'} +{pointValues[i]}
-                  </div>
-                ))}
-              </div>
-              <p className={`text-lg font-bold ${
-                pointValues[tmChoice] >= 30 ? 'text-green-400' : pointValues[tmChoice] > 0 ? 'text-blue-400' : 'text-red-400'
-              }`}>
-                {pointValues[tmChoice] >= 30 ? '🎉 보물 발견! +30점!' : pointValues[tmChoice] > 0 ? '🪙 조금 발견! +10점' : '💨 꽝!'}
-              </p>
-            </div>
-          )}
-        </div>
-        {renderResult()}
-        {renderMiniRanking()}
-      </div>
-    );
-  }
-
-  if (gt === 'luckyWheel') {
-    return (
-      <div className="flex flex-col p-3 overflow-y-auto">
-        {renderHeader()}
-        {renderScoreBar()}
-        <div className="text-center py-4">
-          <p className="text-yellow-400 text-base font-bold mb-3">🎡 수레바퀴를 돌려라!</p>
-          <canvas ref={lwCanvasRef} width={280} height={280} className="rounded-xl bg-gray-800 mb-3" />
-          {!lwSpinning && !lwDone && (
-            <button type="button" onClick={spinLuckyWheel} className="py-3 px-10 rounded-xl border-0 text-white font-bold text-base cursor-pointer bg-gradient-to-br from-amber-500 to-amber-700">
-              🎡 돌리기!
-            </button>
-          )}
-          {lwSpinning && <p className="text-gray-400">돌아가는 중...</p>}
-          {lwDone && lwResult !== null && (
-            <p className={`text-xl font-extrabold ${lwResult >= 25 ? 'text-yellow-400' : lwResult > 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {lwResult >= 25 ? `🎉 대박! +${lwResult}점!` : lwResult > 0 ? `+${lwResult}점` : lwResult === 0 ? '꽝! 0점' : `${lwResult}점...`}
-            </p>
-          )}
-        </div>
-        {renderResult()}
-        {renderMiniRanking()}
-      </div>
-    );
-  }
 
   if (gt === 'drawGuess') {
     const isDrawer = (roundData.drawerId as string) === uid;
