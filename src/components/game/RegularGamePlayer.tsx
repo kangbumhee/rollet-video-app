@@ -69,6 +69,8 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
   const lineRunSoundRoundRef = useRef('');
   const liarRevealSoundRoundRef = useRef('');
   const bombTickSoundKeyRef = useRef('');
+  const quickTouchTimersRef = useRef<NodeJS.Timeout[]>([]);
+  const quickTouchStartTimeRef = useRef<number>(0);
 
   useEffect(() => {
     const unsub = onValue(ref(realtimeDb, `games/${roomId}/current`), (snap) => {
@@ -106,6 +108,8 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
         setOxRevealed(false);
         setTouchScore(0);
         setActiveTarget(null);
+        quickTouchTimersRef.current.forEach(clearTimeout);
+        quickTouchTimersRef.current = [];
         setLiarPhase('discuss');
         setVotes({});
         setStrokes([]);
@@ -344,26 +348,44 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     return () => unsub();
   }, [roomId, current?.gameType, current?.round, roundData, current]);
 
+  // quickTouch - 타겟 생성 (round_playing에서만, current 객체 변경 시 타이머 리셋 방지)
   useEffect(() => {
+    quickTouchTimersRef.current.forEach(clearTimeout);
+    quickTouchTimersRef.current = [];
+
     if (!current || current.gameType !== 'quickTouch' || !roundData || current.round < 1) return;
+    if (current.phase !== 'round_playing') return;
+
+    quickTouchStartTimeRef.current = Date.now();
     const targets = (roundData.targets || []) as Array<{ x: number; y: number; delay: number; size: number }>;
-    const timers: NodeJS.Timeout[] = [];
+
     targets.forEach((t, i) => {
-      const timer = setTimeout(() => {
+      const showTimer = setTimeout(() => {
+        if (scoreSubmittedRef.current) return;
         soundManager.play('target-appear');
         setActiveTarget({ x: t.x, y: t.y, id: i });
-        setTimeout(() => setActiveTarget((prev) => {
-          if (prev?.id === i) {
-            soundManager.play('target-miss');
-            return null;
-          }
-          return prev;
-        }), 1000);
+
+        const hideTimer = setTimeout(() => {
+          if (scoreSubmittedRef.current) return;
+          setActiveTarget((prev) => {
+            if (prev?.id === i) {
+              soundManager.play('target-miss');
+              return null;
+            }
+            return prev;
+          });
+        }, 1000);
+        quickTouchTimersRef.current.push(hideTimer);
       }, t.delay);
-      timers.push(timer);
+
+      quickTouchTimersRef.current.push(showTimer);
     });
-    return () => timers.forEach(clearTimeout);
-  }, [current?.gameType, current?.round, roundData, current]);
+
+    return () => {
+      quickTouchTimersRef.current.forEach(clearTimeout);
+      quickTouchTimersRef.current = [];
+    };
+  }, [current?.gameType, current?.phase, current?.round, roundData]);
 
   useEffect(() => {
     if (!current || current.gameType !== 'liarVote' || current.round < 1) return;
