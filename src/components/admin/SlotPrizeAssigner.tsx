@@ -38,14 +38,33 @@ const GAME_TYPE_LABELS: Record<string, string> = {
   treasureHunt: '🗺️ 보물찾기',
 };
 
+const PRIZE_GAME_TYPES = [
+  { id: 'drawGuess', label: '🎨 그림 맞추기' },
+  { id: 'typingBattle', label: '⌨️ 타이핑 배틀' },
+  { id: 'bombPass', label: '💣 폭탄 돌리기' },
+  { id: 'priceGuess', label: '💰 가격 맞추기' },
+  { id: 'oxSurvival', label: '⭕ OX 서바이벌' },
+  { id: 'tapSurvival', label: '👆 탭 서바이벌' },
+  { id: 'nunchiGame', label: '👀 눈치 게임' },
+  { id: 'quickTouch', label: '🎯 순발력 터치' },
+  { id: 'lineRunner', label: '✏️ 라인 러너' },
+  { id: 'liarVote', label: '🕵️ 라이어 투표' },
+];
+
 export function SlotPrizeAssigner({ slot, onAssign, onUnassign, onClose }: SlotPrizeAssignerProps) {
   const [availableRooms, setAvailableRooms] = useState<RoomItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedGameType, setSelectedGameType] = useState<string>(slot.gameType || '');
+  const [changingGameType, setChangingGameType] = useState(false);
 
   useEffect(() => {
     void loadAvailableRooms();
   }, []);
+
+  useEffect(() => {
+    setSelectedGameType(slot.gameType || '');
+  }, [slot.gameType]);
 
   const loadAvailableRooms = async () => {
     setLoading(true);
@@ -103,6 +122,43 @@ export function SlotPrizeAssigner({ slot, onAssign, onUnassign, onClose }: SlotP
                 >
                   해제
                 </button>
+              </div>
+              <div className="mt-3 pt-3 border-t border-gray-600/50">
+                <p className="text-xs text-gray-400 mb-1.5">🎮 게임 타입 변경</p>
+                <div className="flex gap-2">
+                  <select
+                    value={selectedGameType}
+                    onChange={(e) => setSelectedGameType(e.target.value)}
+                    className="flex-1 bg-gray-800 text-white text-xs rounded-lg px-2 py-1.5 border border-gray-600 outline-none focus:border-purple-500"
+                  >
+                    <option value="">선택...</option>
+                    {PRIZE_GAME_TYPES.map((g) => (
+                      <option key={g.id} value={g.id}>{g.label}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={async () => {
+                      if (!selectedGameType) return;
+                      setChangingGameType(true);
+                      try {
+                        await apiClient('/api/admin/schedule/change-game-type', {
+                          method: 'POST',
+                          body: JSON.stringify({ slotId: slot.id, gameType: selectedGameType }),
+                        });
+                        alert('게임 타입이 변경되었습니다');
+                        onClose();
+                      } catch {
+                        alert('변경 실패');
+                      } finally {
+                        setChangingGameType(false);
+                      }
+                    }}
+                    disabled={!selectedGameType || changingGameType}
+                    className="px-3 py-1.5 bg-purple-600 text-white text-xs font-bold rounded-lg hover:bg-purple-500 disabled:opacity-40 transition shrink-0"
+                  >
+                    {changingGameType ? '...' : '변경'}
+                  </button>
+                </div>
               </div>
             </div>
           )}

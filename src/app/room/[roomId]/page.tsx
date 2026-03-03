@@ -14,8 +14,6 @@ import { LevelBadge } from '@/components/user/LevelBadge';
 import CycleStatus from '@/components/cycle/CycleStatus';
 import { GameContainer } from '@/components/game/GameContainer';
 import RegularGamePlayer from '@/components/game/RegularGamePlayer';
-import { AdGate } from '@/components/ad/AdGate';
-import { ForcedVideoPlayer } from '@/components/video/ForcedVideoPlayer';
 import MiniGameLauncher from '@/components/minigame/MiniGameLauncher';
 import FreePlayLobby from '@/components/game/FreePlayLobby';
 import { Badge } from '@/components/ui/badge';
@@ -60,7 +58,7 @@ export default function RoomPage() {
   useGameSounds(cycle?.currentPhase);
   const cyclePhase = cycle?.currentPhase;
 
-  const [hasTicket, setHasTicket] = useState(false);
+  const [hasTicket] = useState(false);
   const [showUserList, setShowUserList] = useState(false);
   const [showFreePlay, setShowFreePlay] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
@@ -701,21 +699,19 @@ export default function RoomPage() {
       );
     }
 
-    if (cycle.currentPhase === 'ENTRY_GATE' && !hasTicket) {
+    if (cycle.currentPhase === 'ENTRY_GATE') {
       return (
-        <div className="flex-1 flex flex-col p-4 overflow-y-auto">
-          <CycleStatus
-            phase={cyclePhase}
-            nextSlotTime={cycle?.nextSlot}
-            prizeTitle={cycle?.currentPrizeTitle}
-            prizeImageURL={cycle?.currentPrizeImage}
-          />
+        <div className="flex-1 flex flex-col overflow-y-auto">
+          <div className="px-4 py-2">
+            <CycleStatus
+              phase={cyclePhase}
+              nextSlotTime={cycle?.nextSlot}
+              prizeTitle={cycle?.currentPrizeTitle}
+              prizeImageURL={cycle?.currentPrizeImage}
+            />
+          </div>
           <div className="flex-1 flex items-center justify-center">
-            {cycle.entryType === 'VIDEO' && cycle.videoURL ? (
-              <ForcedVideoPlayer videoURL={cycle.videoURL} roomId={roomId} onComplete={() => setHasTicket(true)} />
-            ) : (
-              <AdGate roomId={roomId} onComplete={() => setHasTicket(true)} />
-            )}
+            <p className="text-yellow-400 text-lg font-bold animate-pulse">게임 준비 중...</p>
           </div>
         </div>
       );
@@ -725,8 +721,7 @@ export default function RoomPage() {
       cycle.currentPhase === 'GAME_LOBBY' ||
       cycle.currentPhase === 'GAME_COUNTDOWN' ||
       cycle.currentPhase === 'GAME_PLAYING' ||
-      cycle.currentPhase === 'GAME_RESULT' ||
-      (cycle.currentPhase === 'ENTRY_GATE' && hasTicket)
+      cycle.currentPhase === 'GAME_RESULT'
     ) {
       return (
         <div className="flex-1 flex flex-col overflow-y-auto">

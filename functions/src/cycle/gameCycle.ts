@@ -14,13 +14,12 @@ import {
 
 const PHASES = [
   { phase: 'ANNOUNCING', duration: 30 },
-  { phase: 'ENTRY_GATE', duration: 60 },
   { phase: 'GAME_LOBBY', duration: 30 },
   { phase: 'GAME_COUNTDOWN', duration: 5 },
   { phase: 'GAME_PLAYING', duration: 300 },
   { phase: 'GAME_RESULT', duration: 15 },
-  { phase: 'WINNER_ANNOUNCE', duration: 30 },
-  { phase: 'COOLDOWN', duration: 30 },
+  { phase: 'WINNER_ANNOUNCE', duration: 15 },
+  { phase: 'COOLDOWN', duration: 15 },
 ] as const;
 
 function calcNextSlot(nowMs: number): string {
@@ -94,6 +93,26 @@ export const gameCycle = onSchedule(
         logger.info(`Expired ${staleQuery.size} stale slots`);
       }
 
+      // LIVE 상태인 슬롯이 있으면 이미 진행 중이므로 스킵
+      const liveQuery = await db
+        .collection('scheduleSlots')
+        .where('status', '==', 'LIVE')
+        .limit(1)
+        .get();
+
+      if (!liveQuery.empty) {
+        logger.info('A LIVE slot already exists, skipping this cycle');
+        return;
+      }
+
+      // RTDB cycle/main이 IDLE/COOLDOWN이 아니면 스킵
+      const cycleSnap = await rtdb.ref('cycle/main/currentPhase').get();
+      const currentPhase = cycleSnap.exists() ? cycleSnap.val() : 'IDLE';
+      if (currentPhase !== 'IDLE' && currentPhase !== 'COOLDOWN') {
+        logger.info(`Cycle already running (phase: ${currentPhase}), skipping`);
+        return;
+      }
+
       const slotQuery = await db
         .collection('scheduleSlots')
         .where('status', '==', 'ASSIGNED')
@@ -162,37 +181,26 @@ export const gameCycle = onSchedule(
       await sendBotChat(rtdb, 'main', `🎁 이번 경품은 "${prizeTitle}"입니다! 예상 가치: ${Number(estimatedValue).toLocaleString()}원!`);
       await sleep(PHASES[0].duration * 1000);
 
-      // ── Phase 2: ENTRY_GATE ──
+      // ── Phase 2: GAME_LOBBY ──
       phaseStart = Date.now();
       phaseEnd = phaseStart + PHASES[1].duration * 1000;
-      await rtdb.ref('cycle/main').update({
-        currentPhase: 'ENTRY_GATE',
-        phaseStartedAt: phaseStart,
-        phaseEndsAt: phaseEnd,
-      });
-      await sendBotChat(rtdb, 'main', '📺 광고를 시청하고 참가 티켓을 받으세요!');
-      await sleep(PHASES[1].duration * 1000);
-
-      // ── Phase 3: GAME_LOBBY ──
-      phaseStart = Date.now();
-      phaseEnd = phaseStart + PHASES[2].duration * 1000;
       await rtdb.ref('cycle/main').update({
         currentPhase: 'GAME_LOBBY',
         phaseStartedAt: phaseStart,
         phaseEndsAt: phaseEnd,
       });
 
-      // 게임 세션 생성
-      const sessionId = generateId();
-      const ticketsSnap = await rtdb.ref(`rooms/main/tickets`).get();
-      const ticketEntries = ticketsSnap.exists() ? ticketsSnap.val() as Record<string, { displayName?: string }> : {};
-      const ticketUsers = Object.keys(ticketEntries);
+      // presence에서 참가자 수집
+      const presenceSnap = await rtdb.ref('rooms/main/presence').get();
+      const presenceData = presenceSnap.exists()
+        ? (presenceSnap.val() as Record<string, { uid: string; displayName?: string }>)
+        : {};
+      const presenceUsers = Object.keys(presenceData);
 
-      // 티켓 유저가 없으면 봇 2명으로 진행
-      const participants = ticketUsers.length > 0
-        ? ticketUsers.map((uid) => ({
+      const participants = presenceUsers.length >= 2
+        ? presenceUsers.map((uid) => ({
             uid,
-            displayName: ticketEntries[uid]?.displayName || uid,
+            displayName: presenceData[uid]?.displayName || uid,
             eliminated: false,
             joinedAt: Date.now(),
           }))
@@ -200,6 +208,9 @@ export const gameCycle = onSchedule(
             { uid: 'BOT_1', displayName: '봇1', eliminated: false, joinedAt: Date.now() },
             { uid: 'BOT_2', displayName: '봇2', eliminated: false, joinedAt: Date.now() },
           ];
+
+      // 게임 세션 생성
+      const sessionId = generateId();
 
       await db.doc(`gameSessions/${sessionId}`).set({
         id: sessionId,
@@ -248,22 +259,22 @@ export const gameCycle = onSchedule(
       await rtdb.ref(`games/main/participants`).set(participantUpdates);
 
       await sendBotChat(rtdb, 'main', `🎮 ${participants.length}명이 참가했습니다! 곧 게임이 시작됩니다!`);
-      await sleep(PHASES[2].duration * 1000);
+      await sleep(PHASES[1].duration * 1000);
 
-      // ── Phase 4: GAME_COUNTDOWN ──
+      // ── Phase 3: GAME_COUNTDOWN ──
       phaseStart = Date.now();
-      phaseEnd = phaseStart + PHASES[3].duration * 1000;
+      phaseEnd = phaseStart + PHASES[2].duration * 1000;
       await rtdb.ref('cycle/main').update({
         currentPhase: 'GAME_COUNTDOWN',
         phaseStartedAt: phaseStart,
         phaseEndsAt: phaseEnd,
       });
       await rtdb.ref(`games/main/current`).update({ phase: 'countdown' });
-      await sleep(PHASES[3].duration * 1000);
+      await sleep(PHASES[2].duration * 1000);
 
-      // ── Phase 5: GAME_PLAYING (게임 타입별 분기) ──
+      // ── Phase 4: GAME_PLAYING (게임 타입별 분기) ──
       phaseStart = Date.now();
-      phaseEnd = phaseStart + PHASES[4].duration * 1000;
+      phaseEnd = phaseStart + PHASES[3].duration * 1000;
       await rtdb.ref('cycle/main').update({
         currentPhase: 'GAME_PLAYING',
         phaseStartedAt: phaseStart,
@@ -476,7 +487,7 @@ export const gameCycle = onSchedule(
       await sendBotChat(rtdb, 'main', `🎮 ${GAME_NAMES[pickedGameType]} 시작! ${allPlayers.length}명 참가! ${TOTAL_ROUNDS}라운드!`);
 
       // ── 클라이언트가 게임을 진행하는 동안 대기 (5분) ──
-      await sleep(PHASES[4].duration * 1000);
+      await sleep(PHASES[3].duration * 1000);
 
       // ── 게임 끝난 후 최종 스코어 읽기 ──
       const finalSnap = await rtdb.ref('games/main/current/scores').get();
@@ -500,9 +511,9 @@ export const gameCycle = onSchedule(
         await sendBotChat(rtdb, 'main', `🏆 ${GAME_NAMES[pickedGameType]} 우승: ${nameMap[winnerId] || winnerId}! (${sorted[0][1]}점)`);
       }
 
-      // ── Phase 6: GAME_RESULT ──
+      // ── Phase 5: GAME_RESULT ──
       phaseStart = Date.now();
-      phaseEnd = phaseStart + PHASES[5].duration * 1000;
+      phaseEnd = phaseStart + PHASES[4].duration * 1000;
 
       await rtdb.ref('cycle/main').update({
         currentPhase: 'GAME_RESULT',
@@ -547,11 +558,11 @@ export const gameCycle = onSchedule(
         });
       }
 
-      await sleep(PHASES[5].duration * 1000);
+      await sleep(PHASES[4].duration * 1000);
 
-      // ── Phase 7: WINNER_ANNOUNCE ──
+      // ── Phase 6: WINNER_ANNOUNCE ──
       phaseStart = Date.now();
-      phaseEnd = phaseStart + PHASES[6].duration * 1000;
+      phaseEnd = phaseStart + PHASES[5].duration * 1000;
       let winnerName = 'Unknown';
       let winnerPhoto = '';
       if (winnerId) {
@@ -578,11 +589,11 @@ export const gameCycle = onSchedule(
         winnerPhoto,
       });
       await sendBotChat(rtdb, 'main', `🏆 축하합니다! ${winnerName}님이 "${prizeTitle}"을 획득했습니다!`);
-      await sleep(PHASES[6].duration * 1000);
+      await sleep(PHASES[5].duration * 1000);
 
-      // ── Phase 8: COOLDOWN ──
+      // ── Phase 7: COOLDOWN ──
       phaseStart = Date.now();
-      phaseEnd = phaseStart + PHASES[7].duration * 1000;
+      phaseEnd = phaseStart + PHASES[6].duration * 1000;
       await rtdb.ref('cycle/main').update({
         currentPhase: 'COOLDOWN',
         phaseStartedAt: phaseStart,
@@ -590,9 +601,8 @@ export const gameCycle = onSchedule(
       });
 
       // 정리
-      await rtdb.ref(`rooms/main/tickets`).remove();
       await rtdb.ref(`games/main`).remove();
-      await sleep(PHASES[7].duration * 1000);
+      await sleep(PHASES[6].duration * 1000);
 
       // 완료
       await slotDoc.ref.update({ status: 'COMPLETED', updatedAt: Date.now() });
