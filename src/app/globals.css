@@ -133,3 +133,21 @@
     box-shadow: 0 0 30px rgba(234, 179, 8, 0.6);
   }
 }
+
+/* 공지 마퀴 */
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+.animate-marquee {
+  display: inline-block;
+  white-space: nowrap;
+  animation: marquee 15s linear infinite;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}

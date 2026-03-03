@@ -17,6 +17,8 @@ import {
 } from "firebase/firestore";
 import { onValue, ref } from "firebase/database";
 import LiveBadge from "@/components/room/LiveBadge";
+import NoticeTicker from "@/components/notice/NoticeTicker";
+import FreeBoard from "@/components/board/FreeBoard";
 
 interface RoomData {
   id: string;
@@ -162,6 +164,8 @@ export default function HomePage() {
         </div>
       </header>
 
+      <NoticeTicker />
+
       <main className="flex-1 flex flex-col px-4 py-6 max-w-lg mx-auto w-full">
         <div className="text-center mb-6">
           <div className="text-6xl mb-4 animate-bounce">🎁</div>
@@ -295,12 +299,16 @@ export default function HomePage() {
         {isAdmin && (
           <button
             onClick={() => setShowCreate(true)}
-            className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-2xl text-base transition flex items-center justify-center gap-2 active:scale-[0.98]"
+            className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-2xl text-base transition flex items-center justify-center gap-2 active:scale-[0.98] mb-3"
           >
             <span className="text-xl leading-none">+</span>
             <span>새 방 만들기</span>
           </button>
         )}
+
+        <div className="mt-3">
+          <FreeBoard />
+        </div>
       </main>
 
       <footer className="py-4 text-center">
