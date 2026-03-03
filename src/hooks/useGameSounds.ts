@@ -63,7 +63,7 @@ export function useGameSounds(phase?: string, gameType?: string) {
       case 'game_intro':
         soundManager.play('game-start');
         // 게임 종류별 BGM
-        if (gameType === 'bombPass' || gameType === 'liarVote') {
+        if (gameType === 'weaponForge' || gameType === 'bigRoulette') {
           soundManager.playBGM('bgm-tension');
         } else {
           soundManager.playBGM('bgm-battle');

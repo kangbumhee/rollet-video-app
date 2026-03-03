@@ -62,18 +62,30 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
   const [nunchiClaimed, setNunchiClaimed] = useState<Record<string, number>>({});
   const [myNunchiNumber, setMyNunchiNumber] = useState<number | null>(null);
   const [priceInput, setPriceInput] = useState('');
-  const [bombAnswer, setBombAnswer] = useState('');
-  const [bombWrong, setBombWrong] = useState(false);
-  const [currentBombHolder, setCurrentBombHolder] = useState('');
-  const [bombQuizIdx, setBombQuizIdx] = useState(0);
+  const [forgeLevel, setForgeLevel] = useState(0);
+  const [forgeLog, setForgeLog] = useState<Array<{ action: string; result: 'success' | 'fail' | 'down' | 'destroy'; fromLevel: number; toLevel: number }>>([]);
+  const [forgeAnimating, setForgeAnimating] = useState(false);
+  const [forgePerfect, setForgePerfect] = useState(false);
+  const [forgeStreak, setForgeStreak] = useState(0);
+  const [otherForge, setOtherForge] = useState<Record<string, { level: number; displayName: string }>>({});
   const [lineDistance, setLineDistance] = useState(0);
   const [oxRevealed, setOxRevealed] = useState(false);
   const [touchScore, setTouchScore] = useState(0);
   const [activeTarget, setActiveTarget] = useState<{ x: number; y: number; id: number } | null>(null);
-  const [votes, setVotes] = useState<Record<string, string>>({});
-  const [liarPhase, setLiarPhase] = useState<'discuss' | 'vote' | 'reveal'>('discuss');
   const [onlinePlayers, setOnlinePlayers] = useState<Set<string>>(new Set());
   const [isLeader, setIsLeader] = useState(false);
+
+  const [rouletteCoins, setRouletteCoins] = useState(500);
+  const [rouletteBets, setRouletteBets] = useState<Record<number, number>>({});
+  const [rouletteSelectedMult, setRouletteSelectedMult] = useState<number | null>(null);
+  const [roulettePhase, setRoulettePhase] = useState<'betting' | 'spinning' | 'result'>('betting');
+  const [rouletteWinIdx, setRouletteWinIdx] = useState(-1);
+  const [rouletteResultMsg, setRouletteResultMsg] = useState('');
+  const [rouletteOtherCoins, setRouletteOtherCoins] = useState<Record<string, number>>({});
+  const rouletteCanvasRef = useRef<HTMLCanvasElement>(null);
+  const rouletteSpinningRef = useRef(false);
+  const rouletteAnimRef = useRef(0);
+  const rouletteAngleRef = useRef(0);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const scoreSubmittedRef = useRef(false);
@@ -81,8 +93,6 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
   const advanceRoundCalledRef = useRef(false);
   const finalSoundPlayedRef = useRef(false);
   const lineRunSoundRoundRef = useRef('');
-  const liarRevealSoundRoundRef = useRef('');
-  const bombTickSoundKeyRef = useRef('');
   const quickTouchTimersRef = useRef<NodeJS.Timeout[]>([]);
   const quickTouchStartTimeRef = useRef<number>(0);
   const absentHandledRef = useRef<string>('');
@@ -152,17 +162,25 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
         setMyNunchiNumber(null);
         setNunchiClaimed({});
         setPriceInput('');
-        setBombAnswer('');
-        setBombWrong(false);
-        setBombQuizIdx(0);
+        setForgeLevel(0);
+        setForgeLog([]);
+        setForgeAnimating(false);
+        setForgePerfect(false);
+        setForgeStreak(0);
         setLineDistance(0);
         setOxRevealed(false);
         setTouchScore(0);
         setActiveTarget(null);
         quickTouchTimersRef.current.forEach(clearTimeout);
         quickTouchTimersRef.current = [];
-        setLiarPhase('discuss');
-        setVotes({});
+        setRouletteBets({});
+        setRouletteSelectedMult(null);
+        setRoulettePhase('betting');
+        setRouletteWinIdx(-1);
+        setRouletteResultMsg('');
+        rouletteSpinningRef.current = false;
+        rouletteAngleRef.current = 0;
+        if (rouletteAnimRef.current) cancelAnimationFrame(rouletteAnimRef.current);
         setStrokes([]);
         setGuessInput('');
 
@@ -362,23 +380,15 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     soundManager.play('line-run');
   }, [current?.gameType, current?.round, current]);
 
+  // weaponForge - 다른 플레이어 강화 레벨 실시간 구독
   useEffect(() => {
-    if (!current || current.gameType !== 'liarVote') return;
-    if (liarPhase !== 'reveal') return;
-    const key = `${current.gameType}-${current.round}-${liarPhase}`;
-    if (liarRevealSoundRoundRef.current === key) return;
-    liarRevealSoundRoundRef.current = key;
-    soundManager.play('liar-reveal');
-  }, [current?.gameType, current?.round, liarPhase, current]);
-
-  useEffect(() => {
-    if (!current || current.gameType !== 'bombPass') return;
-    if (currentBombHolder !== uid) return;
-    const key = `${current.gameType}-${current.round}-${currentBombHolder}`;
-    if (bombTickSoundKeyRef.current === key) return;
-    bombTickSoundKeyRef.current = key;
-    soundManager.play('bomb-tick');
-  }, [current?.gameType, current?.round, currentBombHolder, uid, current]);
+    if (!current || current.gameType !== 'weaponForge' || current.round < 1) return;
+    const unsub = onValue(ref(realtimeDb, `games/${roomId}/forge/round${current.round}`), (snap) => {
+      if (snap.exists()) setOtherForge(snap.val() as Record<string, { level: number; displayName: string }>);
+      else setOtherForge({});
+    });
+    return () => unsub();
+  }, [roomId, current?.gameType, current?.round]);
 
   // destinyAuction - 칩 실시간 구독
   useEffect(() => {
@@ -408,6 +418,18 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
         setAuctionResult(val);
         setAuctionPhase('result');
         setChestRevealed(true);
+        soundManager.play('card-flip');
+        const chest = val.chest;
+        if (chest) {
+          setTimeout(() => {
+            if (chest.type === 'gold') soundManager.play('win-fanfare');
+            else if (chest.type === 'bomb') soundManager.play('explosion');
+            else if (chest.type === 'trap') soundManager.play('wrong');
+            else if (chest.type === 'empty') soundManager.play('pop-up');
+            else if (chest.special) soundManager.play('prize-reveal');
+            else soundManager.play('cash-register');
+          }, 500);
+        }
       }
     });
     return () => unsub();
@@ -434,15 +456,6 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     });
     return () => unsub();
   }, [roomId, current?.gameType, current?.round, current]);
-
-  useEffect(() => {
-    if (!current || current.gameType !== 'bombPass' || current.round < 1) return;
-    const unsub = onValue(ref(realtimeDb, `games/${roomId}/bomb/round${current.round}/holder`), (snap) => {
-      if (snap.exists()) setCurrentBombHolder(snap.val() as string);
-      else if (roundData) setCurrentBombHolder((roundData.initialBombHolder as string) || '');
-    });
-    return () => unsub();
-  }, [roomId, current?.gameType, current?.round, roundData, current]);
 
   // quickTouch - 타겟 생성 (round_playing에서만, current 객체 변경 시 타이머 리셋 방지)
   useEffect(() => {
@@ -484,12 +497,203 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
   }, [current?.gameType, current?.phase, current?.round, roundData]);
 
   useEffect(() => {
-    if (!current || current.gameType !== 'liarVote' || current.round < 1) return;
-    const unsub = onValue(ref(realtimeDb, `games/${roomId}/votes/round${current.round}`), (snap) => {
-      if (snap.exists()) setVotes(snap.val() as Record<string, string>);
+    if (!current || current.gameType !== 'bigRoulette' || !roomId) return;
+    const unsub = onValue(ref(realtimeDb, `games/${roomId}/rouletteCoins`), (snap) => {
+      if (snap.exists()) {
+        const data = snap.val() as Record<string, number>;
+        if (data[uid] !== undefined) setRouletteCoins(data[uid]);
+        const others: Record<string, number> = {};
+        Object.entries(data).forEach(([id, val]) => {
+          if (id !== uid) others[id] = val;
+        });
+        setRouletteOtherCoins(others);
+      }
     });
     return () => unsub();
-  }, [roomId, current?.gameType, current?.round, current]);
+  }, [roomId, current?.gameType, uid]);
+
+  const ROULETTE_SEGMENTS = [
+    { label: '×2', mult: 2, color: '#3b82f6', glow: '#60a5fa' },
+    { label: '×3', mult: 3, color: '#8b5cf6', glow: '#a78bfa' },
+    { label: '×1', mult: 1, color: '#6b7280', glow: '#9ca3af' },
+    { label: '×5', mult: 5, color: '#f59e0b', glow: '#fbbf24' },
+    { label: '×2', mult: 2, color: '#3b82f6', glow: '#60a5fa' },
+    { label: '💀', mult: 0, color: '#ef4444', glow: '#f87171' },
+    { label: '×3', mult: 3, color: '#8b5cf6', glow: '#a78bfa' },
+    { label: '×10', mult: 10, color: '#ec4899', glow: '#f472b6' },
+    { label: '×1', mult: 1, color: '#6b7280', glow: '#9ca3af' },
+    { label: '×2', mult: 2, color: '#3b82f6', glow: '#60a5fa' },
+    { label: '×5', mult: 5, color: '#f59e0b', glow: '#fbbf24' },
+    { label: '×20', mult: 20, color: '#dc2626', glow: '#f87171' },
+  ];
+  const ROULETTE_SEG_ANGLE = (2 * Math.PI) / ROULETTE_SEGMENTS.length;
+
+  const drawRouletteWheel = useCallback((currentAngle: number, highlightIdx?: number) => {
+    const canvas = rouletteCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const W = canvas.width;
+    const H = canvas.height;
+    const cx = W / 2;
+    const cy = H / 2;
+    const R = 130;
+    const SEG_COUNT = ROULETTE_SEGMENTS.length;
+    ctx.clearRect(0, 0, W, H);
+    ctx.beginPath();
+    ctx.arc(cx, cy, R + 6, 0, Math.PI * 2);
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    for (let i = 0; i < SEG_COUNT; i++) {
+      const startA = currentAngle + i * ROULETTE_SEG_ANGLE - Math.PI / 2;
+      const endA = startA + ROULETTE_SEG_ANGLE;
+      const seg = ROULETTE_SEGMENTS[i];
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, R, startA, endA);
+      ctx.closePath();
+      ctx.fillStyle = highlightIdx === i ? seg.glow : seg.color;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      const midA = startA + ROULETTE_SEG_ANGLE / 2;
+      const tx = cx + Math.cos(midA) * (R * 0.65);
+      const ty = cy + Math.sin(midA) * (R * 0.65);
+      ctx.save();
+      ctx.translate(tx, ty);
+      ctx.rotate(midA + Math.PI / 2);
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${seg.mult >= 10 ? 11 : 13}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(seg.label, 0, 0);
+      ctx.restore();
+    }
+    ctx.beginPath();
+    ctx.arc(cx, cy, 30, 0, Math.PI * 2);
+    ctx.fillStyle = '#f59e0b';
+    ctx.fill();
+    ctx.fillStyle = '#92400e';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`R${current?.round ?? 1}`, cx, cy);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - R - 8);
+    ctx.lineTo(cx - 8, cy - R - 22);
+    ctx.lineTo(cx + 8, cy - R - 22);
+    ctx.closePath();
+    ctx.fillStyle = '#fbbf24';
+    ctx.fill();
+  }, [current?.round]);
+
+  const placeRouletteBet = useCallback((mult: number, amount: number) => {
+    const totalBet = Object.values(rouletteBets).reduce((s, v) => s + v, 0);
+    if (amount <= 0 || totalBet + amount > rouletteCoins) return;
+    soundManager.play('coin-flip');
+    setRouletteBets((prev) => ({ ...prev, [mult]: (prev[mult] || 0) + amount }));
+  }, [rouletteBets, rouletteCoins]);
+
+  const spinRoulette = useCallback(async () => {
+    if (rouletteSpinningRef.current || !current || !roundData) return;
+    setRoulettePhase('spinning');
+    rouletteSpinningRef.current = true;
+    soundManager.play('whoosh');
+    setTimeout(() => soundManager.play('roulette-spin'), 300);
+
+    const targetIdx = (roundData.targetSegmentIdx as number) ?? Math.floor(Math.random() * ROULETTE_SEGMENTS.length);
+    await set(ref(realtimeDb, `games/${roomId}/rouletteBets/round${current.round}/${uid}`), rouletteBets);
+    const targetCenterAngle = targetIdx * ROULETTE_SEG_ANGLE + ROULETTE_SEG_ANGLE / 2;
+    const fullRotations = 8 + Math.floor(Math.random() * 5);
+    const totalAngle = fullRotations * 2 * Math.PI + (2 * Math.PI - targetCenterAngle);
+    const jitter = (Math.random() - 0.5) * ROULETTE_SEG_ANGLE * 0.6;
+    const finalTotalAngle = totalAngle + jitter;
+    const startAngle = rouletteAngleRef.current;
+    const startTime = performance.now();
+    const easing = (t: number) => 1 - Math.pow(1 - t, 4);
+    let lastTickSegment = -1;
+
+    const animate = (now: number) => {
+      if (!rouletteSpinningRef.current) return;
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / 10000, 1);
+      const eased = easing(t);
+      const currentAngle = startAngle + eased * finalTotalAngle;
+      rouletteAngleRef.current = currentAngle;
+
+      if (t > 0.7) {
+        const pAngle = ((-currentAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+        const currentSeg = Math.floor(pAngle / ROULETTE_SEG_ANGLE) % ROULETTE_SEGMENTS.length;
+        if (currentSeg !== lastTickSegment) {
+          lastTickSegment = currentSeg;
+          soundManager.play('bomb-tick');
+        }
+      }
+
+      let highlight: number | undefined;
+      if (t > 0.85) {
+        const pAngle = ((-currentAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+        highlight = Math.floor(pAngle / ROULETTE_SEG_ANGLE) % ROULETTE_SEGMENTS.length;
+      }
+      drawRouletteWheel(currentAngle, highlight);
+      if (t < 1) {
+        rouletteAnimRef.current = requestAnimationFrame(animate);
+      } else {
+        rouletteSpinningRef.current = false;
+        const finalNorm = ((-currentAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+        const winIdx = Math.floor(finalNorm / ROULETTE_SEG_ANGLE) % ROULETTE_SEGMENTS.length;
+        setRouletteWinIdx(winIdx);
+        drawRouletteWheel(currentAngle, winIdx);
+        const winMult = ROULETTE_SEGMENTS[winIdx].mult;
+        const baseCoins = (roundData.baseCoins as number) || 100;
+        const totalBetAmount = Object.values(rouletteBets).reduce((s, v) => s + v, 0);
+        let winnings = 0;
+        Object.entries(rouletteBets).forEach(([mult, amt]) => {
+          if (Number(mult) === winMult && winMult > 0) winnings += amt * winMult;
+        });
+        const myBetOnWin = rouletteBets[winMult] ?? 0;
+
+        soundManager.play('prize-reveal');
+        setTimeout(() => {
+          if (winMult === 0) soundManager.play('explosion');
+          else if (winMult >= 10) soundManager.play('win-fanfare');
+          else if (myBetOnWin > 0) soundManager.play('cash-register');
+          else soundManager.play('wrong');
+        }, 400);
+
+        const netGain = winnings - totalBetAmount + baseCoins;
+        const newCoins = Math.max(0, rouletteCoins + winnings - totalBetAmount + baseCoins);
+        setRouletteCoins(newCoins);
+        setRouletteResultMsg(
+          winnings > 0
+            ? `×${winMult} 당첨! +${winnings} (기본 +${baseCoins})`
+            : winMult === 0
+              ? `꽝! 베팅 ${totalBetAmount} 소실 (기본 +${baseCoins})`
+              : `미당첨. -${totalBetAmount} (기본 +${baseCoins})`
+        );
+        void set(ref(realtimeDb, `games/${roomId}/rouletteCoins/${uid}`), newCoins);
+        setRoulettePhase('result');
+        setTimeout(() => {
+          if (!scoreSubmittedRef.current) void submitScore(netGain);
+        }, 1500);
+      }
+    };
+    rouletteAnimRef.current = requestAnimationFrame(animate);
+  }, [current, roundData, roomId, uid, rouletteBets, rouletteCoins, drawRouletteWheel]);
+
+  useEffect(() => {
+    return () => {
+      rouletteSpinningRef.current = false;
+      if (rouletteAnimRef.current) cancelAnimationFrame(rouletteAnimRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (current?.gameType !== 'bigRoulette' || roulettePhase !== 'betting') return;
+    drawRouletteWheel(rouletteAngleRef.current);
+  }, [current?.gameType, roulettePhase, drawRouletteWheel]);
 
   const submitScore = async (points: number) => {
     if (scoreSubmittedRef.current) return;
@@ -520,6 +724,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     if (bidSubmitted || !current || !uid) return;
     const myChips = chipsMap[uid] ?? 0;
     if (bidAmount > myChips || bidAmount < 0) return;
+    soundManager.play('coin-flip');
     setBidSubmitted(true);
     setMyBid(bidAmount);
     await set(ref(realtimeDb, `games/${roomId}/bids/round${current.round}/${uid}`), {
@@ -529,32 +734,87 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     });
   };
 
-  const revealLiarResult = async () => {
-    if (!current || !roundData) return;
-    const liarId = roundData.liarId as string;
-    const voteCounts: Record<string, number> = {};
-    Object.values(votes).forEach((targetId) => {
-      voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
-    });
-    const topVoted = Object.entries(voteCounts).sort((a, b) => b[1] - a[1])[0];
-    const caught = topVoted && topVoted[0] === liarId;
+  const attemptForge = async () => {
+    if (!current || !roundData || forgeAnimating || forgeLevel >= 10) return;
+    if (scoreSubmittedRef.current) return;
 
-    if (caught) {
-      soundManager.play('liar-caught');
-      const aliveIds = Object.keys(current.alive).filter((id) => current.alive[id] && id !== liarId);
-      for (const id of aliveIds) {
-        const sRef = ref(realtimeDb, `games/${roomId}/current/scores/${id}`);
-        const s = await get(sRef);
-        await set(sRef, ((s.val() as number) || 0) + 20);
-      }
-      setRoundResult('라이어 적발 성공! +20점');
-    } else {
-      const sRef = ref(realtimeDb, `games/${roomId}/current/scores/${liarId}`);
-      const s = await get(sRef);
-      await set(sRef, ((s.val() as number) || 0) + 30);
-      setRoundResult(uid === liarId ? '속이기 성공! +30점' : '라이어를 놓침!');
+    setForgeAnimating(true);
+    soundManager.play('slot-spin');
+    if (forgeLevel >= 7) soundManager.play('bomb-tick');
+
+    const table = (roundData.enhanceTable as Array<{ success: number; fail: number; down: number; destroy: number }>)[forgeLevel];
+
+    const myRank = rankings.findIndex((r) => r.uid === uid) + 1;
+    let successBonus = 0;
+    let destroyReduction = 0;
+    if (myRank >= 4) {
+      successBonus = 10;
+      destroyReduction = 10;
+    } else if (myRank === 3) {
+      successBonus = 6;
+      destroyReduction = 5;
+    } else if (myRank === 2) {
+      successBonus = 3;
+      destroyReduction = 0;
     }
-    setShowResult(true);
+
+    const adjustedSuccess = Math.min(99, table.success + successBonus);
+    const adjustedDestroy = Math.max(0, table.destroy - destroyReduction);
+    const adjustedDown = table.down;
+    const adjustedFail = Math.max(0, 100 - adjustedSuccess - adjustedDown - adjustedDestroy);
+
+    const roll = Math.random() * 100;
+    let result: 'success' | 'fail' | 'down' | 'destroy';
+    let newLevel = forgeLevel;
+
+    if (roll < adjustedSuccess) {
+      result = 'success';
+      newLevel = forgeLevel + 1;
+      setForgeStreak((prev) => prev + 1);
+    } else if (roll < adjustedSuccess + adjustedFail) {
+      result = 'fail';
+      newLevel = forgeLevel;
+      setForgeStreak(0);
+    } else if (roll < adjustedSuccess + adjustedFail + adjustedDown) {
+      result = 'down';
+      newLevel = Math.max(0, forgeLevel - 1);
+      setForgeStreak(0);
+    } else {
+      result = 'destroy';
+      newLevel = 0;
+      setForgeStreak(0);
+    }
+
+    setForgeLevel(newLevel);
+    setForgeLog((prev) => [
+      ...prev,
+      { action: `+${forgeLevel}→+${forgeLevel + 1}`, result, fromLevel: forgeLevel, toLevel: newLevel },
+    ]);
+
+    if (result === 'success') {
+      if (newLevel === 10) {
+        setForgePerfect(true);
+        soundManager.play('win-fanfare');
+      } else if (forgeStreak >= 2) {
+        soundManager.play('combo');
+      } else {
+        soundManager.play('correct');
+      }
+    } else if (result === 'fail') {
+      soundManager.play('wrong');
+    } else if (result === 'down') {
+      soundManager.play('lose');
+    } else {
+      soundManager.play('explosion');
+    }
+
+    await set(ref(realtimeDb, `games/${roomId}/forge/round${current.round}/${uid}`), {
+      level: newLevel,
+      displayName,
+    });
+
+    await new Promise((r) => setTimeout(r, 400));
+    setForgeAnimating(false);
   };
 
   const advanceRound = useCallback(async () => {
@@ -577,8 +837,6 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     let criticalUid: string | null = null;
     if (gt === 'drawGuess') {
       criticalUid = (roundData.drawerId as string) || null;
-    } else if (gt === 'bombPass') {
-      criticalUid = currentBombHolder || (roundData.initialBombHolder as string) || null;
     }
     if (criticalUid && !onlinePlayers.has(criticalUid)) {
       absentHandledRef.current = roundKey;
@@ -589,7 +847,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [current?.phase, current?.round, current?.gameType, roundData, onlinePlayers, isLeader, currentBombHolder, advanceRound]);
+  }, [current?.phase, current?.round, current?.gameType, roundData, onlinePlayers, isLeader, advanceRound]);
 
   // alive에서 나간 플레이어 제거
   useEffect(() => {
@@ -719,19 +977,15 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
       await submitChoice('0');
     } else if (gt === 'lineRunner' && !myChoice) {
       await submitScore(lineDistance);
-    } else if (gt === 'liarVote' && liarPhase === 'discuss') {
-      setLiarPhase('vote');
-      setTimeLeft((roundData.voteTime as number) || 15);
-    } else if (gt === 'liarVote' && liarPhase === 'vote') {
-      setLiarPhase('reveal');
-      await revealLiarResult();
+    } else if (gt === 'bigRoulette' && roulettePhase === 'betting' && !scoreSubmittedRef.current) {
+      void spinRoulette();
     } else if (gt === 'nunchiGame' && !myChoice) {
       await submitChoice('timeout');
-    } else if (gt === 'bombPass') {
-      if (currentBombHolder === uid) {
-        soundManager.play('explosion');
-        await submitScore(-50);
-      }
+    } else if (gt === 'weaponForge' && !scoreSubmittedRef.current) {
+      const multiplier = (roundData.multiplier as number) || 1;
+      const bonus = forgeLevel === 10 ? ((roundData.perfectBonus as number) || 20) : 0;
+      const points = forgeLevel * multiplier + bonus;
+      await submitScore(points);
     } else if (gt === 'drawGuess' && !myChoice) {
       await submitScore(0);
     }
@@ -740,8 +994,8 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
       void advanceRound();
     }
   }, [
-    current, roundData, bidSubmitted, touchScore, typingDone, myChoice, liarPhase,
-    lineDistance, currentBombHolder, uid, advanceRound, submitBid
+    current, roundData, bidSubmitted, touchScore, typingDone, myChoice,
+    lineDistance, uid, advanceRound, submitBid, forgeLevel, roulettePhase, spinRoulette,
   ]);
 
   if (!current) return null;
@@ -994,56 +1248,122 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     );
   }
 
-  if (gt === 'liarVote') {
-    const isLiar = (roundData.liarId as string) === uid;
-    const myWord = isLiar ? (roundData.fakeWord as string) : (roundData.realWord as string);
-    const alivePlayers = Object.entries(current.nameMap).filter(([id]) => current.alive[id]);
+  if (gt === 'bigRoulette') {
+    const baseCoins = (roundData?.baseCoins as number) ?? 100;
+    const myTotalBet = Object.values(rouletteBets).reduce((s, v) => s + v, 0);
+    const myAvailable = rouletteCoins - myTotalBet;
+    const betOptions = [10, 20, 50, 100];
+    const multSlotCount: Record<number, number> = {};
+    ROULETTE_SEGMENTS.forEach((seg) => {
+      if (seg.mult > 0) multSlotCount[seg.mult] = (multSlotCount[seg.mult] || 0) + 1;
+    });
 
     return (
       <div className="flex flex-col p-3 overflow-y-auto">
         {renderHeader()}
         {renderScoreBar()}
-
-        <div className={`rounded-xl px-4 py-3 text-center mb-3 ${isLiar ? 'bg-red-500/20 border border-red-500/30' : 'bg-blue-500/20 border border-blue-500/30'}`}>
-          <p className="text-xs text-gray-400">카테고리: {roundData.category as string}</p>
-          <p className="text-white text-xl font-bold mt-1">{myWord}</p>
-          {isLiar && <p className="text-red-400 text-xs mt-1">당신이 라이어입니다! 들키지 마세요</p>}
+        <div className="text-center mb-2">
+          <span className="bg-yellow-500/20 text-yellow-400 px-3 py-1 rounded-full font-bold text-sm">
+            ROUND {current.round} / {current.totalRounds || 10}
+          </span>
         </div>
 
-        {liarPhase === 'discuss' && (
-          <div className="bg-gray-800/30 rounded-xl p-4 text-center">
-            <p className="text-yellow-400 font-bold">💬 토론 시간</p>
-            <p className="text-gray-400 text-sm mt-1">채팅으로 서로의 제시어를 물어보세요!</p>
-          </div>
-        )}
-
-        {liarPhase === 'vote' && (
-          <div className="space-y-2">
-            <p className="text-red-400 font-bold text-center">🗳️ 투표! 라이어를 지목하세요</p>
-            <div className="grid grid-cols-2 gap-2">
-              {alivePlayers.filter(([id]) => id !== uid).map(([id, name]) => (
-                <button
-                  key={id}
-                  onClick={async () => {
-                    soundManager.play('vote-cast');
-                    await set(ref(realtimeDb, `games/${roomId}/votes/round${current.round}/${uid}`), id);
-                    setMyChoice(id);
-                  }}
-                  disabled={myChoice !== null}
-                  className="px-3 py-3 bg-gray-800 hover:bg-red-600/30 border border-gray-700 hover:border-red-500 rounded-xl text-white text-sm font-bold transition disabled:opacity-40"
-                >
-                  🕵️ {name}
-                </button>
-              ))}
+        {roulettePhase === 'betting' && (
+          <>
+            <div className="text-center text-gray-300 text-sm mb-2">
+              보유: {rouletteCoins} | 베팅: {myTotalBet} | 남은: {myAvailable} · 기본 +{baseCoins}
             </div>
+            <div className="flex flex-wrap gap-3 justify-center items-start">
+              <canvas
+                ref={rouletteCanvasRef}
+                width={320}
+                height={320}
+                className="rounded-xl bg-gray-800"
+              />
+              <div className="bg-gray-800/50 rounded-xl p-3 min-w-[220px] max-w-[280px]">
+                <p className="text-yellow-400 font-bold text-sm mb-2">배율 선택 후 베팅</p>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  {[1, 2, 3, 5, 10, 20].map((mult) => {
+                    const seg = ROULETTE_SEGMENTS.find((s) => s.mult === mult);
+                    const color = seg?.color ?? '#4b5563';
+                    const slots = multSlotCount[mult] ?? 0;
+                    const chance = ROULETTE_SEGMENTS.length ? Math.round((slots / ROULETTE_SEGMENTS.length) * 100) : 0;
+                    return (
+                      <button
+                        key={mult}
+                        onClick={() => setRouletteSelectedMult(mult)}
+                        className={`py-2 rounded-lg text-white text-center text-sm font-bold border-2 transition ${
+                          rouletteSelectedMult === mult ? 'border-white opacity-100' : 'border-white/20'
+                        }`}
+                        style={{ backgroundColor: color }}
+                      >
+                        ×{mult}
+                        <span className="block text-[10px] opacity-80">{chance}%</span>
+                        {rouletteBets[mult] ? <span className="block text-xs">🪙{rouletteBets[mult]}</span> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+                {rouletteSelectedMult !== null && (
+                  <div className="bg-gray-800/80 rounded-lg p-2 mb-2 text-center">
+                    <p className="text-gray-400 text-xs mb-1">×{rouletteSelectedMult}에 베팅</p>
+                    <div className="flex gap-1 flex-wrap justify-center">
+                      {betOptions.map((v) => (
+                        <button
+                          key={v}
+                          disabled={myAvailable < v}
+                          onClick={() => placeRouletteBet(rouletteSelectedMult!, v)}
+                          className="px-2 py-1 rounded-lg bg-gray-600 text-white text-xs disabled:opacity-40"
+                        >
+                          🪙{v}
+                        </button>
+                      ))}
+                      <button
+                        disabled={myAvailable <= 0}
+                        onClick={() => placeRouletteBet(rouletteSelectedMult!, myAvailable)}
+                        className="px-2 py-1 rounded-lg bg-red-600 text-white text-xs"
+                      >
+                        ALL
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setRouletteSelectedMult(null)}
+                      className="mt-1 text-xs text-gray-500"
+                    >
+                      취소
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={() => void spinRoulette()}
+                  className="w-full py-3 rounded-xl font-bold bg-gradient-to-r from-amber-500 to-amber-600 text-white"
+                >
+                  🎰 룰렛 돌리기!
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {roulettePhase === 'spinning' && (
+          <div className="text-center">
+            <canvas ref={rouletteCanvasRef} width={320} height={320} className="rounded-xl bg-gray-800 mx-auto" />
+            <p className="text-yellow-400 font-bold mt-2">어디에 멈출까...? 🎯</p>
           </div>
         )}
 
-        {liarPhase === 'reveal' && (
-          <div className="bg-gray-800/30 rounded-xl p-4 text-center space-y-2">
-            <p className="text-2xl">🕵️</p>
-            <p className="text-white font-bold">라이어: {roundData.liarName as string}</p>
-            <p className="text-gray-400 text-sm">정답: {roundData.realWord as string}</p>
+        {roulettePhase === 'result' && (
+          <div className="text-center">
+            <div className="text-4xl mb-2">{ROULETTE_SEGMENTS[rouletteWinIdx]?.mult === 0 ? '💀' : '🎯'}</div>
+            <p className="text-2xl font-bold text-white">{ROULETTE_SEGMENTS[rouletteWinIdx]?.label}</p>
+            <p className="text-gray-300 text-sm mt-2">{rouletteResultMsg}</p>
+            <p className="text-yellow-400 font-bold mt-2">보유: 🪙{rouletteCoins}</p>
+            {Object.keys(rouletteOtherCoins).length > 0 && (
+              <p className="text-gray-500 text-xs mt-1">
+                다른 플레이어: {Object.entries(rouletteOtherCoins).map(([id, c]) => `${current.nameMap[id] ?? id.slice(0, 6)} 🪙${c}`).join(', ')}
+              </p>
+            )}
           </div>
         )}
 
@@ -1101,80 +1421,118 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     );
   }
 
-  if (gt === 'bombPass') {
-    const quizzes = (roundData.quizzes || []) as Array<{ q: string; a: string; acceptable: string[] }>;
-    const currentQuiz = quizzes[bombQuizIdx] || { q: '?', a: '?', acceptable: ['?'] };
-    const isBombHolder = currentBombHolder === uid;
+  if (gt === 'weaponForge') {
+    const weapon = roundData?.weapon as { id: string; name: string; emoji: string; rarity: string } | undefined;
+    const multiplier = (roundData?.multiplier as number) || 1;
+    const maxLevel = 10;
+    const levelColors = ['text-gray-400', 'text-gray-300', 'text-gray-200', 'text-green-400', 'text-green-300', 'text-blue-400', 'text-blue-300', 'text-purple-400', 'text-purple-300', 'text-yellow-400', 'text-red-400'];
+    const rarityColors: Record<string, string> = {
+      common: 'border-gray-500/30',
+      rare: 'border-blue-500/30',
+      epic: 'border-purple-500/30',
+      legendary: 'border-yellow-500/40',
+    };
+    const rarityLabels: Record<string, string> = {
+      common: '일반',
+      rare: '레어',
+      epic: '에픽',
+      legendary: '전설',
+    };
+    const table = (roundData?.enhanceTable as Array<{ success: number; fail: number; down: number; destroy: number }>)?.[forgeLevel] ?? null;
 
     return (
       <div className="flex flex-col p-3 overflow-y-auto">
         {renderHeader()}
         {renderScoreBar()}
-        <div className={`rounded-xl p-4 text-center mb-3 ${isBombHolder ? 'bg-red-500/20 border border-red-500/30 animate-pulse' : 'bg-gray-800/30'}`}>
-          <p className="text-4xl mb-2">{isBombHolder ? '💣🔥' : '😮‍💨'}</p>
-          <p className="text-white font-bold">{isBombHolder ? '폭탄이 당신에게!' : `폭탄: ${current.nameMap[currentBombHolder] || '?'}`}</p>
-        </div>
-        {isBombHolder && myChoice === null && (
-          <div className="space-y-2">
-            <p className="text-yellow-400 font-bold text-center text-lg">{currentQuiz.q}</p>
-            {bombWrong && (
-              <p className="text-red-400 text-sm font-bold animate-pulse">❌ 오답! 다시 시도하세요</p>
-            )}
-            <div className="flex gap-2">
-              <input
-                value={bombAnswer}
-                onChange={(e) => setBombAnswer(e.target.value)}
-                placeholder="정답 입력..."
-                autoFocus
-                className="flex-1 bg-gray-800 text-white rounded-xl px-4 py-3 border border-gray-700 outline-none"
-                onKeyDown={async (e) => {
-                  if (e.key === 'Enter' && bombAnswer.trim()) {
-                    const isCorrect = currentQuiz.acceptable.some(
-                      (ans) => bombAnswer.trim().toLowerCase().includes(ans.toLowerCase())
-                    );
-                    if (isCorrect) {
-                      const others = Object.keys(current.alive).filter((id) => current.alive[id] && id !== uid);
-                      const nextHolder = others[Math.floor(Math.random() * others.length)];
-                      await set(ref(realtimeDb, `games/${roomId}/bomb/round${current.round}/holder`), nextHolder);
-                      setBombAnswer('');
-                      setBombWrong(false);
-                      setBombQuizIdx((prev) => prev + 1);
-                      soundManager.play('bomb-pass');
-                      await submitScore(10);
-                    } else {
-                      setBombAnswer('');
-                      setBombWrong(true);
-                      setTimeout(() => setBombWrong(false), 1200);
-                    }
-                  }
-                }}
-              />
-              <button
-                onClick={async () => {
-                  const isCorrect = currentQuiz.acceptable.some(
-                    (ans) => bombAnswer.trim().toLowerCase().includes(ans.toLowerCase())
-                  );
-                  if (isCorrect) {
-                    const others = Object.keys(current.alive).filter((id) => current.alive[id] && id !== uid);
-                    const nextHolder = others[Math.floor(Math.random() * others.length)];
-                    await set(ref(realtimeDb, `games/${roomId}/bomb/round${current.round}/holder`), nextHolder);
-                    setBombAnswer('');
-                    setBombWrong(false);
-                    setBombQuizIdx((prev) => prev + 1);
-                    soundManager.play('bomb-pass');
-                    await submitScore(10);
-                  } else {
-                    setBombAnswer('');
-                    setBombWrong(true);
-                    setTimeout(() => setBombWrong(false), 1200);
-                  }
-                }}
-                className="px-5 py-3 bg-red-600 text-white rounded-xl font-bold"
-              >전송</button>
+
+        {weapon && (
+          <div className={`bg-gray-800/60 border-2 ${rarityColors[weapon.rarity] || 'border-gray-500/30'} rounded-2xl p-4 text-center mb-3`}>
+            <p className="text-gray-500 text-[10px] mb-1">{rarityLabels[weapon.rarity] || '일반'} 무기 · 배율 ×{multiplier}</p>
+            <div className={`text-6xl mb-2 ${forgeAnimating ? 'animate-bounce' : ''} ${forgePerfect ? 'animate-pulse' : ''}`}>{weapon.emoji}</div>
+            <p className="text-white font-bold text-lg">{weapon.name}</p>
+            <div className="mt-2">
+              <span className={`text-3xl font-black ${levelColors[forgeLevel] || 'text-gray-400'}`}>+{forgeLevel}</span>
+              {forgePerfect && <span className="text-yellow-400 text-sm ml-2 animate-pulse">🌟 MAX!</span>}
+            </div>
+            <div className="mt-2 flex justify-center gap-1">
+              {Array.from({ length: maxLevel }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-2 w-6 rounded-full transition-all duration-300 ${i < forgeLevel ? (i >= 7 ? 'bg-red-500 shadow-red-500/50 shadow-sm' : i >= 5 ? 'bg-purple-500' : 'bg-green-500') : 'bg-gray-700'}`}
+                />
+              ))}
             </div>
           </div>
         )}
-        {renderResult()}
+
+        {forgeLevel < maxLevel && !scoreSubmittedRef.current && table && (
+          <div className="space-y-2 mb-3">
+            <div className="bg-gray-800/40 rounded-xl p-3">
+              <div className="flex justify-between text-[10px] mb-1">
+                <span className="text-green-400">성공 {table.success}%</span>
+                <span className="text-gray-400">실패 {table.fail}%</span>
+                {table.down > 0 && <span className="text-orange-400">하락 {table.down}%</span>}
+                {table.destroy > 0 && <span className="text-red-400">파괴 {table.destroy}%</span>}
+              </div>
+              <div className="flex h-2 rounded-full overflow-hidden">
+                <div className="bg-green-500" style={{ width: `${table.success}%` }} />
+                <div className="bg-gray-500" style={{ width: `${table.fail}%` }} />
+                {table.down > 0 && <div className="bg-orange-500" style={{ width: `${table.down}%` }} />}
+                {table.destroy > 0 && <div className="bg-red-500" style={{ width: `${table.destroy}%` }} />}
+              </div>
+            </div>
+            <button
+              onClick={() => void attemptForge()}
+              disabled={forgeAnimating}
+              className={`w-full py-4 rounded-xl font-bold text-lg transition shadow-lg ${
+                forgeLevel >= 7
+                  ? 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-white'
+                  : forgeLevel >= 5
+                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white'
+                    : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white'
+              } disabled:opacity-50`}
+            >
+              {forgeAnimating ? '🔨 강화 중...' : forgeLevel >= 8 ? `🔥 +${forgeLevel}→+${forgeLevel + 1} 강화! (위험!)` : forgeLevel >= 5 ? `⚡ +${forgeLevel}→+${forgeLevel + 1} 강화!` : `🔨 +${forgeLevel}→+${forgeLevel + 1} 강화하기`}
+            </button>
+            {forgeStreak >= 3 && <p className="text-center text-yellow-400 text-xs animate-pulse">🔥 {forgeStreak}연속 성공! 지금이 기회!</p>}
+          </div>
+        )}
+
+        {forgePerfect && (
+          <div className="bg-yellow-500/20 border border-yellow-500/40 rounded-xl p-4 text-center mb-3 animate-pulse">
+            <p className="text-yellow-400 font-bold text-lg">🌟 +10 완성! 보너스 +{(roundData?.perfectBonus as number) || 20}점!</p>
+            <p className="text-gray-400 text-xs">이번 라운드 점수: {forgeLevel * multiplier + ((roundData?.perfectBonus as number) || 20)}점</p>
+          </div>
+        )}
+
+        {forgeLog.length > 0 && (
+          <div className="bg-gray-800/30 rounded-xl p-2 mb-3 max-h-24 overflow-y-auto">
+            {forgeLog.slice(-5).reverse().map((log, i) => (
+              <div key={i} className={`text-xs px-2 py-0.5 ${log.result === 'success' ? 'text-green-400' : log.result === 'down' ? 'text-orange-400' : log.result === 'destroy' ? 'text-red-400' : 'text-gray-500'}`}>
+                {log.action} → {log.result === 'success' ? `✅ 성공! +${log.toLevel}` : log.result === 'fail' ? '❌ 실패 (유지)' : log.result === 'down' ? `⬇️ 하락! +${log.toLevel}` : '💥 파괴! +0'}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="bg-gray-800/30 rounded-xl p-3">
+          <p className="text-gray-500 text-xs mb-2 font-bold">⚔️ 실시간 강화 현황</p>
+          <div className="space-y-1">
+            {Object.entries(current.nameMap || {})
+              .map(([id, name]) => ({ uid: id, name, level: otherForge[id]?.level ?? 0, score: current.scores?.[id] || 0 }))
+              .sort((a, b) => b.score - a.score)
+              .map((p, i) => (
+                <div key={p.uid} className={`flex items-center justify-between text-xs px-2 py-1 rounded ${p.uid === uid ? 'bg-purple-500/20' : ''}`}>
+                  <span className="text-gray-400">{i + 1}. <span className={p.uid === uid ? 'text-purple-300 font-bold' : 'text-white'}>{p.name}</span></span>
+                  <div className="flex gap-3 items-center">
+                    <span className={`font-bold ${p.level >= 8 ? 'text-red-400' : p.level >= 5 ? 'text-purple-400' : 'text-green-400'}`}>+{p.level}</span>
+                    <span className="text-yellow-400 font-bold">{p.score}점</span>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+
         {renderMiniRanking()}
       </div>
     );

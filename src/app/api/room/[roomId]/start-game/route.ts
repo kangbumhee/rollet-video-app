@@ -3,7 +3,6 @@ import { adminAuth, adminFirestore, adminRealtimeDb } from "@/lib/firebase/admin
 import {
   generateOXQuizzes,
   generatePriceItems,
-  generateBombQuizzes,
   generateDrawWords,
   generateTypingSentences,
 } from "@/lib/gemini/gameQuiz";
@@ -11,9 +10,9 @@ import {
 const GAME_NAMES: Record<string, string> = {
   drawGuess: "🎨 그림 맞추기",
   lineRunner: "✏️ 라인 러너",
-  liarVote: "🕵️ 라이어 투표",
+  bigRoulette: "🎰 빅 룰렛",
   typingBattle: "⌨️ 타이핑 배틀",
-  bombPass: "💣 폭탄 돌리기",
+  weaponForge: "⚔️ 무기 강화 대전",
   priceGuess: "💰 가격 맞추기",
   oxSurvival: "⭕ OX 서바이벌",
   destinyAuction: "🎰 운명의 경매",
@@ -39,14 +38,6 @@ function getChestHint(chest: { type: string; points: number; special?: string },
   if (round >= 8) return "❓ 알 수 없는 상자";
   return pool[Math.floor(Math.random() * pool.length)];
 }
-
-const LIAR_WORDS = [
-  { category: "음식", words: ["떡볶이", "김치찌개", "치킨", "삼겹살", "비빔밥", "짜장면", "떡국", "불고기", "냉면", "김밥"] },
-  { category: "동물", words: ["고양이", "강아지", "펭귄", "코끼리", "기린", "사자", "토끼", "햄스터", "돌고래", "앵무새"] },
-  { category: "장소", words: ["학교", "편의점", "놀이공원", "병원", "도서관", "영화관", "공항", "수영장", "카페", "지하철"] },
-  { category: "직업", words: ["의사", "소방관", "요리사", "경찰", "선생님", "가수", "과학자", "운동선수", "화가", "우주비행사"] },
-  { category: "사물", words: ["우산", "냉장고", "스마트폰", "자전거", "안경", "시계", "가방", "신발", "텔레비전", "에어컨"] },
-];
 
 export async function POST(req: NextRequest, { params }: { params: { roomId: string } }) {
   try {
@@ -121,6 +112,7 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
     const roundsData: Record<string, unknown> = {};
     let gameConfig: Record<string, unknown> = {};
     let chipsToSet: Record<string, number> | null = null;
+    let rouletteCoinsToSet: Record<string, number> | null = null;
 
     switch (gameType) {
       case "drawGuess": {
@@ -164,27 +156,35 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
         gameConfig = { type: "lineRunner", needsCanvas: true };
         break;
       }
-      case "liarVote": {
+      case "bigRoulette": {
+        const SEGMENTS = [
+          { label: "×2", mult: 2, color: "#3b82f6" },
+          { label: "×3", mult: 3, color: "#8b5cf6" },
+          { label: "×1", mult: 1, color: "#6b7280" },
+          { label: "×5", mult: 5, color: "#f59e0b" },
+          { label: "×2", mult: 2, color: "#3b82f6" },
+          { label: "💀", mult: 0, color: "#ef4444" },
+          { label: "×3", mult: 3, color: "#8b5cf6" },
+          { label: "×10", mult: 10, color: "#ec4899" },
+          { label: "×1", mult: 1, color: "#6b7280" },
+          { label: "×2", mult: 2, color: "#3b82f6" },
+          { label: "×5", mult: 5, color: "#f59e0b" },
+          { label: "×20", mult: 20, color: "#dc2626" },
+        ];
+        const BASE_COINS = [100, 120, 150, 200, 260, 340, 440, 580, 760, 1000];
         for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-          const catIdx = Math.floor(Math.random() * LIAR_WORDS.length);
-          const cat = LIAR_WORDS[catIdx];
-          const wordIdx = Math.floor(Math.random() * cat.words.length);
-          const realWord = cat.words[wordIdx];
-          const otherWords = cat.words.filter((w) => w !== realWord);
-          const fakeWord = otherWords[Math.floor(Math.random() * otherWords.length)] || "???";
-          const liarIdx = Math.floor(Math.random() * allPlayerIds.length);
+          const targetIdx = Math.floor(Math.random() * SEGMENTS.length);
           roundsData[`round${r}`] = {
             round: r,
-            category: cat.category,
-            realWord,
-            fakeWord,
-            liarId: allPlayerIds[liarIdx],
-            liarName: nameMap[allPlayerIds[liarIdx]],
-            discussionTime: 30,
-            voteTime: 15,
+            targetSegmentIdx: targetIdx,
+            baseCoins: BASE_COINS[r - 1],
+            timeLimit: 15,
           };
         }
-        gameConfig = { type: "liarVote" };
+        gameConfig = { type: "bigRoulette", segments: SEGMENTS, startingCoins: 500 };
+        const rouletteCoins: Record<string, number> = {};
+        for (const p of players) rouletteCoins[p.uid] = 500;
+        rouletteCoinsToSet = rouletteCoins;
         break;
       }
       case "typingBattle": {
@@ -199,19 +199,51 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
         gameConfig = { type: "typingBattle" };
         break;
       }
-      case "bombPass": {
-        const quizzes = await generateBombQuizzes(TOTAL_ROUNDS * 3);
+      case "weaponForge": {
+        const WEAPONS = [
+          { id: "longsword", name: "롱소드", emoji: "⚔️", rarity: "common" },
+          { id: "dagger", name: "단검", emoji: "🗡️", rarity: "common" },
+          { id: "knife", name: "칼", emoji: "🔪", rarity: "common" },
+          { id: "dualBlade", name: "이도류", emoji: "⚔️", rarity: "rare" },
+          { id: "greatsword", name: "대검", emoji: "🗡️", rarity: "rare" },
+          { id: "bow", name: "활", emoji: "🏹", rarity: "common" },
+          { id: "spear", name: "창", emoji: "🔱", rarity: "rare" },
+          { id: "battleaxe", name: "전투도끼", emoji: "⛏️", rarity: "rare" },
+          { id: "staff", name: "지팡이", emoji: "🪄", rarity: "epic" },
+          { id: "combatsword", name: "전투검", emoji: "🛡️", rarity: "common" },
+          { id: "crossbow", name: "쇠뇌", emoji: "🔫", rarity: "rare" },
+          { id: "halberd", name: "할버드", emoji: "🪓", rarity: "epic" },
+          { id: "demonsword", name: "마검", emoji: "💎", rarity: "legendary" },
+          { id: "moonblade", name: "월광검", emoji: "🌙", rarity: "legendary" },
+          { id: "meteorsword", name: "운석검", emoji: "☄️", rarity: "legendary" },
+        ];
+        const ROUND_MULTIPLIER = [1, 1, 1, 2, 2, 2, 3, 3, 3, 5];
+        const ENHANCE_TABLE = [
+          { success: 95, fail: 5, down: 0, destroy: 0 },
+          { success: 90, fail: 10, down: 0, destroy: 0 },
+          { success: 85, fail: 15, down: 0, destroy: 0 },
+          { success: 75, fail: 25, down: 0, destroy: 0 },
+          { success: 65, fail: 35, down: 0, destroy: 0 },
+          { success: 55, fail: 40, down: 5, destroy: 0 },
+          { success: 45, fail: 40, down: 15, destroy: 0 },
+          { success: 35, fail: 35, down: 25, destroy: 5 },
+          { success: 25, fail: 30, down: 30, destroy: 15 },
+          { success: 15, fail: 25, down: 35, destroy: 25 },
+        ];
+        const shuffledWeapons = [...WEAPONS].sort(() => Math.random() - 0.5);
         for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-          const roundQuizzes = quizzes.slice((r - 1) * 3, r * 3);
-          const bombHolder = allPlayerIds[Math.floor(Math.random() * allPlayerIds.length)];
+          const weapon = shuffledWeapons[(r - 1) % shuffledWeapons.length];
           roundsData[`round${r}`] = {
             round: r,
-            quizzes: roundQuizzes,
-            initialBombHolder: bombHolder,
-            fuseTime: Math.max(8, 20 - r),
+            weapon,
+            enhanceTable: ENHANCE_TABLE,
+            multiplier: ROUND_MULTIPLIER[r - 1],
+            timeLimit: 15,
+            maxLevel: 10,
+            perfectBonus: 20,
           };
         }
-        gameConfig = { type: "bombPass" };
+        gameConfig = { type: "weaponForge" };
         break;
       }
       case "priceGuess": {
@@ -341,6 +373,9 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
 
     if (chipsToSet) {
       await adminRealtimeDb.ref(`games/${roomId}/chips`).set(chipsToSet);
+    }
+    if (rouletteCoinsToSet) {
+      await adminRealtimeDb.ref(`games/${roomId}/rouletteCoins`).set(rouletteCoinsToSet);
     }
 
     if (!isAdminOrMod) {

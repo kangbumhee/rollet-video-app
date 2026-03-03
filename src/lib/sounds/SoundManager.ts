@@ -29,6 +29,8 @@ type SoundName =
   | 'nunchi-claim' | 'nunchi-clash' | 'nunchi-safe'
   // ── 순발력 터치 ──
   | 'target-appear' | 'target-hit' | 'target-miss'
+  // ── 운명의 경매 / 무기 강화 / 빅 룰렛 ──
+  | 'coin-flip' | 'card-flip' | 'slot-spin' | 'roulette-spin'
   // ── BGM ──
   | 'bgm-lobby' | 'bgm-battle' | 'bgm-winner'
   | 'bgm-tension' | 'bgm-minigame';
@@ -104,6 +106,12 @@ const SOUND_CONFIG: Record<SoundName, { path: string; volume: number; loop?: boo
   'target-appear':      { path: '/sounds/pop-up.wav', volume: 0.3 },
   'target-hit':         { path: '/sounds/correct.wav', volume: 0.4 },
   'target-miss':        { path: '/sounds/wrong.wav', volume: 0.3 },
+
+  // ── 운명의 경매 / 무기 강화 / 빅 룰렛 ──
+  'coin-flip':          { path: '/sounds/coin-flip.wav', volume: 0.5 },
+  'card-flip':          { path: '/sounds/card-flip.wav', volume: 0.5 },
+  'slot-spin':          { path: '/sounds/slot-spin.wav', volume: 0.5 },
+  'roulette-spin':      { path: '/sounds/roulette-spin.wav', volume: 0.5 },
 
   // ── BGM ──
   'bgm-lobby':          { path: '/sounds/bgm-lobby.mp3', volume: 0.25, loop: true },

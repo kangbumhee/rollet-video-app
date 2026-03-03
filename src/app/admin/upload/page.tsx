@@ -17,9 +17,9 @@ import { useRouter } from "next/navigation";
 const GAME_OPTIONS = [
   { type: 'drawGuess', icon: '🎨', title: '그림 맞추기' },
   { type: 'lineRunner', icon: '✏️', title: '라인 러너' },
-  { type: 'liarVote', icon: '🕵️', title: '라이어 투표' },
+  { type: 'bigRoulette', icon: '🎰', title: '빅 룰렛' },
   { type: 'typingBattle', icon: '⌨️', title: '타이핑 배틀' },
-  { type: 'bombPass', icon: '💣', title: '폭탄 돌리기' },
+  { type: 'weaponForge', icon: '⚔️', title: '무기 강화 대전' },
   { type: 'priceGuess', icon: '💰', title: '가격 맞추기' },
   { type: 'oxSurvival', icon: '⭕', title: 'OX 서바이벌' },
   { type: 'destinyAuction', icon: '🎰', title: '운명의 경매' },

@@ -9,9 +9,9 @@ const VALID_DELIVERY_TYPES: DeliveryType[] = ['SELF_DELIVERY', 'CONSIGNMENT', 'S
 const VALID_GAME_TYPES = [
   'drawGuess',
   'lineRunner',
-  'liarVote',
+  'bigRoulette',
   'typingBattle',
-  'bombPass',
+  'weaponForge',
   'priceGuess',
   'oxSurvival',
   'destinyAuction',

@@ -41,14 +41,14 @@ const GAME_TYPE_LABELS: Record<string, string> = {
 const PRIZE_GAME_TYPES = [
   { id: 'drawGuess', label: '🎨 그림 맞추기' },
   { id: 'typingBattle', label: '⌨️ 타이핑 배틀' },
-  { id: 'bombPass', label: '💣 폭탄 돌리기' },
+  { id: 'weaponForge', label: '⚔️ 무기 강화 대전' },
   { id: 'priceGuess', label: '💰 가격 맞추기' },
   { id: 'oxSurvival', label: '⭕ OX 서바이벌' },
   { id: 'destinyAuction', label: '🎰 운명의 경매' },
   { id: 'nunchiGame', label: '👀 눈치 게임' },
   { id: 'quickTouch', label: '🎯 순발력 터치' },
   { id: 'lineRunner', label: '✏️ 라인 러너' },
-  { id: 'liarVote', label: '🕵️ 라이어 투표' },
+  { id: 'bigRoulette', label: '🎰 빅 룰렛' },
 ];
 
 export function SlotPrizeAssigner({ slot, onAssign, onUnassign, onClose }: SlotPrizeAssignerProps) {

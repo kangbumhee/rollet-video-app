@@ -27,9 +27,9 @@ import { PointShop } from '@/components/shop/PointShop';
 const REGULAR_GAMES = [
   { id: 'drawGuess', name: '그림 맞추기', emoji: '🎨' },
   { id: 'lineRunner', name: '라인 러너', emoji: '✏️' },
-  { id: 'liarVote', name: '라이어 투표', emoji: '🕵️' },
+  { id: 'bigRoulette', name: '빅 룰렛', emoji: '🎰' },
   { id: 'typingBattle', name: '타이핑 배틀', emoji: '⌨️' },
-  { id: 'bombPass', name: '폭탄 돌리기', emoji: '💣' },
+  { id: 'weaponForge', name: '무기 강화 대전', emoji: '⚔️' },
   { id: 'priceGuess', name: '가격 맞추기', emoji: '💰' },
   { id: 'oxSurvival', name: 'OX 서바이벌', emoji: '⭕' },
   { id: 'destinyAuction', name: '운명의 경매', emoji: '🎰' },

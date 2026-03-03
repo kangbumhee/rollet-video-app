@@ -17,9 +17,9 @@ export const CreateRoomSchema = z
       .enum([
         "drawGuess",
         "lineRunner",
-        "liarVote",
+        "bigRoulette",
         "typingBattle",
-        "bombPass",
+        "weaponForge",
         "priceGuess",
         "oxSurvival",
         "destinyAuction",
@@ -81,9 +81,9 @@ export const CreatePrizeSchema = z.object({
     .enum([
       "drawGuess",
       "lineRunner",
-      "liarVote",
+      "bigRoulette",
       "typingBattle",
-      "bombPass",
+      "weaponForge",
       "priceGuess",
       "oxSurvival",
       "destinyAuction",
