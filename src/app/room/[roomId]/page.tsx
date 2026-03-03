@@ -225,8 +225,12 @@ export default function RoomPage() {
       });
       const data = await res.json();
       if (data.skipped) {
-        setAutoGameSkippedMessage('참가자 부족으로 취소되었습니다');
-        setTimeout(() => setAutoGameSkippedMessage(''), 4000);
+        setAutoGameSkippedMessage(
+          data.reason === '참가자 부족'
+            ? '😢 참가자가 부족하여 게임이 취소되었습니다. (최소 2명 필요)\n다음 포인트전을 기다려주세요!'
+            : data.reason || '게임이 취소되었습니다'
+        );
+        setTimeout(() => setAutoGameSkippedMessage(''), 8000);
       }
     } catch (err) {
       console.error('[AutoGame] Start error:', err);
@@ -622,10 +626,8 @@ export default function RoomPage() {
                   <p className="text-yellow-400 text-sm mt-1">🏆 보상: {autoGame.reward?.label ?? '100 포인트'}</p>
                   <p className="text-gray-400 text-xs mt-2">참가자: {Object.keys(autoGame.joinedPlayers ?? {}).length}명</p>
                   <p className="text-purple-300 text-lg font-bold mt-1">남은 시간: {recruitCountdown || '—'}</p>
-                  <p className="text-gray-500 text-[10px] mt-0.5">모집 종료 시 바로 게임이 시작됩니다 (1명 이상 시 시작)</p>
-                  {autoGameSkippedMessage ? (
-                    <p className="text-amber-400 text-sm mt-2">{autoGameSkippedMessage}</p>
-                  ) : user && (autoGame.joinedPlayers ?? {})[user.uid] ? (
+                  <p className="text-gray-500 text-[10px] mt-0.5">모집 종료 시 참가 2명 이상이면 게임이 시작됩니다</p>
+                  {user && (autoGame.joinedPlayers ?? {})[user.uid] ? (
                     <p className="text-green-400 text-sm font-medium mt-3">✅ 참가 완료! 게임 시작을 기다려주세요</p>
                   ) : user ? (
                     <button
@@ -639,6 +641,14 @@ export default function RoomPage() {
                   ) : (
                     <p className="text-gray-500 text-sm mt-2">로그인 후 참가할 수 있습니다</p>
                   )}
+                </div>
+              )}
+              {/* ── 포인트전 취소 사유 표시 ── */}
+              {autoGameSkippedMessage && (
+                <div className="w-full bg-red-900/30 border border-red-500/40 rounded-xl p-4 text-center animate-pulse">
+                  <p className="text-red-300 text-2xl mb-2">😢</p>
+                  <p className="text-red-300 text-sm font-bold whitespace-pre-line">{autoGameSkippedMessage}</p>
+                  <p className="text-gray-500 text-xs mt-2">다음 게임이 곧 예약됩니다</p>
                 </div>
               )}
               {/* ── 포인트 게임 카드 (대기 중, 경품보다 먼저일 때만) ── */}
