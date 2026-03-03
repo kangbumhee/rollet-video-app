@@ -280,6 +280,32 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     void callReward();
   }, [current?.phase, current?.isAutoGame, current?.rewardDistributed, current?.startedBy, uid, roomId]);
 
+  // final_result 15초 후 자동 게임 정리 (시작자만 실행)
+  const finalCleanupCalledRef = useRef(false);
+  useEffect(() => {
+    if (!current || !uid) return;
+    if (current.phase !== 'final_result') {
+      finalCleanupCalledRef.current = false;
+      return;
+    }
+    if (!current.startedBy || current.startedBy !== uid) return;
+    if (finalCleanupCalledRef.current) return;
+
+    const timer = setTimeout(async () => {
+      if (finalCleanupCalledRef.current) return;
+      finalCleanupCalledRef.current = true;
+      try {
+        const phaseSnap = await get(ref(realtimeDb, `games/${roomId}/current/phase`));
+        if (phaseSnap.val() !== 'final_result') return;
+        await set(ref(realtimeDb, `games/${roomId}`), null);
+      } catch (err) {
+        console.error('[RegularGamePlayer] Final cleanup error:', err);
+      }
+    }, 15000);
+
+    return () => clearTimeout(timer);
+  }, [current?.phase, current?.startedBy, uid, roomId]);
+
   useEffect(() => {
     if (!current || current.gameType !== 'lineRunner') return;
     const key = `${current.gameType}-${current.round}`;
