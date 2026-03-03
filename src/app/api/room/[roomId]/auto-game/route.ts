@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, adminRealtimeDb } from "@/lib/firebase/admin";
+import { adminFirestore, adminRealtimeDb, verifyAuth } from "@/lib/firebase/admin";
 import {
   generateOXQuizzes,
   generatePriceItems,
@@ -78,6 +78,7 @@ async function scheduleNextGame(roomId: string) {
 
   const nextGame = GAME_LIST[Math.floor(Math.random() * GAME_LIST.length)];
   await adminRealtimeDb.ref(`rooms/${roomId}/autoGame`).set({
+    phase: "waiting",
     nextGameAt,
     nextGameType: nextGame.id,
     nextGameName: nextGame.name,
@@ -85,51 +86,102 @@ async function scheduleNextGame(roomId: string) {
   });
 }
 
+type AutoGameData = {
+  phase?: string;
+  nextGameAt?: number;
+  nextGameType?: string;
+  nextGameName?: string;
+  reward?: { type: string; amount: number; label: string };
+  recruitingUntil?: number;
+  joinedPlayers?: Record<string, { displayName: string; joinedAt: number }>;
+};
+
 export async function POST(req: NextRequest, { params }: { params: { roomId: string } }) {
   try {
     const { roomId } = params;
-
-    const { secret } = (await req.json()) as { secret?: string };
+    const body = (await req.json()) as { secret?: string; action?: string };
+    const { secret, action } = body;
     const AUTO_GAME_SECRET = process.env.AUTO_GAME_SECRET || "auto-game-secret-key";
-    if (secret !== AUTO_GAME_SECRET) {
-      return NextResponse.json({ error: "권한 없음" }, { status: 403 });
+
+    if (!action || !["recruit", "join", "start"].includes(action)) {
+      return NextResponse.json({ error: "action(recruit|join|start) 필요" }, { status: 400 });
     }
 
-    // 경품 사이클 진행 중이면 자동 게임 시작 안 함
-    const cycleSnap = await adminRealtimeDb.ref("cycle/main/currentPhase").get();
-    const currentPhase = cycleSnap.exists() ? cycleSnap.val() : "IDLE";
-    if (currentPhase !== "IDLE" && currentPhase !== "COOLDOWN") {
-      await scheduleNextGame(roomId);
-      return NextResponse.json({ skipped: true, reason: "경품 게임 진행 중" });
-    }
-
-    const currentSnap = await adminRealtimeDb.ref(`games/${roomId}/current`).get();
-    if (currentSnap.exists()) {
-      const cur = currentSnap.val() as { phase?: string; startedAt?: number };
-      if (cur?.phase && cur.phase !== "idle" && cur.phase !== "final_result") {
-        if (Date.now() - (cur.startedAt || 0) < 10 * 60 * 1000) {
-          return NextResponse.json({ error: "이미 게임 진행 중" }, { status: 409 });
-        }
+    // ── action: recruit ──
+    if (action === "recruit") {
+      if (secret !== AUTO_GAME_SECRET) {
+        return NextResponse.json({ error: "권한 없음" }, { status: 403 });
       }
-      await adminRealtimeDb.ref(`games/${roomId}`).remove();
+      const cycleSnap = await adminRealtimeDb.ref("cycle/main/currentPhase").get();
+      const currentPhase = cycleSnap.exists() ? cycleSnap.val() : "IDLE";
+      if (currentPhase !== "IDLE" && currentPhase !== "COOLDOWN") {
+        await scheduleNextGame(roomId);
+        return NextResponse.json({ skipped: true, reason: "경품 게임 진행 중" });
+      }
+      const autoRef = adminRealtimeDb.ref(`rooms/${roomId}/autoGame`);
+      const recruitingUntil = Date.now() + 60000;
+      await autoRef.update({
+        phase: "recruiting",
+        recruitingUntil,
+        joinedPlayers: {} as Record<string, { displayName: string; joinedAt: number }>,
+      });
+      return NextResponse.json({ success: true, phase: "recruiting", recruitingUntil });
     }
 
-    const presSnap = await adminRealtimeDb.ref(`rooms/${roomId}/presence`).get();
-    const presData = presSnap.exists()
-      ? (presSnap.val() as Record<string, { uid: string; displayName: string; level?: number }>)
-      : {};
-    const players = Object.values(presData);
-    if (players.length < 2) {
-      await scheduleNextGame(roomId);
-      return NextResponse.json({ skipped: true, reason: "참가자 부족", nextGame: "30분 후" });
+    // ── action: join ──
+    if (action === "join") {
+      const decoded = await verifyAuth(req);
+      if (!decoded) {
+        return NextResponse.json({ error: "로그인이 필요합니다" }, { status: 401 });
+      }
+      const userDoc = await adminFirestore.doc(`users/${decoded.uid}`).get();
+      const displayName = userDoc.exists
+        ? (userDoc.data()?.displayName as string) || decoded.uid.slice(0, 8)
+        : decoded.uid.slice(0, 8);
+      const autoRef = adminRealtimeDb.ref(`rooms/${roomId}/autoGame`);
+      const snap = await autoRef.get();
+      const data = (snap.exists() ? snap.val() : null) as AutoGameData | null;
+      if (!data || data.phase !== "recruiting") {
+        return NextResponse.json({ error: "모집 중이 아닙니다" }, { status: 400 });
+      }
+      const joinedPlayers = {
+        ...(data.joinedPlayers || {}),
+        [decoded.uid]: { displayName, joinedAt: Date.now() },
+      };
+      await autoRef.update({ joinedPlayers });
+      return NextResponse.json({ success: true });
     }
 
-    const game = GAME_LIST[Math.floor(Math.random() * GAME_LIST.length)];
-    const gameType = game.id;
-    const gameName = game.name;
-    const TOTAL_ROUNDS = 10;
+    // ── action: start ──
+    if (action === "start") {
+      if (secret !== AUTO_GAME_SECRET) {
+        return NextResponse.json({ error: "권한 없음" }, { status: 403 });
+      }
+      const autoRef = adminRealtimeDb.ref(`rooms/${roomId}/autoGame`);
+      const autoSnap = await autoRef.get();
+      const autoData = (autoSnap.exists() ? autoSnap.val() : null) as AutoGameData | null;
+      const joinedPlayers = autoData?.joinedPlayers || {};
+      const playerEntries = Object.entries(joinedPlayers);
+      if (playerEntries.length < 2) {
+        await scheduleNextGame(roomId);
+        return NextResponse.json({ skipped: true, reason: "참가자 부족", nextGame: "다음 30분 단위" });
+      }
+      const players = playerEntries.map(([uid, d]) => ({ uid, displayName: d.displayName, level: 1 }));
+      const allPlayerIds = players.map((p) => p.uid);
+      const gameType = autoData?.nextGameType ?? GAME_LIST[0].id;
+      const gameName = autoData?.nextGameName ?? GAME_LIST[0].name;
+      const TOTAL_ROUNDS = 10;
 
-    const allPlayerIds = players.map((p) => p.uid);
+      const currentSnap = await adminRealtimeDb.ref(`games/${roomId}/current`).get();
+      if (currentSnap.exists()) {
+        const cur = currentSnap.val() as { phase?: string; startedAt?: number };
+        if (cur?.phase && cur.phase !== "idle" && cur.phase !== "final_result") {
+          if (Date.now() - (cur.startedAt || 0) < 10 * 60 * 1000) {
+            return NextResponse.json({ error: "이미 게임 진행 중" }, { status: 409 });
+          }
+        }
+        await adminRealtimeDb.ref(`games/${roomId}`).remove();
+      }
     const scores: Record<string, number> = {};
     const nameMap: Record<string, string> = {};
     const alive: Record<string, boolean> = {};
@@ -305,6 +357,8 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
     await scheduleNextGame(roomId);
 
     return NextResponse.json({ success: true, gameName, gameType, totalPlayers: allPlayerIds.length });
+    }
+
   } catch (error) {
     console.error("Auto game error:", error);
     return NextResponse.json({ error: "자동 게임 시작 실패" }, { status: 500 });

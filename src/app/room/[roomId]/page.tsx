@@ -69,13 +69,20 @@ export default function RoomPage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeGame, setActiveGame] = useState<{ phase: string; gameName: string } | null>(null);
   const [autoGame, setAutoGame] = useState<{
-    nextGameAt: number;
-    nextGameType: string;
-    nextGameName: string;
-    reward: { type: string; amount: number; label: string };
+    phase?: string;
+    nextGameAt?: number;
+    nextGameType?: string;
+    nextGameName?: string;
+    reward?: { type: string; amount: number; label: string };
+    recruitingUntil?: number;
+    joinedPlayers?: Record<string, { displayName: string; joinedAt: number }>;
   } | null>(null);
   const [autoCountdown, setAutoCountdown] = useState('');
+  const [recruitCountdown, setRecruitCountdown] = useState('');
+  const [autoGameJoinLoading, setAutoGameJoinLoading] = useState(false);
+  const [autoGameSkippedMessage, setAutoGameSkippedMessage] = useState('');
   const autoGameTriggeredRef = React.useRef(false);
+  const autoGameStartTriggeredRef = React.useRef(false);
   const [userPoints, setUserPoints] = useState(0);
   const [showPointShop, setShowPointShop] = useState(false);
   const [roomLocked, setRoomLocked] = useState(false);
@@ -193,21 +200,62 @@ export default function RoomPage() {
     return () => unsub();
   }, [roomId]);
 
-  const triggerAutoGame = useCallback(async () => {
+  const triggerAutoGameRecruit = useCallback(async () => {
     try {
       const res = await fetch(`/api/room/${roomId}/auto-game`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: 'auto-game-secret-key' }),
+        body: JSON.stringify({ secret: 'auto-game-secret-key', action: 'recruit' }),
       });
       const data = await res.json();
       if (!data.success && !data.skipped) {
-        console.error('[AutoGame] Failed:', data.error);
+        console.error('[AutoGame] Recruit failed:', data.error);
       }
     } catch (err) {
       console.error('[AutoGame] Network error:', err);
     }
   }, [roomId]);
+
+  const triggerAutoGameStart = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/room/${roomId}/auto-game`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: 'auto-game-secret-key', action: 'start' }),
+      });
+      const data = await res.json();
+      if (data.skipped) {
+        setAutoGameSkippedMessage('참가자 부족으로 취소되었습니다');
+        setTimeout(() => setAutoGameSkippedMessage(''), 4000);
+      }
+    } catch (err) {
+      console.error('[AutoGame] Start error:', err);
+    }
+  }, [roomId]);
+
+  const joinAutoGame = useCallback(async () => {
+    if (!user) return;
+    setAutoGameJoinLoading(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/room/${roomId}/auto-game`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: 'join' }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        console.error('[AutoGame] Join failed:', data.error);
+      }
+    } catch (err) {
+      console.error('[AutoGame] Join error:', err);
+    } finally {
+      setAutoGameJoinLoading(false);
+    }
+  }, [roomId, user]);
 
   useEffect(() => {
     if (!isMainRoom) {
@@ -219,7 +267,7 @@ export default function RoomPage() {
       if (snap.exists()) {
         const data = snap.val() as NonNullable<typeof autoGame>;
         // 포인트 게임 시간이 경품 게임 시간보다 뒤면 표시하지 않음
-        if (nextPrize?.scheduledAt && data.nextGameAt >= nextPrize.scheduledAt) {
+        if (nextPrize?.scheduledAt && (data.nextGameAt ?? 0) >= nextPrize.scheduledAt) {
           setAutoGame(null);
           return;
         }
@@ -250,6 +298,7 @@ export default function RoomPage() {
           ];
           const next = GAME_LIST[Math.floor(Math.random() * GAME_LIST.length)];
           await set(autoRef, {
+            phase: 'waiting',
             nextGameAt,
             nextGameType: next.id,
             nextGameName: next.name,
@@ -262,10 +311,11 @@ export default function RoomPage() {
   }, [roomId, user?.uid, isMainRoom, nextPrize?.scheduledAt]);
 
   useEffect(() => {
-    if (!isMainRoom || !autoGame?.nextGameAt) return;
+    const nextGameAt = autoGame?.nextGameAt;
+    if (!isMainRoom || nextGameAt == null) return;
 
     const tick = () => {
-      const diff = autoGame.nextGameAt - Date.now();
+      const diff = nextGameAt - Date.now();
       if (diff <= 0) {
         // 경품 사이클이 진행 중이면 포인트 게임 트리거 안 함
         const cycleActive = cycle?.currentPhase && cycle.currentPhase !== 'IDLE' && cycle.currentPhase !== 'COOLDOWN';
@@ -278,10 +328,11 @@ export default function RoomPage() {
           setAutoCountdown('경품 게임 대기 중...');
           return;
         }
-        setAutoCountdown('게임 시작 중...');
-        if (!autoGameTriggeredRef.current && onlineUsers.length > 0 && onlineUsers[0]?.uid === user?.uid) {
+        setAutoCountdown('모집 시작 중...');
+        const phase = autoGame?.phase ?? 'waiting';
+        if (phase !== 'recruiting' && !autoGameTriggeredRef.current && onlineUsers.length > 0 && onlineUsers[0]?.uid === user?.uid) {
           autoGameTriggeredRef.current = true;
-          void triggerAutoGame();
+          void triggerAutoGameRecruit();
         }
         return;
       }
@@ -294,7 +345,35 @@ export default function RoomPage() {
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [autoGame?.nextGameAt, onlineUsers, user?.uid, triggerAutoGame, isMainRoom, cycle?.currentPhase, nextPrize?.scheduledAt]);
+  }, [autoGame?.nextGameAt, autoGame?.phase, onlineUsers, user?.uid, triggerAutoGameRecruit, isMainRoom, cycle?.currentPhase, nextPrize?.scheduledAt]);
+
+  // 모집 시간 종료 시 첫 번째 유저가 start 호출
+  useEffect(() => {
+    if (!isMainRoom || autoGame?.phase !== 'recruiting' || autoGame?.recruitingUntil == null) return;
+    const tick = () => {
+      const remain = autoGame.recruitingUntil! - Date.now();
+      if (remain <= 0) {
+        setRecruitCountdown('0초');
+        if (!autoGameStartTriggeredRef.current && onlineUsers.length > 0 && onlineUsers[0]?.uid === user?.uid) {
+          autoGameStartTriggeredRef.current = true;
+          void triggerAutoGameStart();
+        }
+        return;
+      }
+      setRecruitCountdown(`${Math.ceil(remain / 1000)}초`);
+    };
+    tick();
+    const interval = setInterval(tick, 500);
+    return () => clearInterval(interval);
+  }, [isMainRoom, autoGame?.phase, autoGame?.recruitingUntil, onlineUsers, user?.uid, triggerAutoGameStart]);
+
+  // phase가 waiting으로 바뀌면 다음 사이클을 위해 ref 초기화
+  useEffect(() => {
+    if (autoGame?.phase === 'waiting') {
+      autoGameTriggeredRef.current = false;
+      autoGameStartTriggeredRef.current = false;
+    }
+  }, [autoGame?.phase]);
 
   const handleResetGame = useCallback(async (forceConfirm = false) => {
     if (!user) return;
@@ -535,8 +614,34 @@ export default function RoomPage() {
                 </div>
               )}
 
-              {/* ── 포인트 게임 카드 (컴팩트, 경품보다 먼저일 때만) ── */}
-              {autoGame && (!nextPrize?.scheduledAt || autoGame.nextGameAt < nextPrize.scheduledAt) && (
+              {/* ── 포인트 게임: 모집 중 ── */}
+              {autoGame?.phase === 'recruiting' && (!nextPrize?.scheduledAt || (autoGame.nextGameAt ?? 0) < nextPrize.scheduledAt) && (
+                <div className="w-full bg-gray-800/60 border-2 border-purple-500/60 rounded-xl p-4 text-center shadow-lg shadow-purple-500/10">
+                  <p className="text-purple-300 text-sm font-bold mb-1">🎮 포인트전 참가자 모집 중!</p>
+                  <p className="text-white text-base font-bold">{autoGame.nextGameName ?? '포인트 게임'}</p>
+                  <p className="text-yellow-400 text-sm mt-1">🏆 보상: {autoGame.reward?.label ?? '100 포인트'}</p>
+                  <p className="text-gray-400 text-xs mt-2">참가자: {Object.keys(autoGame.joinedPlayers ?? {}).length}명</p>
+                  <p className="text-purple-300 text-lg font-bold mt-1">남은 시간: {recruitCountdown || '—'}</p>
+                  {autoGameSkippedMessage ? (
+                    <p className="text-amber-400 text-sm mt-2">{autoGameSkippedMessage}</p>
+                  ) : user && (autoGame.joinedPlayers ?? {})[user.uid] ? (
+                    <p className="text-green-400 text-sm font-medium mt-3">✅ 참가 완료! 게임 시작을 기다려주세요</p>
+                  ) : user ? (
+                    <button
+                      type="button"
+                      onClick={joinAutoGame}
+                      disabled={autoGameJoinLoading}
+                      className="mt-3 px-6 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    >
+                      {autoGameJoinLoading ? '처리 중...' : '참가하기'}
+                    </button>
+                  ) : (
+                    <p className="text-gray-500 text-sm mt-2">로그인 후 참가할 수 있습니다</p>
+                  )}
+                </div>
+              )}
+              {/* ── 포인트 게임 카드 (대기 중, 경품보다 먼저일 때만) ── */}
+              {autoGame && autoGame.phase !== 'recruiting' && (autoGame.nextGameAt != null) && (!nextPrize?.scheduledAt || autoGame.nextGameAt < nextPrize.scheduledAt) && (
                 <div className="w-full bg-gray-800/40 border border-purple-500/20 rounded-xl p-3 text-center">
                   <div className="flex items-center justify-center gap-3">
                     <div className="text-left flex-1">

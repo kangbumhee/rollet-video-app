@@ -1,0 +1,60 @@
+---
+description: 코드 변경 후 자동으로 빌드 & 배포를 실행하는 규칙
+globs: ["**/*.ts", "**/*.tsx"]
+alwaysApply: true
+---
+
+# 자동 빌드 & 배포 규칙
+
+## 프로젝트 경로
+- 루트: `C:\Projects\경품광고수익형앱\prizelive`
+- Functions: `C:\Projects\경품광고수익형앱\prizelive\functions`
+
+## 코드 수정 완료 후 반드시 실행할 것
+
+### 1. 변경 파일 위치에 따라 빌드 분기
+
+**functions/ 내부 파일이 변경된 경우 (gameCycle.ts, index.ts 등):**
+```bash
+cd C:\Projects\경품광고수익형앱\prizelive\functions
+npm run build
+firebase deploy --only functions --force
+```
+- `Would you like to proceed with deletion?` 물으면 반드시 **N** 입력
+- functions 배포 후 루트로 돌아가서 git 커밋
+
+**src/ 내부 파일이 변경된 경우 (프론트엔드):**
+```bash
+cd C:\Projects\경품광고수익형앱\prizelive
+npm run build
+```
+
+**둘 다 변경된 경우:**
+```bash
+cd C:\Projects\경품광고수익형앱\prizelive\functions
+npm run build
+firebase deploy --only functions --force
+cd C:\Projects\경품광고수익형앱\prizelive
+npm run build
+```
+
+### 2. Git 커밋 & 푸시 (항상 루트에서)
+```bash
+cd C:\Projects\경품광고수익형앱\prizelive
+git add .
+git commit -m "<커밋 메시지>"
+git push
+```
+
+### 3. 커밋 메시지 규칙
+- 버그 수정: `fix: <설명>`
+- 새 기능: `feat: <설명>`
+- UI 변경: `ui: <설명>`
+- 리팩터링: `refactor: <설명>`
+- 한국어로 설명 작성
+
+## 중요 주의사항
+- **절대 functions 폴더에서 git 명령 실행하지 말 것** (루트에서만)
+- Firebase Functions 삭제 프롬프트에는 항상 **N**
+- 빌드 에러 발생 시 에러를 수정한 후 다시 빌드
+- Vercel 배포는 git push하면 자동 (별도 명령 불필요)

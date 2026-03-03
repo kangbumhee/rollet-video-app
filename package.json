@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "deploy:functions": "cd functions && npm run build && firebase deploy --only functions && cd ..",
+    "deploy:all": "cd functions && npm run build && firebase deploy --only functions && cd .. && npm run build",
+    "push": "git add . && git push"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
