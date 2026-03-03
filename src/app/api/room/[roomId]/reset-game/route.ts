@@ -13,9 +13,24 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
     const decoded = await adminAuth.verifyIdToken(token);
     const userDoc = await adminFirestore.collection("users").doc(decoded.uid).get();
     const userData = userDoc.data();
+    const isAdminOrMod = userData?.isAdmin || userData?.isModerator;
 
-    if (!userData?.isAdmin && !userData?.isModerator) {
-      return NextResponse.json({ error: "매니저 권한이 필요합니다" }, { status: 403 });
+    if (roomId === "main") {
+      if (!isAdminOrMod) {
+        return NextResponse.json({ error: "매니저 권한이 필요합니다" }, { status: 403 });
+      }
+    } else {
+      // 일반방: 게임 시작자 또는 관리자/모더만 초기화 가능
+      const currentSnap = await adminRealtimeDb.ref(`games/${roomId}/current`).get();
+      if (currentSnap.exists()) {
+        const gameData = currentSnap.val() as { startedBy?: string };
+        if (gameData.startedBy !== decoded.uid && !isAdminOrMod) {
+          return NextResponse.json(
+            { error: "게임을 시작한 사람만 중단할 수 있습니다" },
+            { status: 403 }
+          );
+        }
+      }
     }
 
     // 게임 데이터 전체 삭제

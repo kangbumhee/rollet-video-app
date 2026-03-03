@@ -67,7 +67,7 @@ export default function RoomPage() {
   const [showGameLauncher, setShowGameLauncher] = useState(false);
   const [startingGame, setStartingGame] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [activeGame, setActiveGame] = useState<{ phase: string; gameName: string } | null>(null);
+  const [activeGame, setActiveGame] = useState<{ phase: string; gameName: string; startedBy?: string } | null>(null);
   const [autoGame, setAutoGame] = useState<{
     phase?: string;
     nextGameAt?: number;
@@ -191,8 +191,12 @@ export default function RoomPage() {
     const gameRef = ref(realtimeDb, `games/${roomId}/current`);
     const unsub = onValue(gameRef, (snap) => {
       if (snap.exists()) {
-        const data = snap.val() as { phase?: string; gameName?: string };
-        setActiveGame({ phase: data.phase || 'idle', gameName: data.gameName || '' });
+        const data = snap.val() as { phase?: string; gameName?: string; startedBy?: string };
+        setActiveGame({
+          phase: data.phase || 'idle',
+          gameName: data.gameName || '',
+          startedBy: data.startedBy || '',
+        });
       } else {
         setActiveGame(null);
       }
@@ -814,17 +818,23 @@ export default function RoomPage() {
   // --- 커스텀방 콘텐츠 (정규게임 매니저 시작 + 미니게임) ---
   const renderCustomRoomContent = () => {
     if (activeGame && activeGame.phase !== 'idle' && activeGame.phase !== 'final_result') {
+      const isGameStarter = user?.uid === activeGame.startedBy;
+      const canReset = isGameStarter || isAdminOrMod;
       return (
         <div className="flex-1 flex flex-col overflow-y-auto">
           <RegularGamePlayer roomId={roomId} uid={user?.uid || ''} displayName={profile?.displayName || '익명'} />
-          {isAdminOrMod && (
+          {canReset ? (
             <div className="p-4">
               <button
                 onClick={() => void handleResetGame(true)}
                 className="w-full py-3 bg-red-600/20 border border-red-500/40 text-red-300 rounded-xl text-sm font-bold hover:bg-red-600/30 transition"
               >
-                ⚠️ 게임 강제 초기화
+                ⚠️ 게임 중단하기
               </button>
+            </div>
+          ) : (
+            <div className="p-4">
+              <p className="text-center text-gray-500 text-xs">게임 시작자만 중단할 수 있습니다</p>
             </div>
           )}
         </div>
@@ -832,10 +842,12 @@ export default function RoomPage() {
     }
 
     if (activeGame && activeGame.phase === 'final_result') {
+      const isGameStarter = user?.uid === activeGame.startedBy;
+      const canReset = isGameStarter || isAdminOrMod;
       return (
         <div className="flex-1 flex flex-col overflow-y-auto">
           <RegularGamePlayer roomId={roomId} uid={user?.uid || ''} displayName={profile?.displayName || '익명'} />
-          {isAdminOrMod && (
+          {canReset && (
             <div className="p-4">
               <button
                 onClick={() => void handleResetGame(false)}
