@@ -56,6 +56,24 @@ async function sendBotChat(rtdb: ReturnType<typeof getDatabase>, roomId: string,
   });
 }
 
+function getChestHint(chest: { type: string; points: number; special?: string }, round: number): string {
+  const hints: Record<string, string[]> = {
+    gold: ['✨ 빛나는 황금 상자', '👑 왕관이 새겨진 상자', '🌟 별빛이 나는 상자'],
+    silver: ['🪙 은색 무늬 상자', '⚪ 하얀 빛의 상자'],
+    bronze: ['🟤 갈색 상자', '📦 평범해 보이는 상자'],
+    tiny: ['🫧 작은 상자', '💧 이슬이 맺힌 상자'],
+    empty: ['📦 가벼운 상자', '🫥 텅 빈 느낌의 상자'],
+    trap: ['⚠️ 수상한 상자', '🔴 붉은 빛의 상자', '💀 해골 무늬 상자'],
+    bomb: ['⚠️ 째깍거리는 상자', '🔴 뜨거운 상자', '💣 위험해 보이는 상자'],
+    mirror: ['🪞 반짝이는 상자', '🔮 신비로운 상자'],
+    double: ['✨ 쌍둥이 문양 상자', '🎭 두 얼굴의 상자'],
+    steal: ['🦊 여우 문양 상자', '🎭 가면 상자'],
+  };
+  const pool = hints[chest.type] || ['📦 상자'];
+  if (round >= 8) return '❓ 알 수 없는 상자';
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 export const gameCycle = onSchedule(
   {
     schedule: 'every 30 minutes',
@@ -305,11 +323,11 @@ export const gameCycle = onSchedule(
       // ═══════════════════════════════════════════════════
       type MainGameType =
         | 'drawGuess' | 'lineRunner' | 'liarVote' | 'typingBattle' | 'bombPass'
-        | 'priceGuess' | 'oxSurvival' | 'tapSurvival' | 'nunchiGame' | 'quickTouch';
+        | 'priceGuess' | 'oxSurvival' | 'destinyAuction' | 'nunchiGame' | 'quickTouch';
 
       const GAME_TYPES: MainGameType[] = [
         'drawGuess', 'lineRunner', 'liarVote', 'typingBattle', 'bombPass',
-        'priceGuess', 'oxSurvival', 'tapSurvival', 'nunchiGame', 'quickTouch',
+        'priceGuess', 'oxSurvival', 'destinyAuction', 'nunchiGame', 'quickTouch',
       ];
 
       const GAME_NAMES: Record<MainGameType, string> = {
@@ -320,7 +338,7 @@ export const gameCycle = onSchedule(
         bombPass: '💣 폭탄 돌리기',
         priceGuess: '💰 가격 맞추기',
         oxSurvival: '⭕ OX 서바이벌',
-        tapSurvival: '👆 탭 서바이벌',
+        destinyAuction: '🎰 운명의 경매',
         nunchiGame: '👀 눈치 게임',
         quickTouch: '🎯 순발력 터치',
       };
@@ -348,6 +366,7 @@ export const gameCycle = onSchedule(
       // ── Gemini로 라운드 데이터 생성 ──
       const roundsData: Record<string, unknown> = {};
       let gameConfig: Record<string, unknown> = {};
+      let mainChipsRef: Record<string, number> | null = null;
 
       switch (pickedGameType) {
         case 'drawGuess': {
@@ -443,11 +462,42 @@ export const gameCycle = onSchedule(
           gameConfig = { type: 'oxSurvival', elimination: true };
           break;
         }
-        case 'tapSurvival': {
+        case 'destinyAuction': {
+          const CHEST_POOL = [
+            { type: 'gold', label: '💎 대박!', points: 30 },
+            { type: 'silver', label: '🪙 괜찮은 보상', points: 20 },
+            { type: 'bronze', label: '🥉 소소한 보상', points: 10 },
+            { type: 'tiny', label: '💧 물방울', points: 5 },
+            { type: 'empty', label: '📦 빈 상자', points: 0 },
+            { type: 'trap', label: '💀 함정!', points: -15 },
+            { type: 'bomb', label: '💣 폭탄!', points: -20 },
+            { type: 'mirror', label: '🪞 거울 상자', points: 0, special: 'mirror' },
+            { type: 'double', label: '✨ 더블 찬스', points: 0, special: 'double' },
+            { type: 'steal', label: '🦊 도둑 상자', points: 0, special: 'steal' },
+          ];
+          const startingChips = 10;
           for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-            roundsData[`round${r}`] = { round: r, duration: 10, eliminatePercent: 30 };
+            const pool = r <= 3
+              ? CHEST_POOL.filter((c) => !['bomb', 'steal', 'double'].includes(c.type))
+              : r <= 6
+                ? CHEST_POOL.filter((c) => c.type !== 'double')
+                : CHEST_POOL;
+            const chest = pool[Math.floor(Math.random() * pool.length)];
+            roundsData[`round${r}`] = {
+              round: r,
+              chest: { ...chest },
+              chestHint: getChestHint(chest, r),
+              timeLimit: 12,
+              minBid: 1,
+              maxBid: startingChips,
+            };
           }
-          gameConfig = { type: 'tapSurvival', elimination: true };
+          gameConfig = { type: 'destinyAuction', startingChips };
+          const chips: Record<string, number> = {};
+          for (const pid of allPlayers) {
+            chips[pid] = startingChips;
+          }
+          mainChipsRef = chips;
           break;
         }
         case 'nunchiGame': {
@@ -500,6 +550,10 @@ export const gameCycle = onSchedule(
         ),
         rounds: roundsData,
       });
+
+      if (mainChipsRef) {
+        await rtdb.ref('games/main/chips').set(mainChipsRef);
+      }
 
       await sendBotChat(rtdb, 'main', `🎮 ${GAME_NAMES[pickedGameType]} 시작! ${allPlayers.length}명 참가! ${TOTAL_ROUNDS}라운드!`);
 

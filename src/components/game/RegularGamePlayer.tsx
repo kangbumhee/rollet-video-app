@@ -46,10 +46,19 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
   const [typingInput, setTypingInput] = useState('');
   const [typingStartTime, setTypingStartTime] = useState(0);
   const [typingDone, setTypingDone] = useState(false);
-  const [tapCount, setTapCount] = useState(0);
-  const [tapping, setTapping] = useState(false);
-  const [otherTaps, setOtherTaps] = useState<Record<string, { count: number; lastTapAt: number; displayName: string }>>({});
-  const [simultaneousTaps, setSimultaneousTaps] = useState<string[]>([]);
+  const [myBid, setMyBid] = useState(0);
+  const [bidSubmitted, setBidSubmitted] = useState(false);
+  const [allBids, setAllBids] = useState<Record<string, { bid: number; displayName: string }>>({});
+  const [chestRevealed, setChestRevealed] = useState(false);
+  const [chipsMap, setChipsMap] = useState<Record<string, number>>({});
+  const [auctionPhase, setAuctionPhase] = useState<'bidding' | 'reveal' | 'result'>('bidding');
+  const [auctionResult, setAuctionResult] = useState<{
+    winnerId: string | null;
+    winnerName: string | null;
+    chest: { type: string; label: string; points: number; special?: string };
+    message: string;
+    allBids: Array<{ uid: string; bid: number; name: string }>;
+  } | null>(null);
   const [nunchiClaimed, setNunchiClaimed] = useState<Record<string, number>>({});
   const [myNunchiNumber, setMyNunchiNumber] = useState<number | null>(null);
   const [priceInput, setPriceInput] = useState('');
@@ -134,10 +143,12 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
         setTypingInput('');
         setTypingDone(false);
         setTypingStartTime(Date.now());
-        setTapCount(0);
-        setTapping(false);
-        setOtherTaps({});
-        setSimultaneousTaps([]);
+        setMyBid(0);
+        setBidSubmitted(false);
+        setAllBids({});
+        setChestRevealed(false);
+        setAuctionPhase('bidding');
+        setAuctionResult(null);
         setMyNunchiNumber(null);
         setNunchiClaimed({});
         setPriceInput('');
@@ -369,47 +380,38 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     soundManager.play('bomb-tick');
   }, [current?.gameType, current?.round, currentBombHolder, uid, current]);
 
+  // destinyAuction - 칩 실시간 구독
   useEffect(() => {
-    if (tapCount > 0 && tapCount % 10 === 0) {
-      soundManager.play('tap-frenzy');
-    }
-  }, [tapCount]);
+    if (!roomId) return;
+    const unsub = onValue(ref(realtimeDb, `games/${roomId}/chips`), (snap) => {
+      if (snap.exists()) setChipsMap(snap.val() as Record<string, number>);
+    });
+    return () => unsub();
+  }, [roomId]);
 
-  // 탭 서바이벌 - 다른 플레이어 탭 실시간 구독
+  // destinyAuction - 입찰 구독
   useEffect(() => {
-    if (!current || current.gameType !== 'tapSurvival' || current.round < 1) return;
-    const unsub = onValue(ref(realtimeDb, `games/${roomId}/taps/round${current.round}`), (snap) => {
-      if (snap.exists()) {
-        setOtherTaps(snap.val() as Record<string, { count: number; lastTapAt: number; displayName: string }>);
-      } else {
-        setOtherTaps({});
-      }
+    if (!current || current.gameType !== 'destinyAuction' || current.round < 1) return;
+    const unsub = onValue(ref(realtimeDb, `games/${roomId}/bids/round${current.round}`), (snap) => {
+      if (snap.exists()) setAllBids(snap.val() as Record<string, { bid: number; displayName: string }>);
+      else setAllBids({});
     });
     return () => unsub();
   }, [roomId, current?.gameType, current?.round]);
 
-  // 동시 탭 감지 (내 탭과 200ms 이내 다른 사람 탭)
+  // destinyAuction - 경매 결과 구독
   useEffect(() => {
-    if (!current || current.gameType !== 'tapSurvival') return;
-    if (tapCount === 0) return;
-
-    const now = Date.now();
-    const simultaneous: string[] = [];
-
-    Object.entries(otherTaps).forEach(([id, data]) => {
-      if (id === uid) return;
-      if (Math.abs(now - data.lastTapAt) < 200) {
-        simultaneous.push(data.displayName || current.nameMap[id] || id.slice(0, 6));
+    if (!current || current.gameType !== 'destinyAuction' || current.round < 1) return;
+    const unsub = onValue(ref(realtimeDb, `games/${roomId}/auctionResult/round${current.round}`), (snap) => {
+      if (snap.exists()) {
+        const val = snap.val() as { winnerId: string | null; winnerName: string | null; chest: { type: string; label: string; points: number; special?: string }; message: string; allBids: Array<{ uid: string; bid: number; name: string }> };
+        setAuctionResult(val);
+        setAuctionPhase('result');
+        setChestRevealed(true);
       }
     });
-
-    if (simultaneous.length > 0) {
-      setSimultaneousTaps(simultaneous);
-      // 1.5초 후 자동으로 사라지게
-      const timer = setTimeout(() => setSimultaneousTaps([]), 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [tapCount, otherTaps]);
+    return () => unsub();
+  }, [roomId, current?.gameType, current?.round]);
 
   useEffect(() => {
     if (!current || current.gameType !== 'drawGuess' || current.round < 1) return;
@@ -514,6 +516,19 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     });
   };
 
+  const submitBid = async (bidAmount: number) => {
+    if (bidSubmitted || !current || !uid) return;
+    const myChips = chipsMap[uid] ?? 0;
+    if (bidAmount > myChips || bidAmount < 0) return;
+    setBidSubmitted(true);
+    setMyBid(bidAmount);
+    await set(ref(realtimeDb, `games/${roomId}/bids/round${current.round}/${uid}`), {
+      bid: bidAmount,
+      displayName,
+      timestamp: Date.now(),
+    });
+  };
+
   const revealLiarResult = async () => {
     if (!current || !roundData) return;
     const liarId = roundData.liarId as string;
@@ -602,12 +617,98 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     });
   }, [current?.alive, onlinePlayers, isLeader, roomId]);
 
+  // destinyAuction: 모든 참가자 입찰 완료 시 리더가 정산 후 다음 라운드
+  useEffect(() => {
+    if (!current || current.gameType !== 'destinyAuction' || current.phase !== 'round_playing' || !roundData || !isLeader || auctionPhase !== 'bidding') return;
+    const alivePlayerIds = Object.keys(current.alive || {}).filter((id) => current!.alive![id]);
+    const bidPlayerIds = Object.keys(allBids);
+    const allBidded = alivePlayerIds.length > 0 && alivePlayerIds.every((id) => bidPlayerIds.includes(id));
+    if (!allBidded) return;
+
+    setAuctionPhase('reveal');
+
+    const processAuction = async () => {
+      const chest = roundData.chest as { type: string; label: string; points: number; special?: string };
+      const entries = Object.entries(allBids).map(([id, d]) => ({ uid: id, bid: d.bid, name: d.displayName }));
+      entries.sort((a, b) => b.bid - a.bid);
+      const highestBid = entries[0]?.bid ?? 0;
+      const winner = entries.find((e) => e.bid === highestBid);
+
+      const chipUpdates: Record<string, number> = {};
+      for (const e of entries) {
+        const curChips = chipsMap[e.uid] ?? 0;
+        chipUpdates[e.uid] = Math.max(0, curChips - e.bid);
+      }
+
+      let resultMessage = '';
+      if (winner && highestBid > 0) {
+        let points = chest.points;
+        if (chest.special === 'mirror') {
+          points = winner.bid;
+          resultMessage = `🪞 ${winner.name}: 거울 상자! 입찰한 ${winner.bid}칩만큼 +${points}점!`;
+        } else if (chest.special === 'double') {
+          const scoreSnap = await get(ref(realtimeDb, `games/${roomId}/current/scores/${winner.uid}`));
+          const curScore = scoreSnap.exists() ? (scoreSnap.val() as number) : 0;
+          points = curScore;
+          resultMessage = `✨ ${winner.name}: 더블 찬스! 점수 2배! +${points}점!`;
+        } else if (chest.special === 'steal') {
+          const second = entries[1];
+          if (second) {
+            const secondSnap = await get(ref(realtimeDb, `games/${roomId}/current/scores/${second.uid}`));
+            const secondScore = secondSnap.exists() ? (secondSnap.val() as number) : 0;
+            const stolen = Math.floor(secondScore / 2);
+            points = stolen;
+            resultMessage = `🦊 ${winner.name}: ${second.name}에게서 ${stolen}점 도둑!`;
+            await set(ref(realtimeDb, `games/${roomId}/current/scores/${second.uid}`), Math.max(0, secondScore - stolen));
+          } else {
+            points = 10;
+            resultMessage = `🦊 ${winner.name}: 도둑 상자! +10점!`;
+          }
+        } else if (points < 0) {
+          resultMessage = `${chest.label} ${winner.name}: ${points}점! 함정이었다!`;
+        } else {
+          resultMessage = `${chest.label} ${winner.name}: +${points}점 획득!`;
+        }
+        const scoreRef = ref(realtimeDb, `games/${roomId}/current/scores/${winner.uid}`);
+        const curScoreSnap = await get(scoreRef);
+        const curScore = curScoreSnap.exists() ? (curScoreSnap.val() as number) : 0;
+        await set(scoreRef, curScore + points);
+      } else {
+        resultMessage = '📦 아무도 입찰하지 않았습니다!';
+      }
+
+      const newChips = { ...chipsMap, ...chipUpdates };
+      await set(ref(realtimeDb, `games/${roomId}/chips`), newChips);
+
+      const aliveUpdates: Record<string, boolean> = {};
+      for (const [id, chips] of Object.entries(chipUpdates)) {
+        if (chips <= 0) aliveUpdates[id] = false;
+      }
+      if (Object.keys(aliveUpdates).length > 0) {
+        const curAlive = { ...(current.alive || {}), ...aliveUpdates };
+        await set(ref(realtimeDb, `games/${roomId}/current/alive`), curAlive);
+      }
+
+      await set(ref(realtimeDb, `games/${roomId}/auctionResult/round${current.round}`), {
+        winnerId: winner?.uid || null,
+        winnerName: winner?.name || null,
+        chest,
+        message: resultMessage,
+        allBids: entries,
+      });
+
+      await new Promise((r) => setTimeout(r, 3000));
+      void advanceRound();
+    };
+    void processAuction();
+  }, [current?.phase, current?.gameType, current?.round, current?.alive, allBids, isLeader, roundData, auctionPhase, chipsMap, roomId, advanceRound, current]);
+
   const handleTimeUp = useCallback(async () => {
     if (!current || !roundData) return;
     const gt = current.gameType;
 
-    if (gt === 'tapSurvival' && !myChoice) {
-      await submitScore(tapCount);
+    if (gt === 'destinyAuction' && !bidSubmitted) {
+      await submitBid(0);
     } else if (gt === 'quickTouch' && !myChoice) {
       await submitScore(touchScore);
     } else if (gt === 'typingBattle' && !typingDone) {
@@ -635,10 +736,12 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
       await submitScore(0);
     }
 
-    void advanceRound();
+    if (gt !== 'destinyAuction') {
+      void advanceRound();
+    }
   }, [
-    current, roundData, tapCount, touchScore, typingDone, myChoice, liarPhase,
-    lineDistance, currentBombHolder, uid, advanceRound
+    current, roundData, bidSubmitted, touchScore, typingDone, myChoice, liarPhase,
+    lineDistance, currentBombHolder, uid, advanceRound, submitBid
   ]);
 
   if (!current) return null;
@@ -1193,97 +1296,138 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     );
   }
 
-  if (gt === 'tapSurvival') {
-    // 다른 플레이어 탭 현황 정렬
-    const otherPlayers = Object.entries(otherTaps)
-      .filter(([id]) => id !== uid)
-      .map(([id, data]) => ({
-        uid: id,
-        name: data.displayName || current.nameMap[id] || id.slice(0, 6),
-        count: data.count || 0,
-        lastTapAt: data.lastTapAt || 0,
-      }))
-      .sort((a, b) => b.count - a.count);
+  if (gt === 'destinyAuction') {
+    const chest = roundData?.chest as { type: string; label: string; points: number; special?: string } | undefined;
+    const hint = (roundData?.chestHint as string) || '📦 상자';
+    const myChips = chipsMap[uid] ?? 0;
+    const isAlive = current.alive?.[uid];
 
     return (
       <div className="flex flex-col p-3 overflow-y-auto">
         {renderHeader()}
-        {renderScoreBar()}
-        {!scoreSubmittedRef.current ? (
-          <div className="space-y-3">
-            {/* 내 탭 카운트 */}
-            <div className="text-center">
-              <p className="text-6xl font-bold text-yellow-400">{tapCount}</p>
-              <p className="text-gray-400 text-sm">내 탭 수</p>
-            </div>
 
-            {/* 동시 탭 알림 */}
-            {simultaneousTaps.length > 0 && (
-              <div className="bg-purple-500/20 border border-purple-500/40 rounded-xl px-4 py-2 text-center animate-bounce">
-                <p className="text-purple-300 text-sm font-bold">
-                  ⚡ {simultaneousTaps.join(', ')}와(과) 동시 클릭!
-                </p>
-              </div>
-            )}
-
-            {/* TAP 버튼 */}
-            <button
-              onPointerDown={async () => {
-                soundManager.play('tap-hit');
-                const newCount = tapCount + 1;
-                setTapCount(newCount);
-                setTapping(true);
-                // 실시간으로 내 탭 정보를 RTDB에 기록
-                await set(ref(realtimeDb, `games/${roomId}/taps/round${current.round}/${uid}`), {
-                  count: newCount,
-                  lastTapAt: Date.now(),
-                  displayName,
-                });
-              }}
-              onPointerUp={() => setTapping(false)}
-              className={`w-full py-16 rounded-2xl text-3xl font-bold transition-all active:scale-95 ${
-                tapping ? 'bg-yellow-500 text-black scale-95' : 'bg-yellow-600/30 text-yellow-400 border-2 border-yellow-500/50'
-              }`}
-            >
-              👆 TAP!
-            </button>
-
-            {/* 실시간 다른 플레이어 탭 현황 */}
-            {otherPlayers.length > 0 && (
-              <div className="bg-gray-800/40 rounded-xl p-3">
-                <p className="text-gray-500 text-xs mb-2 font-bold">🔥 실시간 탭 현황</p>
-                <div className="space-y-1">
-                  {otherPlayers.map((p) => {
-                    const diff = Math.abs(Date.now() - p.lastTapAt);
-                    const isSimul = diff < 200;
-                    return (
-                      <div key={p.uid} className={`flex items-center justify-between text-xs px-2 py-1 rounded ${
-                        isSimul ? 'bg-purple-500/20 ring-1 ring-purple-500/50' : ''
-                      }`}>
-                        <span className="text-white">
-                          {isSimul && '⚡ '}{p.name}
-                        </span>
-                        <span className="text-yellow-400 font-bold">{p.count}회</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* 제출 버튼 */}
-            <button
-              onClick={async () => {
-                await submitScore(tapCount);
-                void advanceRound();
-              }}
-              className="w-full py-3 bg-green-600 text-white rounded-xl font-bold"
-            >제출 ({tapCount}회)</button>
+        <div className="flex gap-2 mb-3">
+          <div className="flex-1 bg-gray-800/50 rounded-xl px-3 py-2 text-center">
+            <span className="text-gray-400 text-xs">내 점수</span>
+            <p className="text-yellow-400 font-bold text-lg">{current.scores?.[uid] || 0}점</p>
           </div>
-        ) : (
-          renderResult()
+          <div className="flex-1 bg-gray-800/50 rounded-xl px-3 py-2 text-center">
+            <span className="text-gray-400 text-xs">남은 칩</span>
+            <p className={`font-bold text-lg ${myChips <= 2 ? 'text-red-400 animate-pulse' : 'text-green-400'}`}>
+              🪙 {myChips}
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-b from-yellow-900/30 to-gray-900/60 border border-yellow-500/30 rounded-2xl p-5 text-center mb-3">
+          {!chestRevealed ? (
+            <>
+              <div className="text-6xl mb-3 animate-bounce">🎁</div>
+              <p className="text-yellow-400 font-bold text-lg">{hint}</p>
+              <p className="text-gray-500 text-xs mt-1">이 상자에 얼마를 걸겠습니까?</p>
+            </>
+          ) : chest ? (
+            <>
+              <div className="text-5xl mb-2">
+                {chest.type === 'gold' ? '💎' : chest.type === 'trap' ? '💀' : chest.type === 'bomb' ? '💣' : chest.type === 'mirror' ? '🪞' : chest.type === 'double' ? '✨' : chest.type === 'steal' ? '🦊' : '📦'}
+              </div>
+              <p className={`font-bold text-xl ${chest.points > 0 ? 'text-yellow-400' : chest.points < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                {chest.label}
+              </p>
+              <p className={`text-2xl font-black mt-1 ${chest.points > 0 ? 'text-green-400' : chest.points < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                {chest.special ? '⚡ 특수 효과!' : `${chest.points > 0 ? '+' : ''}${chest.points}점`}
+              </p>
+            </>
+          ) : null}
+        </div>
+
+        {isAlive && auctionPhase === 'bidding' && !bidSubmitted && (
+          <div className="space-y-3 mb-3">
+            <div className="flex items-center justify-center gap-4">
+              <button
+                onClick={() => setMyBid((m) => Math.max(0, m - 1))}
+                className="w-12 h-12 rounded-full bg-gray-700 text-white text-2xl font-bold hover:bg-gray-600 transition"
+              >−</button>
+              <div className="text-center">
+                <p className="text-4xl font-black text-yellow-400">🪙 {myBid}</p>
+                <p className="text-gray-500 text-xs">입찰 칩</p>
+              </div>
+              <button
+                onClick={() => setMyBid((m) => Math.min(myChips, m + 1))}
+                className="w-12 h-12 rounded-full bg-gray-700 text-white text-2xl font-bold hover:bg-gray-600 transition"
+              >+</button>
+            </div>
+            <div className="flex justify-center gap-2 flex-wrap">
+              {[0, 1, 2, 3, Math.floor(myChips / 2), myChips].filter((v, i, a) => v <= myChips && a.indexOf(v) === i).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setMyBid(v)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-bold transition ${myBid === v ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                >{v === 0 ? '패스' : v === myChips ? 'ALL IN' : v}</button>
+              ))}
+            </div>
+            <button
+              onClick={() => void submitBid(myBid)}
+              className="w-full py-3 rounded-xl font-bold text-lg text-white bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 transition shadow-lg"
+            >
+              {myBid === 0 ? '🫣 패스하기' : myBid === myChips ? `🔥 올인! (${myBid}칩)` : `🎰 ${myBid}칩 입찰하기`}
+            </button>
+          </div>
         )}
-        {renderMiniRanking()}
+
+        {bidSubmitted && auctionPhase === 'bidding' && (
+          <div className="bg-purple-500/20 border border-purple-500/30 rounded-xl p-4 text-center mb-3">
+            <p className="text-purple-300 font-bold">🎰 {myBid}칩 입찰 완료!</p>
+            <p className="text-gray-500 text-sm animate-pulse">다른 참가자 대기 중...</p>
+            <p className="text-gray-600 text-xs mt-1">
+              입찰: {Object.keys(allBids).length} / {Object.keys(current.alive || {}).filter((id) => current.alive![id]).length}명
+            </p>
+          </div>
+        )}
+
+        {auctionResult && (
+          <div className="bg-gray-800/60 border border-yellow-500/30 rounded-xl p-4 text-center mb-3">
+            <p className="text-white font-bold text-base mb-2">{auctionResult.message}</p>
+            <div className="space-y-1">
+              {auctionResult.allBids.map((b, i) => (
+                <div key={b.uid} className={`flex justify-between text-xs px-2 py-1 rounded ${b.uid === uid ? 'bg-purple-500/20' : ''} ${b.uid === auctionResult.winnerId ? 'border border-yellow-500/50' : ''}`}>
+                  <span className={b.uid === uid ? 'text-purple-300' : 'text-gray-400'}>
+                    {i === 0 ? '👑 ' : ''}{b.name}{b.uid === uid ? ' (나)' : ''}
+                  </span>
+                  <span className="text-yellow-400 font-bold">🪙 {b.bid}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!isAlive && (
+          <div className="bg-red-900/30 border border-red-500/40 rounded-xl p-4 text-center mb-3">
+            <p className="text-red-400 font-bold">💀 칩 소진! 탈락했습니다</p>
+            <p className="text-gray-500 text-xs">결과를 지켜보세요</p>
+          </div>
+        )}
+
+        <div className="bg-gray-800/30 rounded-xl p-3">
+          <p className="text-gray-500 text-xs mb-2 font-bold">🪙 참가자 칩 현황</p>
+          <div className="space-y-1">
+            {Object.entries(current.nameMap || {})
+              .map(([id, name]) => ({ uid: id, name, chips: chipsMap[id] ?? 0, score: current.scores?.[id] || 0, alive: current.alive?.[id] }))
+              .sort((a, b) => b.score - a.score)
+              .map((p, i) => (
+                <div key={p.uid} className={`flex items-center justify-between text-xs px-2 py-1 rounded ${p.uid === uid ? 'bg-purple-500/20' : ''} ${!p.alive ? 'opacity-40' : ''}`}>
+                  <span className="text-gray-400">
+                    {i + 1}. <span className={p.uid === uid ? 'text-purple-300 font-bold' : 'text-white'}>{p.name}</span>
+                    {!p.alive && ' 💀'}
+                  </span>
+                  <div className="flex gap-3">
+                    <span className="text-green-400">🪙{p.chips}</span>
+                    <span className="text-yellow-400 font-bold">{p.score}점</span>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
       </div>
     );
   }

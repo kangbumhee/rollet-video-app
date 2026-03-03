@@ -14,7 +14,7 @@ const VALID_GAME_TYPES = [
   'bombPass',
   'priceGuess',
   'oxSurvival',
-  'tapSurvival',
+  'destinyAuction',
   'nunchiGame',
   'quickTouch',
 ];

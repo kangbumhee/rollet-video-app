@@ -32,7 +32,7 @@ const REGULAR_GAMES = [
   { id: 'bombPass', name: '폭탄 돌리기', emoji: '💣' },
   { id: 'priceGuess', name: '가격 맞추기', emoji: '💰' },
   { id: 'oxSurvival', name: 'OX 서바이벌', emoji: '⭕' },
-  { id: 'tapSurvival', name: '탭 서바이벌', emoji: '👆' },
+  { id: 'destinyAuction', name: '운명의 경매', emoji: '🎰' },
   { id: 'nunchiGame', name: '눈치 게임', emoji: '👀' },
   { id: 'quickTouch', name: '순발력 터치', emoji: '🎯' },
 ];
@@ -297,7 +297,7 @@ export default function RoomPage() {
           }
           const GAME_LIST = [
             { id: 'oxSurvival', name: '⭕ OX 서바이벌' },
-            { id: 'tapSurvival', name: '👆 탭 서바이벌' },
+            { id: 'destinyAuction', name: '🎰 운명의 경매' },
             { id: 'priceGuess', name: '💰 가격 맞추기' },
             { id: 'typingBattle', name: '⌨️ 타이핑 배틀' },
             { id: 'quickTouch', name: '🎯 순발력 터치' },

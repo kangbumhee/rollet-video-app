@@ -22,7 +22,7 @@ export const CreateRoomSchema = z
         "bombPass",
         "priceGuess",
         "oxSurvival",
-        "tapSurvival",
+        "destinyAuction",
         "nunchiGame",
         "quickTouch",
       ])
@@ -86,7 +86,7 @@ export const CreatePrizeSchema = z.object({
       "bombPass",
       "priceGuess",
       "oxSurvival",
-      "tapSurvival",
+      "destinyAuction",
       "nunchiGame",
       "quickTouch",
     ])

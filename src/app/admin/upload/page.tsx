@@ -22,7 +22,7 @@ const GAME_OPTIONS = [
   { type: 'bombPass', icon: '💣', title: '폭탄 돌리기' },
   { type: 'priceGuess', icon: '💰', title: '가격 맞추기' },
   { type: 'oxSurvival', icon: '⭕', title: 'OX 서바이벌' },
-  { type: 'tapSurvival', icon: '👆', title: '탭 서바이벌' },
+  { type: 'destinyAuction', icon: '🎰', title: '운명의 경매' },
   { type: 'nunchiGame', icon: '👀', title: '눈치 게임' },
   { type: 'quickTouch', icon: '🎯', title: '순발력 터치' },
 ];

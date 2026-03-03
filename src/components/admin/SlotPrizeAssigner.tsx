@@ -44,7 +44,7 @@ const PRIZE_GAME_TYPES = [
   { id: 'bombPass', label: '💣 폭탄 돌리기' },
   { id: 'priceGuess', label: '💰 가격 맞추기' },
   { id: 'oxSurvival', label: '⭕ OX 서바이벌' },
-  { id: 'tapSurvival', label: '👆 탭 서바이벌' },
+  { id: 'destinyAuction', label: '🎰 운명의 경매' },
   { id: 'nunchiGame', label: '👀 눈치 게임' },
   { id: 'quickTouch', label: '🎯 순발력 터치' },
   { id: 'lineRunner', label: '✏️ 라인 러너' },
