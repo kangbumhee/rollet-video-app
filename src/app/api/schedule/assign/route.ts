@@ -1,9 +1,42 @@
 // src/app/api/schedule/assign/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuth, adminFirestore } from '@/lib/firebase/admin';
+import { verifyAuth, adminFirestore, adminRealtimeDb } from '@/lib/firebase/admin';
 import { parseSlotId } from '@/lib/schedule/slots';
 
 const ADMIN_UID = process.env.ADMIN_UID || '';
+
+async function updateNextSlotInRTDB() {
+  const now = Date.now();
+  const slotsSnap = await adminFirestore
+    .collection('scheduleSlots')
+    .where('status', '==', 'ASSIGNED')
+    .where('scheduledAt', '>', now)
+    .orderBy('scheduledAt', 'asc')
+    .limit(1)
+    .get();
+
+  if (slotsSnap.empty) {
+    await adminRealtimeDb.ref('cycle/main').update({
+      nextSlot: null,
+      currentPrizeTitle: null,
+      currentPrizeImage: null,
+      currentGameType: null,
+    });
+    return;
+  }
+
+  const nextSlotData = slotsSnap.docs[0].data();
+  const slotDate = nextSlotData.date as string;
+  const slotTime = nextSlotData.time as string;
+  const nextSlotString = `${slotDate}T${slotTime}`;
+
+  await adminRealtimeDb.ref('cycle/main').update({
+    nextSlot: nextSlotString,
+    currentPrizeTitle: nextSlotData.prizeTitle || null,
+    currentPrizeImage: nextSlotData.prizeImageURL || null,
+    currentGameType: nextSlotData.gameType || null,
+  });
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -77,6 +110,8 @@ export async function POST(req: NextRequest) {
       updatedAt: Date.now(),
     });
 
+    await updateNextSlotInRTDB();
+
     return NextResponse.json({
       success: true,
       prizeTitle,
@@ -146,6 +181,8 @@ export async function DELETE(req: NextRequest) {
         });
       }
     }
+
+    await updateNextSlotInRTDB();
 
     return NextResponse.json({ success: true });
   } catch (error) {

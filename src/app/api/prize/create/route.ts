@@ -11,7 +11,6 @@ import { Timestamp } from "firebase-admin/firestore";
 import { generatePrizeCaption } from "@/lib/gemini/caption";
 import { CreatePrizeSchema } from "@/lib/validations/schemas";
 import { apiError, zodError, ERROR_CODES } from "@/lib/api/errors";
-import { getNextAvailableSlot } from "@/lib/room/scheduler";
 import { ZodError } from "zod";
 
 const ADMIN_UID = process.env.ADMIN_UID;
@@ -53,10 +52,7 @@ export async function POST(req: NextRequest) {
     prizeDescription = "멋진 경품이 준비되어 있습니다!";
   }
 
-  // [보강⑥] 다음 가용 슬롯 예약
-  const nextSlot = await getNextAvailableSlot();
-
-  // Firestore 저장
+  // Firestore 저장 (스케줄 배정은 스케줄 관리 페이지에서 수동으로)
   const db = adminFirestore;
   const roomRef = db.collection("rooms").doc();
 
@@ -76,53 +72,12 @@ export async function POST(req: NextRequest) {
     totalQuantity: quantity,
     remainingQuantity: quantity,
     entryMethod: "AD",
-    scheduledAt: nextSlot.getTime(),
     participants: 0,
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
   };
 
   await roomRef.set(roomData);
-
-  // 스케줄 슬롯 자동 생성
-  const slotDate = new Date(nextSlot.getTime() + 9 * 60 * 60 * 1000); // KST
-  const dateStr = slotDate.toISOString().split("T")[0];
-  const timeStr = `${String(slotDate.getUTCHours()).padStart(2, "0")}:${String(slotDate.getUTCMinutes()).padStart(2, "0")}`;
-  const slotId = `${dateStr}_${timeStr}`;
-
-  await db.doc(`scheduleSlots/${slotId}`).set({
-    id: slotId,
-    date: dateStr,
-    time: timeStr,
-    enabled: true,
-    roomId: roomRef.id,
-    prizeTitle: prizeTitle,
-    prizeImageURL: imageURL,
-    gameType: gameType,
-    status: "ASSIGNED",
-    scheduledAt: nextSlot.getTime(),
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  }, { merge: true });
-
-  // 해당 날짜 scheduleConfig에도 슬롯 추가
-  const configRef = db.doc(`scheduleConfigs/${dateStr}`);
-  const configDoc = await configRef.get();
-  if (configDoc.exists) {
-    const existingSlots: string[] = configDoc.data()?.enabledSlots || [];
-    if (!existingSlots.includes(timeStr)) {
-      existingSlots.push(timeStr);
-      existingSlots.sort();
-      await configRef.update({ enabledSlots: existingSlots, updatedAt: Date.now() });
-    }
-  } else {
-    await configRef.set({
-      date: dateStr,
-      enabledSlots: [timeStr],
-      updatedAt: Date.now(),
-      updatedBy: user.uid,
-    });
-  }
 
   return NextResponse.json({
     success: true,
@@ -132,7 +87,6 @@ export async function POST(req: NextRequest) {
       description: prizeDescription,
       estimatedValue,
     },
-    scheduledAt: nextSlot.toISOString(),
-    message: `경품 등록 완료! ${nextSlot.toLocaleString("ko-KR")}에 시작됩니다.`,
+    message: "경품 등록 완료! 스케줄 관리에서 슬롯에 배정해주세요.",
   });
 }

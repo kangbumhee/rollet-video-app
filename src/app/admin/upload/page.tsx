@@ -242,6 +242,12 @@ export default function AdminUploadPage() {
                 하나 더 등록
               </button>
               <button
+                onClick={() => router.push("/admin/schedule")}
+                className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl text-sm"
+              >
+                📅 스케줄 배정
+              </button>
+              <button
                 onClick={() => router.push("/admin")}
                 className="flex-1 py-3 bg-yellow-500 text-black font-bold 
                            rounded-xl text-sm"
