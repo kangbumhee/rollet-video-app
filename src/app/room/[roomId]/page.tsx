@@ -207,6 +207,10 @@ export default function RoomPage() {
   }, [roomId]);
 
   useEffect(() => {
+    if (!isMainRoom) {
+      setAutoGame(null);
+      return;
+    }
     const autoRef = ref(realtimeDb, `rooms/${roomId}/autoGame`);
     const unsub = onValue(autoRef, async (snap) => {
       if (snap.exists()) {
@@ -232,10 +236,10 @@ export default function RoomPage() {
       }
     });
     return () => unsub();
-  }, [roomId, user?.uid]);
+  }, [roomId, user?.uid, isMainRoom]);
 
   useEffect(() => {
-    if (!autoGame?.nextGameAt) return;
+    if (!isMainRoom || !autoGame?.nextGameAt) return;
 
     const tick = () => {
       const diff = autoGame.nextGameAt - Date.now();
@@ -256,7 +260,7 @@ export default function RoomPage() {
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [autoGame?.nextGameAt, onlineUsers, user?.uid, triggerAutoGame]);
+  }, [autoGame?.nextGameAt, onlineUsers, user?.uid, triggerAutoGame, isMainRoom]);
 
   const handleResetGame = useCallback(async (forceConfirm = false) => {
     if (!user) return;
@@ -756,22 +760,6 @@ export default function RoomPage() {
           </div>
         )}
 
-        {/* 자동 게임 정보 */}
-        {autoGame && (
-          <div
-            className={`w-full border border-gray-700/50 rounded-2xl p-4 text-center ${
-              nextPrize?.title ? 'bg-gray-800/40' : 'bg-gradient-to-b from-gray-800/60 to-gray-900/60'
-            }`}
-          >
-            <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-3">
-              <p className="text-purple-400 text-xs font-bold mb-1">⏰ 다음 자동 게임 (포인트전)</p>
-              <p className="text-white text-base font-bold">{autoGame.nextGameName}</p>
-              <p className="text-yellow-400 text-xl font-bold mt-1">{autoCountdown}</p>
-              <p className="text-gray-400 text-xs mt-1">🏆 보상: {autoGame.reward?.label || '100 포인트'}</p>
-            </div>
-          </div>
-        )}
-
         {/* 미니게임 */}
         <MiniGameLauncher />
       </div>
@@ -806,9 +794,11 @@ export default function RoomPage() {
             )}
             <SoundToggle />
             {hasTicket && <Badge className="bg-green-600 text-white text-[10px] px-1.5 py-0.5">🎫</Badge>}
-            <button onClick={() => setShowPointShop(true)} className="flex items-center gap-1 bg-yellow-500/10 border border-yellow-500/30 px-2 py-1 rounded-full">
-              <span className="text-yellow-400 text-xs font-bold">🪙 {userPoints.toLocaleString()}P</span>
-            </button>
+            {isMainRoom && (
+              <button onClick={() => setShowPointShop(true)} className="flex items-center gap-1 bg-yellow-500/10 border border-yellow-500/30 px-2 py-1 rounded-full">
+                <span className="text-yellow-400 text-xs font-bold">🪙 {userPoints.toLocaleString()}P</span>
+              </button>
+            )}
             {profile && <LevelBadge level={profile.level} size="sm" />}
           </div>
         </div>
