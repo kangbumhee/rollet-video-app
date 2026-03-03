@@ -233,18 +233,17 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [current?.phase, roundData, current?.round, timeLeft]);
 
-  // game_intro -> round_waiting phase is handled on client
+  // game_intro -> round_waiting: 리더가 아니어도 시도 (DB에서 이미 전환됐는지 확인)
   useEffect(() => {
     if (!current || !uid) return;
     if (current.phase !== 'game_intro') return;
-    if (!isLeader) return;
 
     if (current.round <= 1) {
       lastTransitionedRoundRef.current = 0;
     }
 
     const elapsed = Date.now() - (current.introStartedAt || Date.now());
-    const remaining = Math.max(0, 3000 - elapsed);
+    const remaining = Math.max(0, 1500 - elapsed);
 
     const timer = setTimeout(async () => {
       try {
@@ -261,13 +260,12 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     }, remaining);
 
     return () => clearTimeout(timer);
-  }, [current?.phase, isLeader, current?.introStartedAt, uid, roomId]);
+  }, [current?.phase, current?.introStartedAt, uid, roomId]);
 
-  // round_waiting -> round_playing phase is handled on client
+  // round_waiting -> round_playing: 누구든 시도
   useEffect(() => {
     if (!current || !uid) return;
     if (current.phase !== 'round_waiting') return;
-    if (!isLeader) return;
     if (current.round < 1) return;
 
     const timer = setTimeout(async () => {
@@ -281,20 +279,20 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
       } catch (err) {
         console.error('[RegularGamePlayer] round_waiting transition error:', err);
       }
-    }, 2000);
+    }, 1000);
 
     return () => clearTimeout(timer);
-  }, [current?.phase, current?.round, isLeader, uid, roomId]);
+  }, [current?.phase, current?.round, uid, roomId]);
 
-  // round_result -> next round_waiting/final_result transition is handled on client
+  // round_result -> next round: 리더 우선 5초, fallback으로 비리더 8초
   useEffect(() => {
     if (!current || !uid) return;
     if (current.phase !== 'round_result') return;
-    if (!isLeader) return;
     if (lastTransitionedRoundRef.current >= current.round) return;
 
     const roundAtStart = current.round;
     const totalAtStart = current.totalRounds;
+    const delay = isLeader ? 5000 : 8000;
 
     const timer = setTimeout(async () => {
       try {
@@ -317,7 +315,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
       } catch (err) {
         console.error('[RegularGamePlayer] Round transition error:', err);
       }
-    }, 5000);
+    }, delay);
 
     return () => clearTimeout(timer);
   }, [current?.phase, current?.round, current?.totalRounds, isLeader, uid, roomId]);

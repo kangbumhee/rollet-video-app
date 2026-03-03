@@ -12,13 +12,13 @@ import {
 } from '../lib/geminiGameQuiz';
 
 const PHASES = [
-  { phase: 'ANNOUNCING', duration: 30 },
-  { phase: 'GAME_LOBBY', duration: 30 },
-  { phase: 'GAME_COUNTDOWN', duration: 5 },
+  { phase: 'ANNOUNCING', duration: 10 },
+  { phase: 'GAME_LOBBY', duration: 15 },
+  { phase: 'GAME_COUNTDOWN', duration: 3 },
   { phase: 'GAME_PLAYING', duration: 300 },
-  { phase: 'GAME_RESULT', duration: 15 },
-  { phase: 'WINNER_ANNOUNCE', duration: 15 },
-  { phase: 'COOLDOWN', duration: 15 },
+  { phase: 'GAME_RESULT', duration: 10 },
+  { phase: 'WINNER_ANNOUNCE', duration: 10 },
+  { phase: 'COOLDOWN', duration: 5 },
 ] as const;
 
 function calcNextSlot(nowMs: number): string {
@@ -207,7 +207,7 @@ export const gameCycle = onSchedule(
         phaseEndsAt: phaseEnd,
       });
 
-      await sleep((PHASES[1].duration - 3) * 1000);
+      await sleep(PHASES[1].duration * 1000);
 
       const presenceSnap = await rtdb.ref('rooms/main/presence').get();
       const presenceData = presenceSnap.exists()
@@ -241,8 +241,6 @@ export const gameCycle = onSchedule(
             { uid: 'BOT_1', displayName: '봇1', eliminated: false, joinedAt: Date.now() },
             { uid: 'BOT_2', displayName: '봇2', eliminated: false, joinedAt: Date.now() },
           ];
-
-      await sleep(3000);
 
       // 게임 세션 생성
       const sessionId = generateId();

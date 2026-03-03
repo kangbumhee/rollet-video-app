@@ -131,7 +131,7 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
         return NextResponse.json({ skipped: true, reason: "경품 게임 진행 중" });
       }
       const autoRef = adminRealtimeDb.ref(`rooms/${roomId}/autoGame`);
-      const recruitingUntil = Date.now() + 60000;
+      const recruitingUntil = Date.now() + 30000;
       await autoRef.update({
         phase: "recruiting",
         recruitingUntil,
