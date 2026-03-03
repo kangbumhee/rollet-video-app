@@ -87,8 +87,11 @@ export default function RoomPage() {
     scheduledAt: number;
     time: string;
     date: string;
+    description: string;
+    estimatedValue: number;
   } | null>(null);
   const [prizeCountdown, setPrizeCountdown] = useState('');
+  const [showPrizeDetail, setShowPrizeDetail] = useState(false);
   const canSeeUserList = profile?.isAdmin || profile?.isModerator || false;
   const isAdminOrMod = !!(profile?.isAdmin || profile?.isModerator);
   const canStartGame = true;
@@ -334,6 +337,8 @@ export default function RoomPage() {
             scheduledAt: data.scheduledAt || 0,
             time: data.time || '',
             date: data.date || '',
+            description: data.prizeDescription || '',
+            estimatedValue: data.estimatedValue || 0,
           });
         } else if (!cancelled) {
           setNextPrize(null);
@@ -468,11 +473,18 @@ export default function RoomPage() {
                   <img
                     src={nextPrize.imageURL}
                     alt={nextPrize.title}
-                    className="w-28 h-28 rounded-2xl object-cover shadow-2xl border-2 border-yellow-500/40"
+                    onClick={() => setShowPrizeDetail(true)}
+                    className="w-28 h-28 rounded-2xl object-cover shadow-2xl border-2 border-yellow-500/40 cursor-pointer hover:scale-105 transition-transform"
                   />
                 </div>
               )}
-              <p className="text-white text-xl font-black mb-2">{nextPrize.title}</p>
+              <p
+                onClick={() => setShowPrizeDetail(true)}
+                className="text-white text-xl font-black mb-2 cursor-pointer hover:text-yellow-300 transition-colors"
+              >
+                {nextPrize.title}
+              </p>
+              <p className="text-gray-500 text-xs">사진을 터치하면 상세정보를 볼 수 있어요</p>
               <p className="text-yellow-400 text-2xl font-bold mb-1">{prizeCountdown}</p>
               <p className="text-gray-400 text-xs">
                 {nextPrize.date} {nextPrize.time} KST
@@ -694,7 +706,7 @@ export default function RoomPage() {
 
     return (
       <div className="flex-1 flex flex-col overflow-y-auto p-4 gap-4">
-        {/* 정규게임 시작 패널 (관리자/매니저 무제한, 일반 유저 하루 1회) */}
+        {/* 정규게임 시작 패널 (관리자/매니저 무제한, 일반 유저 하루 5회) */}
         {canStartGame && (
           <div className="w-full">
             <button
@@ -702,7 +714,7 @@ export default function RoomPage() {
               className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 rounded-xl"
             >
               <span className="text-white font-bold text-sm">
-                🏆 정규게임 시작 {isAdminOrMod ? '(무제한)' : '(하루 1회)'}
+                🏆 정규게임 시작 {isAdminOrMod ? '(무제한)' : '(하루 5회)'}
               </span>
               <span className="text-gray-400 text-xs">{showGameLauncher ? '접기 ▲' : '펼치기 ▼'}</span>
             </button>
@@ -724,7 +736,7 @@ export default function RoomPage() {
                 )}
                 {!isAdminOrMod && (
                   <p className="col-span-5 text-center text-yellow-400 text-xs mt-1">
-                    ⚡ 일반 유저는 하루 1회 게임 생성 가능
+                    ⚡ 일반 유저는 하루 5회 게임 생성 가능
                   </p>
                 )}
               </div>
@@ -741,11 +753,18 @@ export default function RoomPage() {
                 <img
                   src={nextPrize.imageURL}
                   alt={nextPrize.title}
-                  className="w-28 h-28 rounded-2xl object-cover shadow-2xl border-2 border-yellow-500/40"
+                  onClick={() => setShowPrizeDetail(true)}
+                  className="w-28 h-28 rounded-2xl object-cover shadow-2xl border-2 border-yellow-500/40 cursor-pointer hover:scale-105 transition-transform"
                 />
               </div>
             )}
-            <p className="text-white text-xl font-black mb-2">{nextPrize.title}</p>
+            <p
+              onClick={() => setShowPrizeDetail(true)}
+              className="text-white text-xl font-black mb-2 cursor-pointer hover:text-yellow-300 transition-colors"
+            >
+              {nextPrize.title}
+            </p>
+            <p className="text-gray-500 text-xs">사진을 터치하면 상세정보를 볼 수 있어요</p>
             <p className="text-yellow-400 text-2xl font-bold mb-1">{prizeCountdown}</p>
             <p className="text-gray-400 text-xs">
               {nextPrize.date} {nextPrize.time} KST
@@ -852,7 +871,7 @@ export default function RoomPage() {
         <aside
           className={`${
             chatCollapsed ? 'shrink-0' : 'flex-[2]'
-          } lg:flex-none lg:w-80 min-h-0 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-800 transition-all duration-300`}
+          } lg:flex-none lg:w-80 min-h-0 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-800`}
         >
           {chatCollapsed ? (
             <div className="bg-black/40 px-3 py-2">
@@ -916,6 +935,56 @@ export default function RoomPage() {
               <button onClick={() => setShowFreePlay(false)} className="text-gray-400 hover:text-white text-xl">✕</button>
             </div>
             <FreePlayLobby roomId={roomId} />
+          </div>
+        </div>
+      )}
+
+      {/* 상품 상세 모달 */}
+      {showPrizeDetail && nextPrize && (
+        <div
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowPrizeDetail(false)}
+        >
+          <div
+            className="bg-gray-900 border border-gray-700 rounded-2xl max-w-sm w-full overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {nextPrize.imageURL && (
+              <img
+                src={nextPrize.imageURL}
+                alt={nextPrize.title}
+                className="w-full h-64 object-cover"
+              />
+            )}
+            <div className="p-5 space-y-3">
+              <h2 className="text-white text-xl font-black">{nextPrize.title}</h2>
+
+              {nextPrize.description && (
+                <p className="text-gray-300 text-sm leading-relaxed">{nextPrize.description}</p>
+              )}
+
+              {nextPrize.estimatedValue > 0 && (
+                <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-2">
+                  <span className="text-yellow-400 text-sm font-bold">💰 예상 시세</span>
+                  <span className="text-white font-black text-lg">
+                    {nextPrize.estimatedValue.toLocaleString()}원
+                  </span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 text-gray-400 text-xs">
+                <span>🎮 {REGULAR_GAMES.find(g => g.id === nextPrize.gameType)?.name || nextPrize.gameType}</span>
+                <span>•</span>
+                <span>📅 {nextPrize.date} {nextPrize.time}</span>
+              </div>
+
+              <button
+                onClick={() => setShowPrizeDetail(false)}
+                className="w-full py-3 bg-yellow-500 text-black font-bold rounded-xl hover:bg-yellow-400 transition mt-2"
+              >
+                닫기
+              </button>
+            </div>
           </div>
         </div>
       )}

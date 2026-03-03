@@ -54,9 +54,9 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
 
       if (limitDoc.exists) {
         const data = limitDoc.data();
-        if (data && data.count >= 1) {
+        if (data && data.count >= 5) {
           return NextResponse.json(
-            { error: "일반 유저는 하루 1회만 게임을 생성할 수 있습니다." },
+            { error: "일반 유저는 하루 5회까지 게임을 생성할 수 있습니다." },
             { status: 429 }
           );
         }

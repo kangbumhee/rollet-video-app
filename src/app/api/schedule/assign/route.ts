@@ -94,6 +94,8 @@ export async function POST(req: NextRequest) {
     const prizeTitle = room.prize?.title || room.prizeTitle || '';
     const prizeImageURL = room.prize?.imageURL || room.prizeImageURL || '';
     const gameType = room.gameType || 'luckyDice';
+    const prizeDescription = (room.prize as Record<string, unknown>)?.description as string || '';
+    const estimatedValue = (room.prize as Record<string, unknown>)?.estimatedValue as number || 0;
 
     await adminFirestore.doc(`scheduleSlots/${slotId}`).set(
       {
@@ -104,6 +106,8 @@ export async function POST(req: NextRequest) {
         roomId,
         prizeTitle,
         prizeImageURL,
+        prizeDescription,
+        estimatedValue,
         gameType,
         status: 'ASSIGNED',
         scheduledAt,
