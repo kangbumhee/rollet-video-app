@@ -21,7 +21,7 @@ import FreePlayLobby from '@/components/game/FreePlayLobby';
 import { Badge } from '@/components/ui/badge';
 import { SoundToggle } from '@/components/ui/SoundToggle';
 import { onValue, ref, set } from 'firebase/database';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, getDocs, limit, orderBy, onSnapshot, query, where } from 'firebase/firestore';
 import { realtimeDb, firestore } from '@/lib/firebase/config';
 import Image from 'next/image';
 import { PointShop } from '@/components/shop/PointShop';
@@ -80,6 +80,15 @@ export default function RoomPage() {
   const [showPointShop, setShowPointShop] = useState(false);
   const [roomLocked, setRoomLocked] = useState(false);
   const [passwordVerified, setPasswordVerified] = useState(false);
+  const [nextPrize, setNextPrize] = useState<{
+    title: string;
+    imageURL: string;
+    gameType: string;
+    scheduledAt: number;
+    time: string;
+    date: string;
+  } | null>(null);
+  const [prizeCountdown, setPrizeCountdown] = useState('');
   const canSeeUserList = profile?.isAdmin || profile?.isModerator || false;
   const isAdminOrMod = !!(profile?.isAdmin || profile?.isModerator);
   const canStartGame = true;
@@ -298,6 +307,74 @@ export default function RoomPage() {
     return () => unsub();
   }, [roomId, isMainRoom]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchNextPrize = async () => {
+      try {
+        const now = Date.now();
+        const q = query(
+          collection(firestore, 'scheduleSlots'),
+          where('status', '==', 'ASSIGNED'),
+          where('scheduledAt', '>', now),
+          orderBy('scheduledAt', 'asc'),
+          limit(1)
+        );
+        const snap = await getDocs(q);
+        if (!cancelled && !snap.empty) {
+          const data = snap.docs[0].data();
+          setNextPrize({
+            title: data.prizeTitle || '',
+            imageURL: data.prizeImageURL || '',
+            gameType: data.gameType || '',
+            scheduledAt: data.scheduledAt || 0,
+            time: data.time || '',
+            date: data.date || '',
+          });
+        } else if (!cancelled) {
+          setNextPrize(null);
+        }
+      } catch (err) {
+        console.error('[fetchNextPrize] Error:', err);
+      }
+    };
+
+    void fetchNextPrize();
+    const interval = setInterval(() => void fetchNextPrize(), 5 * 60 * 1000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!nextPrize?.scheduledAt) {
+      setPrizeCountdown('');
+      return;
+    }
+
+    const tick = () => {
+      const diff = nextPrize.scheduledAt - Date.now();
+      if (diff <= 0) {
+        setPrizeCountdown('곧 시작!');
+        return;
+      }
+      const hours = Math.floor(diff / 3600000);
+      const min = Math.floor((diff % 3600000) / 60000);
+      const sec = Math.floor((diff % 60000) / 1000);
+      if (hours > 0) {
+        setPrizeCountdown(`${hours}시간 ${min}분 ${sec.toString().padStart(2, '0')}초`);
+      } else {
+        setPrizeCountdown(`${min}분 ${sec.toString().padStart(2, '0')}초`);
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [nextPrize?.scheduledAt]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
@@ -376,52 +453,38 @@ export default function RoomPage() {
     }
 
     if (!cycle || cycle.currentPhase === 'IDLE' || cycle.currentPhase === 'COOLDOWN') {
-      const hasPrize = !!(
-        cycle?.nextSlot &&
-        String(cycle.nextSlot).trim().length > 0 &&
-        cycle?.currentPrizeTitle &&
-        String(cycle.currentPrizeTitle).trim().length > 0
-      );
-
       return (
         <div className="flex flex-col items-center p-4 w-full overflow-y-auto gap-4">
-          {/* 경품 게임 예정이 있으면 경품 카운트다운을 메인으로 */}
-          {hasPrize ? (
+          {/* 경품 게임 예정 — Firestore scheduleSlots에서 직접 조회 */}
+          {nextPrize && nextPrize.title ? (
             <div className="w-full bg-gradient-to-b from-yellow-900/20 to-gray-900/60 border border-yellow-500/30 rounded-2xl p-5 text-center">
               <p className="text-yellow-400 text-sm font-bold mb-3 tracking-widest">🎁 다음 경품 게임</p>
-              {cycle.currentPrizeImage && (
+              {nextPrize.imageURL && (
                 <div className="flex justify-center mb-3">
-                  <Image
-                    src={cycle.currentPrizeImage}
-                    alt={cycle.currentPrizeTitle || ''}
-                    width={120}
-                    height={120}
+                  <img
+                    src={nextPrize.imageURL}
+                    alt={nextPrize.title}
                     className="w-28 h-28 rounded-2xl object-cover shadow-2xl border-2 border-yellow-500/40"
                   />
                 </div>
               )}
-              <p className="text-white text-xl font-black mb-2">{cycle.currentPrizeTitle}</p>
-              <CycleStatus
-                phase={cyclePhase}
-                nextSlotTime={cycle.nextSlot}
-                prizeTitle={null}
-                prizeImageURL={null}
-              />
+              <p className="text-white text-xl font-black mb-2">{nextPrize.title}</p>
+              <p className="text-yellow-400 text-2xl font-bold mb-1">{prizeCountdown}</p>
+              <p className="text-gray-400 text-xs">
+                {nextPrize.date} {nextPrize.time} KST
+              </p>
             </div>
           ) : (
-            <CycleStatus
-              phase={cyclePhase}
-              nextSlotTime={cycle?.nextSlot}
-              prizeTitle={cycle?.currentPrizeTitle}
-              prizeImageURL={cycle?.currentPrizeImage}
-            />
+            <div className="w-full text-center py-6">
+              <p className="text-gray-500 text-sm">예정된 경품 게임이 없습니다</p>
+            </div>
           )}
 
-          {/* 자동 게임 정보 — 항상 보이되, 경품이 있으면 작게 */}
+          {/* 자동 게임 정보 */}
           {autoGame && (
             <div
               className={`w-full border border-gray-700/50 rounded-2xl p-4 text-center ${
-                hasPrize ? 'bg-gray-800/40' : 'bg-gradient-to-b from-gray-800/60 to-gray-900/60'
+                nextPrize?.title ? 'bg-gray-800/40' : 'bg-gradient-to-b from-gray-800/60 to-gray-900/60'
               }`}
             >
               <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-3">
@@ -665,28 +728,24 @@ export default function RoomPage() {
           </div>
         )}
 
-        {/* 경품 예정이 있으면 경품을 메인으로, 없으면 자동 게임/대기 메시지 */}
-        {cycle?.nextSlot && String(cycle.nextSlot).trim().length > 0 && cycle?.currentPrizeTitle && String(cycle.currentPrizeTitle).trim().length > 0 ? (
+        {/* 경품 예정 — Firestore scheduleSlots에서 직접 조회 */}
+        {nextPrize && nextPrize.title ? (
           <div className="w-full bg-gradient-to-b from-yellow-900/20 to-gray-900/60 border border-yellow-500/30 rounded-2xl p-5 text-center">
             <p className="text-yellow-400 text-sm font-bold mb-3 tracking-widest">🎁 다음 경품 게임</p>
-            {cycle.currentPrizeImage && (
+            {nextPrize.imageURL && (
               <div className="flex justify-center mb-3">
-                <Image
-                  src={cycle.currentPrizeImage}
-                  alt={cycle.currentPrizeTitle}
-                  width={120}
-                  height={120}
+                <img
+                  src={nextPrize.imageURL}
+                  alt={nextPrize.title}
                   className="w-28 h-28 rounded-2xl object-cover shadow-2xl border-2 border-yellow-500/40"
                 />
               </div>
             )}
-            <p className="text-white text-xl font-black mb-2">{cycle.currentPrizeTitle}</p>
-            <CycleStatus
-              phase={cyclePhase}
-              nextSlotTime={cycle.nextSlot}
-              prizeTitle={null}
-              prizeImageURL={null}
-            />
+            <p className="text-white text-xl font-black mb-2">{nextPrize.title}</p>
+            <p className="text-yellow-400 text-2xl font-bold mb-1">{prizeCountdown}</p>
+            <p className="text-gray-400 text-xs">
+              {nextPrize.date} {nextPrize.time} KST
+            </p>
           </div>
         ) : (
           <div className="bg-gradient-to-b from-gray-800/60 to-gray-900/60 border border-gray-700/50 rounded-2xl p-5 text-center">
@@ -697,11 +756,11 @@ export default function RoomPage() {
           </div>
         )}
 
-        {/* 자동 게임 정보 — 항상 보이되, 경품이 있으면 작게 */}
+        {/* 자동 게임 정보 */}
         {autoGame && (
           <div
             className={`w-full border border-gray-700/50 rounded-2xl p-4 text-center ${
-              cycle?.nextSlot && String(cycle?.nextSlot).trim().length > 0 && cycle?.currentPrizeTitle && String(cycle.currentPrizeTitle).trim().length > 0 ? 'bg-gray-800/40' : 'bg-gradient-to-b from-gray-800/60 to-gray-900/60'
+              nextPrize?.title ? 'bg-gray-800/40' : 'bg-gradient-to-b from-gray-800/60 to-gray-900/60'
             }`}
           >
             <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-3">
