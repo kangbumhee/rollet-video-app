@@ -170,23 +170,36 @@ exports.gameCycle = (0, scheduler_1.onSchedule)({
             phaseStartedAt: phaseStart,
             phaseEndsAt: phaseEnd,
         });
-        // presence에서 참가자 수집
+        await sleep((PHASES[1].duration - 3) * 1000);
         const presenceSnap = await rtdb.ref('rooms/main/presence').get();
         const presenceData = presenceSnap.exists()
             ? presenceSnap.val()
             : {};
-        const presenceUsers = Object.keys(presenceData);
+        const presenceUsers = [];
+        for (const [key, val] of Object.entries(presenceData)) {
+            const uidValue = val && typeof val === 'object' && 'uid' in val
+                ? val.uid
+                : key;
+            if (uidValue && !uidValue.startsWith('BOT') && !presenceUsers.includes(uidValue)) {
+                presenceUsers.push(uidValue);
+            }
+        }
+        firebase_functions_1.logger.info(`Collected ${presenceUsers.length} participants from presence`);
         const participants = presenceUsers.length >= 2
-            ? presenceUsers.map((uid) => ({
-                uid,
-                displayName: presenceData[uid]?.displayName || uid,
-                eliminated: false,
-                joinedAt: Date.now(),
-            }))
+            ? presenceUsers.map((uid) => {
+                const val = presenceData[uid];
+                return {
+                    uid,
+                    displayName: val?.displayName || uid,
+                    eliminated: false,
+                    joinedAt: Date.now(),
+                };
+            })
             : [
                 { uid: 'BOT_1', displayName: '봇1', eliminated: false, joinedAt: Date.now() },
                 { uid: 'BOT_2', displayName: '봇2', eliminated: false, joinedAt: Date.now() },
             ];
+        await sleep(3000);
         // 게임 세션 생성
         const sessionId = generateId();
         await db.doc(`gameSessions/${sessionId}`).set({
@@ -233,7 +246,6 @@ exports.gameCycle = (0, scheduler_1.onSchedule)({
         }
         await rtdb.ref(`games/main/participants`).set(participantUpdates);
         await sendBotChat(rtdb, 'main', `🎮 ${participants.length}명이 참가했습니다! 곧 게임이 시작됩니다!`);
-        await sleep(PHASES[1].duration * 1000);
         // ── Phase 3: GAME_COUNTDOWN ──
         phaseStart = Date.now();
         phaseEnd = phaseStart + PHASES[2].duration * 1000;
@@ -429,7 +441,7 @@ exports.gameCycle = (0, scheduler_1.onSchedule)({
                 nameMap,
                 alive,
                 startedAt: Date.now(),
-                startedBy: 'SYSTEM',
+                startedBy: allPlayers[0],
                 config: gameConfig,
             },
             participants: Object.fromEntries(participants.map((p) => [

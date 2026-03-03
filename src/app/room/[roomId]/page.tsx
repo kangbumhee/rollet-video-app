@@ -360,7 +360,8 @@ export default function RoomPage() {
       const remain = autoGame.recruitingUntil! - Date.now();
       if (remain <= 0) {
         setRecruitCountdown('게임 시작 중...');
-        if (!autoGameStartTriggeredRef.current && user?.uid && autoGame?.joinedPlayers?.[user.uid]) {
+        // 접속 유저 누구든 start 트리거 가능 (참가 검증은 서버에서 수행)
+        if (!autoGameStartTriggeredRef.current && user?.uid) {
           autoGameStartTriggeredRef.current = true;
           void triggerAutoGameStart();
         }
@@ -371,7 +372,7 @@ export default function RoomPage() {
     tick();
     const interval = setInterval(tick, 300);
     return () => clearInterval(interval);
-  }, [isMainRoom, autoGame?.phase, autoGame?.recruitingUntil, autoGame?.joinedPlayers, user?.uid, triggerAutoGameStart]);
+  }, [isMainRoom, autoGame?.phase, autoGame?.recruitingUntil, user?.uid, triggerAutoGameStart]);
 
   // phase가 waiting으로 바뀌면 다음 사이클을 위해 ref 초기화
   useEffect(() => {

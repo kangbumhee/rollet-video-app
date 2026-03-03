@@ -160,12 +160,20 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
       const autoRef = adminRealtimeDb.ref(`rooms/${roomId}/autoGame`);
       const autoSnap = await autoRef.get();
       const autoData = (autoSnap.exists() ? autoSnap.val() : null) as AutoGameData | null;
-      const joinedPlayers = autoData?.joinedPlayers || {};
+
+      if (!autoData || autoData.phase !== "recruiting") {
+        return NextResponse.json({ success: true, alreadyStarted: true });
+      }
+
+      const joinedPlayers = autoData.joinedPlayers || {};
       const playerEntries = Object.entries(joinedPlayers);
       if (playerEntries.length < 2) {
         await scheduleNextGame(roomId);
         return NextResponse.json({ skipped: true, reason: "참가자 부족", nextGame: "다음 30분 단위" });
       }
+
+      await autoRef.update({ phase: "starting" });
+
       const players = playerEntries.map(([uid, d]) => ({ uid, displayName: d.displayName, level: 1 }));
       const allPlayerIds = players.map((p) => p.uid);
 
