@@ -102,9 +102,8 @@ export default function MiniGameLauncher({ roomId = 'main' }: MiniGameLauncherPr
     void loadRecords();
   }, []);
 
-  const sendBotChat = (message: string) => {
-    const chatRef = ref(realtimeDb, `chat/${roomId}/messages`);
-    void push(chatRef, {
+  const sendBotChatToAll = async (message: string) => {
+    const botMsg = {
       uid: 'BOT',
       displayName: '🏆 신기록봇',
       message,
@@ -114,7 +113,29 @@ export default function MiniGameLauncher({ roomId = 'main' }: MiniGameLauncherPr
       level: 0,
       timestamp: Date.now(),
       type: 'bot',
-    });
+    };
+
+    // 1) 현재 방에 즉시 전송
+    void push(ref(realtimeDb, `chat/${roomId}/messages`), botMsg);
+
+    // 2) 메인방 (현재 방이 main이 아닌 경우)
+    if (roomId !== 'main') {
+      void push(ref(realtimeDb, 'chat/main/messages'), botMsg);
+    }
+
+    // 3) rooms에 존재하는 다른 방들에도 전송
+    try {
+      const roomsSnap = await get(ref(realtimeDb, 'rooms'));
+      if (roomsSnap.exists()) {
+        const rooms = Object.keys(roomsSnap.val() as Record<string, unknown>);
+        for (const rid of rooms) {
+          if (rid === roomId || rid === 'main') continue;
+          void push(ref(realtimeDb, `chat/${rid}/messages`), botMsg);
+        }
+      }
+    } catch {
+      // 다른 방 전송 실패해도 무시
+    }
   };
 
   const lowerIsBetter = (gameId: string) => ['reaction', 'baseball', 'updown', 'memory'].includes(gameId);
@@ -159,7 +180,7 @@ export default function MiniGameLauncher({ roomId = 'main' }: MiniGameLauncherPr
       const msgs = RECORD_MESSAGES[gameId];
       if (msgs) {
         const arr = msgs(displayName, scoreLabel);
-        sendBotChat(arr[Math.floor(Math.random() * arr.length)]);
+        void sendBotChatToAll(arr[Math.floor(Math.random() * arr.length)]);
       }
     } catch {
       // ignore
