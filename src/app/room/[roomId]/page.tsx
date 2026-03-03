@@ -162,7 +162,6 @@ export default function RoomPage() {
   }, [loading, user, router]);
 
   useEffect(() => {
-    if (isMainRoom) return;
     const gameRef = ref(realtimeDb, `games/${roomId}/current`);
     const unsub = onValue(gameRef, (snap) => {
       if (snap.exists()) {
@@ -173,7 +172,7 @@ export default function RoomPage() {
       }
     });
     return () => unsub();
-  }, [roomId, isMainRoom]);
+  }, [roomId]);
 
   const triggerAutoGame = useCallback(async () => {
     try {
@@ -192,7 +191,6 @@ export default function RoomPage() {
   }, [roomId]);
 
   useEffect(() => {
-    if (isMainRoom) return;
     const autoRef = ref(realtimeDb, `rooms/${roomId}/autoGame`);
     const unsub = onValue(autoRef, async (snap) => {
       if (snap.exists()) {
@@ -218,7 +216,7 @@ export default function RoomPage() {
       }
     });
     return () => unsub();
-  }, [roomId, isMainRoom, user?.uid]);
+  }, [roomId, user?.uid]);
 
   useEffect(() => {
     if (!autoGame?.nextGameAt) return;
@@ -282,16 +280,62 @@ export default function RoomPage() {
 
   // --- 메인방 콘텐츠 (기존 사이클 기반) ---
   const renderMainRoomContent = () => {
+    // 자동 게임 진행 중이면 우선 표시
+    if (activeGame && activeGame.phase !== 'idle' && activeGame.phase !== 'final_result') {
+      return (
+        <div className="flex-1 flex flex-col overflow-y-auto">
+          <RegularGamePlayer roomId={roomId} uid={user?.uid || ''} displayName={profile?.displayName || '익명'} />
+        </div>
+      );
+    }
+
     if (!cycle || cycle.currentPhase === 'IDLE' || cycle.currentPhase === 'COOLDOWN') {
       return (
-        <div className="flex flex-col items-center p-4 w-full overflow-y-auto">
+        <div className="flex flex-col items-center p-4 w-full overflow-y-auto gap-4">
           <CycleStatus
             phase={cyclePhase}
             nextSlotTime={cycle?.nextSlot}
             prizeTitle={cycle?.currentPrizeTitle}
             prizeImageURL={cycle?.currentPrizeImage}
           />
-          <div className="w-full mt-2">
+
+          {/* 자동 게임 대기 정보 */}
+          {autoGame && (
+            <div className="w-full bg-gradient-to-b from-gray-800/60 to-gray-900/60 border border-gray-700/50 rounded-2xl p-4 text-center">
+              <div className="space-y-3">
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4">
+                  <p className="text-purple-400 text-xs font-bold mb-1">⏰ 다음 자동 게임</p>
+                  <p className="text-white text-lg font-bold">{autoGame.nextGameName}</p>
+                  <p className="text-yellow-400 text-2xl font-bold mt-2">{autoCountdown}</p>
+                  <p className="text-gray-400 text-xs mt-1">🏆 보상: {autoGame.reward?.label || '100 포인트'}</p>
+                </div>
+
+                {cycle?.nextSlot && (
+                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
+                    <p className="text-yellow-400 text-xs font-bold">🎁 다음 경품 게임</p>
+                    <p className="text-white text-sm font-bold mt-1">
+                      {new Date(cycle.nextSlot).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 게임 진행 중이면 RegularGamePlayer 표시 */}
+          {activeGame && activeGame.phase !== 'idle' && activeGame.phase !== 'final_result' && (
+            <div className="w-full">
+              <RegularGamePlayer roomId={roomId} uid={user?.uid || ''} displayName={profile?.displayName || '익명'} />
+            </div>
+          )}
+
+          {activeGame && activeGame.phase === 'final_result' && (
+            <div className="w-full">
+              <RegularGamePlayer roomId={roomId} uid={user?.uid || ''} displayName={profile?.displayName || '익명'} />
+            </div>
+          )}
+
+          <div className="w-full">
             <MiniGameLauncher />
           </div>
         </div>
