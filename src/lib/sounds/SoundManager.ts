@@ -31,6 +31,8 @@ type SoundName =
   | 'target-appear' | 'target-hit' | 'target-miss'
   // ── 운명의 경매 / 무기 강화 / 빅 룰렛 ──
   | 'coin-flip' | 'card-flip' | 'slot-spin' | 'roulette-spin'
+  // ── 운 기반 미니게임 ──
+  | 'dice-roll' | 'horse-gallop'
   // ── BGM ──
   | 'bgm-lobby' | 'bgm-battle' | 'bgm-winner'
   | 'bgm-tension' | 'bgm-minigame';
@@ -112,6 +114,10 @@ const SOUND_CONFIG: Record<SoundName, { path: string; volume: number; loop?: boo
   'card-flip':          { path: '/sounds/card-flip.wav', volume: 0.5 },
   'slot-spin':          { path: '/sounds/slot-spin.wav', volume: 0.5 },
   'roulette-spin':      { path: '/sounds/roulette-spin.wav', volume: 0.5 },
+
+  // ── 운 기반 미니게임 ──
+  'dice-roll':          { path: '/sounds/click.wav', volume: 0.5 },
+  'horse-gallop':       { path: '/sounds/whoosh.wav', volume: 0.4 },
 
   // ── BGM ──
   'bgm-lobby':          { path: '/sounds/bgm-lobby.mp3', volume: 0.25, loop: true },

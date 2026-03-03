@@ -17,6 +17,16 @@ const VALID_GAME_TYPES = [
   'destinyAuction',
   'nunchiGame',
   'quickTouch',
+  'luckyCard',
+  'coinToss',
+  'mysteryBox',
+  'colorRace',
+  'highLow',
+  'minefield',
+  'slotMachine',
+  'diceKing',
+  'treasureMap',
+  'luckyWheel',
 ];
 
 export async function POST(req: NextRequest) {
