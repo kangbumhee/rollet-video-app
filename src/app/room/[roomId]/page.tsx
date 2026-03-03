@@ -376,46 +376,54 @@ export default function RoomPage() {
     }
 
     if (!cycle || cycle.currentPhase === 'IDLE' || cycle.currentPhase === 'COOLDOWN') {
+      const hasPrize = !!(cycle?.nextSlot && cycle?.currentPrizeTitle);
+
       return (
         <div className="flex flex-col items-center p-4 w-full overflow-y-auto gap-4">
-          <CycleStatus
-            phase={cyclePhase}
-            nextSlotTime={cycle?.nextSlot}
-            prizeTitle={cycle?.currentPrizeTitle}
-            prizeImageURL={cycle?.currentPrizeImage}
-          />
-
-          {/* 자동 게임 대기 정보 */}
-          {autoGame && (
-            <div className="w-full bg-gradient-to-b from-gray-800/60 to-gray-900/60 border border-gray-700/50 rounded-2xl p-4 text-center">
-              <div className="space-y-3">
-                <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4">
-                  <p className="text-purple-400 text-xs font-bold mb-1">⏰ 다음 자동 게임</p>
-                  <p className="text-white text-lg font-bold">{autoGame.nextGameName}</p>
-                  <p className="text-yellow-400 text-2xl font-bold mt-2">{autoCountdown}</p>
-                  <p className="text-gray-400 text-xs mt-1">🏆 보상: {autoGame.reward?.label || '100 포인트'}</p>
+          {/* 경품 게임 예정이 있으면 경품 카운트다운을 메인으로 */}
+          {hasPrize ? (
+            <div className="w-full bg-gradient-to-b from-yellow-900/20 to-gray-900/60 border border-yellow-500/30 rounded-2xl p-5 text-center">
+              <p className="text-yellow-400 text-sm font-bold mb-3 tracking-widest">🎁 다음 경품 게임</p>
+              {cycle.currentPrizeImage && (
+                <div className="flex justify-center mb-3">
+                  <Image
+                    src={cycle.currentPrizeImage}
+                    alt={cycle.currentPrizeTitle || ''}
+                    width={120}
+                    height={120}
+                    className="w-28 h-28 rounded-2xl object-cover shadow-2xl border-2 border-yellow-500/40"
+                  />
                 </div>
+              )}
+              <p className="text-white text-xl font-black mb-2">{cycle.currentPrizeTitle}</p>
+              <CycleStatus
+                phase={cyclePhase}
+                nextSlotTime={cycle.nextSlot}
+                prizeTitle={null}
+                prizeImageURL={null}
+              />
+            </div>
+          ) : (
+            <CycleStatus
+              phase={cyclePhase}
+              nextSlotTime={cycle?.nextSlot}
+              prizeTitle={cycle?.currentPrizeTitle}
+              prizeImageURL={cycle?.currentPrizeImage}
+            />
+          )}
 
-                {cycle?.nextSlot && cycle?.currentPrizeTitle && (
-                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
-                    <p className="text-yellow-400 text-xs font-bold mb-2">🎁 다음 경품 게임</p>
-                    {cycle.currentPrizeImage && (
-                      <div className="flex justify-center mb-2">
-                        <Image
-                          src={cycle.currentPrizeImage}
-                          alt={cycle.currentPrizeTitle}
-                          width={80}
-                          height={80}
-                          className="w-20 h-20 rounded-xl object-cover shadow-lg border border-yellow-500/30"
-                        />
-                      </div>
-                    )}
-                    <p className="text-white text-sm font-bold">{cycle.currentPrizeTitle}</p>
-                    <p className="text-yellow-300 text-xs mt-1">
-                      {new Date(cycle.nextSlot).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                )}
+          {/* 자동 게임 정보 — 항상 보이되, 경품이 있으면 작게 */}
+          {autoGame && (
+            <div
+              className={`w-full border border-gray-700/50 rounded-2xl p-4 text-center ${
+                hasPrize ? 'bg-gray-800/40' : 'bg-gradient-to-b from-gray-800/60 to-gray-900/60'
+              }`}
+            >
+              <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-3">
+                <p className="text-purple-400 text-xs font-bold mb-1">⏰ 다음 자동 게임 (포인트전)</p>
+                <p className="text-white text-base font-bold">{autoGame.nextGameName}</p>
+                <p className="text-yellow-400 text-xl font-bold mt-1">{autoCountdown}</p>
+                <p className="text-gray-400 text-xs mt-1">🏆 보상: {autoGame.reward?.label || '100 포인트'}</p>
               </div>
             </div>
           )}
@@ -652,48 +660,53 @@ export default function RoomPage() {
           </div>
         )}
 
-        {/* 자동 게임 대기 정보 */}
-        <div className="bg-gradient-to-b from-gray-800/60 to-gray-900/60 border border-gray-700/50 rounded-2xl p-5 text-center">
-          <div className="text-5xl mb-3">🎮</div>
-          <h2 className="text-xl font-bold text-white mb-1">자유 게임방</h2>
-          <p className="text-green-400 text-xs font-bold mb-4">👥 {fmtCount(onlineCount)}명 접속 중</p>
-
-          {autoGame && (
-            <div className="space-y-3">
-              <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4">
-                <p className="text-purple-400 text-xs font-bold mb-1">⏰ 다음 자동 게임</p>
-                <p className="text-white text-lg font-bold">{autoGame.nextGameName}</p>
-                <p className="text-yellow-400 text-2xl font-bold mt-2">{autoCountdown}</p>
-                <p className="text-gray-400 text-xs mt-1">🏆 보상: {autoGame.reward?.label || '100 포인트'}</p>
+        {/* 경품 예정이 있으면 경품을 메인으로, 없으면 자동 게임/대기 메시지 */}
+        {cycle?.nextSlot && cycle?.currentPrizeTitle ? (
+          <div className="w-full bg-gradient-to-b from-yellow-900/20 to-gray-900/60 border border-yellow-500/30 rounded-2xl p-5 text-center">
+            <p className="text-yellow-400 text-sm font-bold mb-3 tracking-widest">🎁 다음 경품 게임</p>
+            {cycle.currentPrizeImage && (
+              <div className="flex justify-center mb-3">
+                <Image
+                  src={cycle.currentPrizeImage}
+                  alt={cycle.currentPrizeTitle}
+                  width={120}
+                  height={120}
+                  className="w-28 h-28 rounded-2xl object-cover shadow-2xl border-2 border-yellow-500/40"
+                />
               </div>
+            )}
+            <p className="text-white text-xl font-black mb-2">{cycle.currentPrizeTitle}</p>
+            <CycleStatus
+              phase={cyclePhase}
+              nextSlotTime={cycle.nextSlot}
+              prizeTitle={null}
+              prizeImageURL={null}
+            />
+          </div>
+        ) : (
+          <div className="bg-gradient-to-b from-gray-800/60 to-gray-900/60 border border-gray-700/50 rounded-2xl p-5 text-center">
+            <div className="text-5xl mb-3">🎮</div>
+            <h2 className="text-xl font-bold text-white mb-1">자유 게임방</h2>
+            <p className="text-green-400 text-xs font-bold mb-4">👥 {fmtCount(onlineCount)}명 접속 중</p>
+            {!autoGame && <p className="text-gray-400 text-sm">참여하고 싶은 미니게임을 선택하세요</p>}
+          </div>
+        )}
 
-              {cycle?.nextSlot && cycle?.currentPrizeTitle && (
-                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
-                  <p className="text-yellow-400 text-xs font-bold mb-2">🎁 다음 경품 게임</p>
-                  {cycle.currentPrizeImage && (
-                    <div className="flex justify-center mb-2">
-                      <Image
-                        src={cycle.currentPrizeImage}
-                        alt={cycle.currentPrizeTitle}
-                        width={80}
-                        height={80}
-                        className="w-20 h-20 rounded-xl object-cover shadow-lg border border-yellow-500/30"
-                      />
-                    </div>
-                  )}
-                  <p className="text-white text-sm font-bold">{cycle.currentPrizeTitle}</p>
-                  <p className="text-yellow-300 text-xs mt-1">
-                    {new Date(cycle.nextSlot).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
-              )}
+        {/* 자동 게임 정보 — 항상 보이되, 경품이 있으면 작게 */}
+        {autoGame && (
+          <div
+            className={`w-full border border-gray-700/50 rounded-2xl p-4 text-center ${
+              cycle?.nextSlot && cycle?.currentPrizeTitle ? 'bg-gray-800/40' : 'bg-gradient-to-b from-gray-800/60 to-gray-900/60'
+            }`}
+          >
+            <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-3">
+              <p className="text-purple-400 text-xs font-bold mb-1">⏰ 다음 자동 게임 (포인트전)</p>
+              <p className="text-white text-base font-bold">{autoGame.nextGameName}</p>
+              <p className="text-yellow-400 text-xl font-bold mt-1">{autoCountdown}</p>
+              <p className="text-gray-400 text-xs mt-1">🏆 보상: {autoGame.reward?.label || '100 포인트'}</p>
             </div>
-          )}
-
-          {!autoGame && (
-            <p className="text-gray-400 text-sm">참여하고 싶은 미니게임을 선택하세요</p>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* 미니게임 */}
         <MiniGameLauncher />
