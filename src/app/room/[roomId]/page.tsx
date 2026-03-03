@@ -353,15 +353,15 @@ export default function RoomPage() {
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [autoGame?.nextGameAt, autoGame?.phase, onlineUsers, user?.uid, triggerAutoGameRecruit, isMainRoom, cycle?.currentPhase, nextPrize?.scheduledAt]);
+  }, [autoGame?.nextGameAt, autoGame?.phase, user?.uid, triggerAutoGameRecruit, isMainRoom, cycle?.currentPhase, nextPrize?.scheduledAt]);
 
-  // 모집 시간 종료 시 첫 번째 유저가 start 호출
+  // 모집 시간 종료 시 참가자 본인이 start 호출 (joinedPlayers에 있으면 즉시)
   useEffect(() => {
     if (!isMainRoom || autoGame?.phase !== 'recruiting' || autoGame?.recruitingUntil == null) return;
     const tick = () => {
       const remain = autoGame.recruitingUntil! - Date.now();
       if (remain <= 0) {
-        setRecruitCountdown('0초');
+        setRecruitCountdown('게임 시작 중...');
         if (!autoGameStartTriggeredRef.current && user?.uid && autoGame?.joinedPlayers?.[user.uid]) {
           autoGameStartTriggeredRef.current = true;
           void triggerAutoGameStart();
@@ -371,9 +371,9 @@ export default function RoomPage() {
       setRecruitCountdown(`${Math.ceil(remain / 1000)}초`);
     };
     tick();
-    const interval = setInterval(tick, 500);
+    const interval = setInterval(tick, 300);
     return () => clearInterval(interval);
-  }, [isMainRoom, autoGame?.phase, autoGame?.recruitingUntil, onlineUsers, user?.uid, triggerAutoGameStart]);
+  }, [isMainRoom, autoGame?.phase, autoGame?.recruitingUntil, autoGame?.joinedPlayers, user?.uid, triggerAutoGameStart]);
 
   // phase가 waiting으로 바뀌면 다음 사이클을 위해 ref 초기화
   useEffect(() => {
@@ -946,36 +946,36 @@ export default function RoomPage() {
     <div className="h-[100dvh] flex flex-col bg-gray-950 overflow-hidden">
       {/* 헤더 */}
       <header className="shrink-0 bg-gray-900/95 backdrop-blur border-b border-gray-800 z-50 relative">
-        <div className="flex items-center justify-between px-3 py-2">
-          <div className="flex items-center gap-2">
-            <button onClick={() => router.push('/')} className="text-gray-400 hover:text-white">
-              ←
+        <div className="flex items-center justify-between px-2 py-1.5 flex-nowrap overflow-hidden min-w-0">
+          <div className="flex items-center gap-1 min-w-0 shrink-0">
+            <button onClick={() => router.push('/')} className="text-gray-400 hover:text-white shrink-0 p-1">
+              <span className="text-xs">←</span>
             </button>
+            <span className="text-white font-bold text-xs truncate">{isMainRoom ? 'PrizeLive' : '자유방'}</span>
             {isLive && <LiveBadge />}
-            <h1 className="text-white font-bold text-sm">{isMainRoom ? 'PrizeLive' : '자유방'}</h1>
-          </div>
-          <div className="flex items-center gap-1.5">
             {canSeeUserList ? (
-              <button onClick={() => setShowUserList(!showUserList)} className="relative">
-                <div className="flex items-center gap-1 bg-gray-800 px-2 py-1 rounded-full border border-gray-700 hover:border-yellow-500/50 transition-colors">
-                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                  <span className="text-green-400 text-xs font-bold">{fmtCount(onlineCount)}명</span>
+              <button onClick={() => setShowUserList(!showUserList)} className="shrink-0">
+                <div className="flex items-center gap-0.5 bg-gray-800 px-1.5 py-0.5 rounded-full border border-gray-700 hover:border-yellow-500/50 transition-colors">
+                  <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                  <span className="text-green-400 text-[10px] font-bold">{fmtCount(onlineCount)}</span>
                 </div>
               </button>
             ) : (
-              <div className="flex items-center gap-1 bg-gray-800 px-2 py-1 rounded-full border border-gray-700">
-                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                <span className="text-green-400 text-xs font-bold">{fmtCount(onlineCount)}명</span>
+              <div className="flex items-center gap-0.5 bg-gray-800 px-1.5 py-0.5 rounded-full border border-gray-700 shrink-0">
+                <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                <span className="text-green-400 text-[10px] font-bold">{fmtCount(onlineCount)}</span>
               </div>
             )}
-            <SoundToggle />
-            {hasTicket && <Badge className="bg-green-600 text-white text-[10px] px-1.5 py-0.5">🎫</Badge>}
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <SoundToggle size="sm" />
+            {hasTicket && <Badge className="bg-green-600 text-white text-[9px] px-1 py-0 shrink-0">🎫</Badge>}
             {isMainRoom && (
-              <button onClick={() => setShowPointShop(true)} className="flex items-center gap-1 bg-yellow-500/10 border border-yellow-500/30 px-2 py-1 rounded-full">
-                <span className="text-yellow-400 text-xs font-bold">🪙 {userPoints.toLocaleString()}P</span>
+              <button onClick={() => setShowPointShop(true)} className="shrink-0 px-1.5 py-1 bg-yellow-500/20 border border-yellow-500/30 rounded-lg text-[10px] text-yellow-400 font-bold">
+                {fmtCount(userPoints)}P
               </button>
             )}
-            {profile && <LevelBadge level={profile.level} size="sm" />}
+            {profile && <LevelBadge level={profile.level} size="sm" className="shrink-0" />}
           </div>
         </div>
       </header>
