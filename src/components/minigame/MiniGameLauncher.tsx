@@ -254,36 +254,59 @@ export default function MiniGameLauncher() {
   if (selectedGame) {
     return (
       <div className="flex flex-col gap-2 w-full">
-        <div className="flex items-center justify-between sticky top-0 bg-gray-900 z-10 pb-2">
+        <div className="flex items-center justify-between sticky top-0 bg-gray-900 z-10 py-2">
           <button
             onClick={handleBack}
-            className="px-3 py-1 bg-gray-700 text-white text-xs rounded-lg hover:bg-gray-600 transition"
+            className="px-3 py-1.5 bg-gray-700 text-white text-xs rounded-lg hover:bg-gray-600 transition font-bold"
           >
-            ← 목록
+            ← 목록으로
           </button>
+          <span className="text-white text-xs font-bold">
+            {GAMES.find((g) => g.id === selectedGame)?.emoji} {GAMES.find((g) => g.id === selectedGame)?.name}
+          </span>
           {records[selectedGame] && (
             <span className="text-yellow-400 text-[10px] font-bold truncate ml-2">
               🏆 {records[selectedGame].holder}
             </span>
           )}
         </div>
-        <div className="overflow-y-auto pb-20">{renderGame()}</div>
+        <div className="overflow-y-auto pb-32">{renderGame()}</div>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-2">
+      {/* 헤더 버튼 — 더 눈에 띄는 디자인 */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center justify-between w-full px-3 py-2 bg-gray-800 rounded-xl"
+        className="flex items-center justify-between w-full px-4 py-3 bg-gradient-to-r from-indigo-600/20 to-purple-600/20 border border-indigo-500/30 rounded-xl hover:border-indigo-500/60 transition"
       >
         <span className="text-white font-bold text-sm">🎮 미니게임</span>
-        <span className="text-gray-400 text-xs">{expanded ? '접기 ▲' : '펼치기 ▼'} ({GAMES.length}종)</span>
+        <span className="text-indigo-300 text-xs font-medium">{expanded ? '접기 ▲' : `펼치기 ▼ (${GAMES.length}종)`}</span>
       </button>
 
+      {/* 접힌 상태에서도 인기 게임 미리보기 4개 표시 */}
+      {!expanded && (
+        <div className="grid grid-cols-4 gap-1.5">
+          {GAMES.slice(0, 4).map((game) => (
+            <button
+              key={game.id}
+              onClick={() => handleSelectGame(game.id)}
+              className="flex flex-col items-center gap-0.5 p-2 bg-gray-800/60 rounded-lg hover:bg-gray-700 transition border border-gray-700/30 hover:border-purple-500/50"
+            >
+              <span className="text-lg leading-none">{game.emoji}</span>
+              <span className="text-white text-[8px] font-medium leading-tight text-center truncate w-full">
+                {game.name}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 펼친 상태 — 전체 게임 목록 */}
       {expanded && (
-        <div className="max-h-[45vh] overflow-y-auto rounded-xl bg-gray-900/50 p-2">
+        <div className="max-h-[50vh] overflow-y-auto rounded-xl bg-gray-900/50 p-2 pb-6">
           <div className="grid grid-cols-5 gap-1.5">
             {GAMES.map((game) => {
               const rec = records[game.id];
@@ -306,6 +329,8 @@ export default function MiniGameLauncher() {
               );
             })}
           </div>
+          {/* 하단 여백 — 채팅에 의해 짤리지 않도록 */}
+          <div className="h-4" />
         </div>
       )}
     </div>

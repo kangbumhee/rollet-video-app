@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminRealtimeDb } from "@/lib/firebase/admin";
+import { adminFirestore, adminRealtimeDb } from "@/lib/firebase/admin";
 import {
   generateOXQuizzes,
   generatePriceItems,
@@ -31,6 +31,28 @@ const LIAR_WORDS = [
 
 async function scheduleNextGame(roomId: string) {
   const nextGameAt = Date.now() + 30 * 60 * 1000;
+
+  // 경품 게임이 다음 포인트 게임보다 먼저 예정되어 있으면 스케줄 안 함
+  try {
+    const prizeSnap = await adminFirestore
+      .collection("scheduleSlots")
+      .where("status", "==", "ASSIGNED")
+      .where("scheduledAt", ">", Date.now())
+      .orderBy("scheduledAt", "asc")
+      .limit(1)
+      .get();
+
+    if (!prizeSnap.empty) {
+      const prizeTime = prizeSnap.docs[0].data().scheduledAt as number;
+      if (nextGameAt >= prizeTime) {
+        await adminRealtimeDb.ref(`rooms/${roomId}/autoGame`).remove();
+        return;
+      }
+    }
+  } catch (err) {
+    console.error("[scheduleNextGame] Prize check failed:", err);
+  }
+
   const nextGame = GAME_LIST[Math.floor(Math.random() * GAME_LIST.length)];
   await adminRealtimeDb.ref(`rooms/${roomId}/autoGame`).set({
     nextGameAt,
@@ -48,6 +70,14 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
     const AUTO_GAME_SECRET = process.env.AUTO_GAME_SECRET || "auto-game-secret-key";
     if (secret !== AUTO_GAME_SECRET) {
       return NextResponse.json({ error: "권한 없음" }, { status: 403 });
+    }
+
+    // 경품 사이클 진행 중이면 자동 게임 시작 안 함
+    const cycleSnap = await adminRealtimeDb.ref("cycle/main/currentPhase").get();
+    const currentPhase = cycleSnap.exists() ? cycleSnap.val() : "IDLE";
+    if (currentPhase !== "IDLE" && currentPhase !== "COOLDOWN") {
+      await scheduleNextGame(roomId);
+      return NextResponse.json({ skipped: true, reason: "경품 게임 진행 중" });
     }
 
     const currentSnap = await adminRealtimeDb.ref(`games/${roomId}/current`).get();

@@ -217,10 +217,21 @@ export default function RoomPage() {
     const autoRef = ref(realtimeDb, `rooms/${roomId}/autoGame`);
     const unsub = onValue(autoRef, async (snap) => {
       if (snap.exists()) {
-        setAutoGame(snap.val() as typeof autoGame);
+        const data = snap.val() as NonNullable<typeof autoGame>;
+        // 포인트 게임 시간이 경품 게임 시간보다 뒤면 표시하지 않음
+        if (nextPrize?.scheduledAt && data.nextGameAt >= nextPrize.scheduledAt) {
+          setAutoGame(null);
+          return;
+        }
+        setAutoGame(data);
       } else {
         setAutoGame(null);
         if (user?.uid) {
+          const candidateTime = Date.now() + 30 * 60 * 1000;
+          // 경품 게임이 30분 이내에 있으면 포인트 게임 스케줄 안 함
+          if (nextPrize?.scheduledAt && candidateTime >= nextPrize.scheduledAt) {
+            return; // 포인트 게임 스케줄 생략
+          }
           const GAME_LIST = [
             { id: 'oxSurvival', name: '⭕ OX 서바이벌' },
             { id: 'tapSurvival', name: '👆 탭 서바이벌' },
@@ -230,7 +241,7 @@ export default function RoomPage() {
           ];
           const next = GAME_LIST[Math.floor(Math.random() * GAME_LIST.length)];
           await set(autoRef, {
-            nextGameAt: Date.now() + 30 * 60 * 1000,
+            nextGameAt: candidateTime,
             nextGameType: next.id,
             nextGameName: next.name,
             reward: { type: 'point', amount: 100, label: '100 포인트' },
@@ -239,7 +250,7 @@ export default function RoomPage() {
       }
     });
     return () => unsub();
-  }, [roomId, user?.uid, isMainRoom]);
+  }, [roomId, user?.uid, isMainRoom, nextPrize?.scheduledAt]);
 
   useEffect(() => {
     if (!isMainRoom || !autoGame?.nextGameAt) return;
@@ -247,6 +258,17 @@ export default function RoomPage() {
     const tick = () => {
       const diff = autoGame.nextGameAt - Date.now();
       if (diff <= 0) {
+        // 경품 사이클이 진행 중이면 포인트 게임 트리거 안 함
+        const cycleActive = cycle?.currentPhase && cycle.currentPhase !== 'IDLE' && cycle.currentPhase !== 'COOLDOWN';
+        if (cycleActive) {
+          setAutoCountdown('경품 게임 진행 중...');
+          return;
+        }
+        // 경품 게임이 10분 이내면 트리거 안 함 (충돌 방지)
+        if (nextPrize?.scheduledAt && (nextPrize.scheduledAt - Date.now()) < 10 * 60 * 1000) {
+          setAutoCountdown('경품 게임 대기 중...');
+          return;
+        }
         setAutoCountdown('게임 시작 중...');
         if (!autoGameTriggeredRef.current && onlineUsers.length > 0 && onlineUsers[0]?.uid === user?.uid) {
           autoGameTriggeredRef.current = true;
@@ -263,7 +285,7 @@ export default function RoomPage() {
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [autoGame?.nextGameAt, onlineUsers, user?.uid, triggerAutoGame, isMainRoom]);
+  }, [autoGame?.nextGameAt, onlineUsers, user?.uid, triggerAutoGame, isMainRoom, cycle?.currentPhase, nextPrize?.scheduledAt]);
 
   const handleResetGame = useCallback(async (forceConfirm = false) => {
     if (!user) return;
@@ -463,68 +485,66 @@ export default function RoomPage() {
 
     if (!cycle || cycle.currentPhase === 'IDLE' || cycle.currentPhase === 'COOLDOWN') {
       return (
-        <div className="flex flex-col items-center p-4 w-full overflow-y-auto gap-4">
-          {/* 경품 게임 예정 — Firestore scheduleSlots에서 직접 조회 */}
-          {nextPrize && nextPrize.title ? (
-            <div className="w-full bg-gradient-to-b from-yellow-900/20 to-gray-900/60 border border-yellow-500/30 rounded-2xl p-5 text-center">
-              <p className="text-yellow-400 text-sm font-bold mb-3 tracking-widest">🎁 다음 경품 게임</p>
-              {nextPrize.imageURL && (
-                <div className="flex justify-center mb-3">
-                  <img
-                    src={nextPrize.imageURL}
-                    alt={nextPrize.title}
-                    onClick={() => setShowPrizeDetail(true)}
-                    className="w-28 h-28 rounded-2xl object-cover shadow-2xl border-2 border-yellow-500/40 cursor-pointer hover:scale-105 transition-transform"
-                  />
-                </div>
-              )}
-              <p
-                onClick={() => setShowPrizeDetail(true)}
-                className="text-white text-xl font-black mb-2 cursor-pointer hover:text-yellow-300 transition-colors"
-              >
-                {nextPrize.title}
-              </p>
-              <p className="text-gray-500 text-xs">사진을 터치하면 상세정보를 볼 수 있어요</p>
-              <p className="text-yellow-400 text-2xl font-bold mb-1">{prizeCountdown}</p>
-              <p className="text-gray-400 text-xs">
-                {nextPrize.date} {nextPrize.time} KST
-              </p>
+        <div className="flex flex-col items-center p-3 w-full overflow-y-auto gap-3">
+          {/* 게임 진행 중이면 우선 표시 */}
+          {activeGame && activeGame.phase !== 'idle' && activeGame.phase !== 'final_result' ? (
+            <div className="w-full">
+              <RegularGamePlayer roomId={roomId} uid={user?.uid || ''} displayName={profile?.displayName || '익명'} />
+            </div>
+          ) : activeGame && activeGame.phase === 'final_result' ? (
+            <div className="w-full">
+              <RegularGamePlayer roomId={roomId} uid={user?.uid || ''} displayName={profile?.displayName || '익명'} />
             </div>
           ) : (
-            <div className="w-full text-center py-6">
-              <p className="text-gray-500 text-sm">예정된 경품 게임이 없습니다</p>
-            </div>
+            <>
+              {/* ── 경품 게임 카드 (컴팩트) ── */}
+              {nextPrize && nextPrize.title ? (
+                <div
+                  className="w-full bg-gradient-to-b from-yellow-900/20 to-gray-900/60 border border-yellow-500/30 rounded-2xl p-4 text-center cursor-pointer hover:border-yellow-500/60 transition"
+                  onClick={() => setShowPrizeDetail(true)}
+                >
+                  <p className="text-yellow-400 text-xs font-bold mb-2 tracking-widest">🎁 다음 경품 게임</p>
+                  <div className="flex items-center justify-center gap-3">
+                    {nextPrize.imageURL && (
+                      <img
+                        src={nextPrize.imageURL}
+                        alt={nextPrize.title}
+                        className="w-16 h-16 rounded-xl object-cover border border-yellow-500/40 shrink-0"
+                      />
+                    )}
+                    <div className="text-left">
+                      <p className="text-white text-base font-black leading-tight">{nextPrize.title}</p>
+                      <p className="text-gray-500 text-[10px] mt-0.5">터치하면 상세정보</p>
+                      <p className="text-yellow-400 text-lg font-bold">{prizeCountdown}</p>
+                      <p className="text-gray-500 text-[10px]">{nextPrize.date} {nextPrize.time} KST</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full text-center py-4">
+                  <p className="text-gray-500 text-sm">예정된 경품 게임이 없습니다</p>
+                </div>
+              )}
+
+              {/* ── 포인트 게임 카드 (컴팩트, 경품보다 먼저일 때만) ── */}
+              {autoGame && (!nextPrize?.scheduledAt || autoGame.nextGameAt < nextPrize.scheduledAt) && (
+                <div className="w-full bg-gray-800/40 border border-purple-500/20 rounded-xl p-3 text-center">
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="text-left flex-1">
+                      <p className="text-purple-400 text-[10px] font-bold">⏰ 다음 자동 게임 (포인트전)</p>
+                      <p className="text-white text-sm font-bold">{autoGame.nextGameName}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-yellow-400 text-lg font-bold">{autoCountdown}</p>
+                      <p className="text-gray-500 text-[10px]">🏆 {autoGame.reward?.label || '100 포인트'}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
-          {/* 자동 게임 정보 */}
-          {autoGame && (
-            <div
-              className={`w-full border border-gray-700/50 rounded-2xl p-4 text-center ${
-                nextPrize?.title ? 'bg-gray-800/40' : 'bg-gradient-to-b from-gray-800/60 to-gray-900/60'
-              }`}
-            >
-              <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-3">
-                <p className="text-purple-400 text-xs font-bold mb-1">⏰ 다음 자동 게임 (포인트전)</p>
-                <p className="text-white text-base font-bold">{autoGame.nextGameName}</p>
-                <p className="text-yellow-400 text-xl font-bold mt-1">{autoCountdown}</p>
-                <p className="text-gray-400 text-xs mt-1">🏆 보상: {autoGame.reward?.label || '100 포인트'}</p>
-              </div>
-            </div>
-          )}
-
-          {/* 게임 진행 중이면 RegularGamePlayer 표시 */}
-          {activeGame && activeGame.phase !== 'idle' && activeGame.phase !== 'final_result' && (
-            <div className="w-full">
-              <RegularGamePlayer roomId={roomId} uid={user?.uid || ''} displayName={profile?.displayName || '익명'} />
-            </div>
-          )}
-
-          {activeGame && activeGame.phase === 'final_result' && (
-            <div className="w-full">
-              <RegularGamePlayer roomId={roomId} uid={user?.uid || ''} displayName={profile?.displayName || '익명'} />
-            </div>
-          )}
-
+          {/* ── 미니게임 (항상 보이게) ── */}
           <div className="w-full">
             <MiniGameLauncher />
           </div>
