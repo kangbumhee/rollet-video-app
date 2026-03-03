@@ -326,10 +326,22 @@ export default function RoomPage() {
                   <p className="text-gray-400 text-xs mt-1">🏆 보상: {autoGame.reward?.label || '100 포인트'}</p>
                 </div>
 
-                {cycle?.nextSlot && (
-                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
-                    <p className="text-yellow-400 text-xs font-bold">🎁 다음 경품 게임</p>
-                    <p className="text-white text-sm font-bold mt-1">
+                {cycle?.nextSlot && cycle?.currentPrizeTitle && (
+                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+                    <p className="text-yellow-400 text-xs font-bold mb-2">🎁 다음 경품 게임</p>
+                    {cycle.currentPrizeImage && (
+                      <div className="flex justify-center mb-2">
+                        <Image
+                          src={cycle.currentPrizeImage}
+                          alt={cycle.currentPrizeTitle}
+                          width={80}
+                          height={80}
+                          className="w-20 h-20 rounded-xl object-cover shadow-lg border border-yellow-500/30"
+                        />
+                      </div>
+                    )}
+                    <p className="text-white text-sm font-bold">{cycle.currentPrizeTitle}</p>
+                    <p className="text-yellow-300 text-xs mt-1">
                       {new Date(cycle.nextSlot).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
@@ -578,10 +590,22 @@ export default function RoomPage() {
                 <p className="text-gray-400 text-xs mt-1">🏆 보상: {autoGame.reward?.label || '100 포인트'}</p>
               </div>
 
-              {cycle?.nextSlot && (
-                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
-                  <p className="text-yellow-400 text-xs font-bold">🎁 다음 경품 게임</p>
-                  <p className="text-white text-sm font-bold mt-1">
+              {cycle?.nextSlot && cycle?.currentPrizeTitle && (
+                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+                  <p className="text-yellow-400 text-xs font-bold mb-2">🎁 다음 경품 게임</p>
+                  {cycle.currentPrizeImage && (
+                    <div className="flex justify-center mb-2">
+                      <Image
+                        src={cycle.currentPrizeImage}
+                        alt={cycle.currentPrizeTitle}
+                        width={80}
+                        height={80}
+                        className="w-20 h-20 rounded-xl object-cover shadow-lg border border-yellow-500/30"
+                      />
+                    </div>
+                  )}
+                  <p className="text-white text-sm font-bold">{cycle.currentPrizeTitle}</p>
+                  <p className="text-yellow-300 text-xs mt-1">
                     {new Date(cycle.nextSlot).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
