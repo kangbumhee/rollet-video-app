@@ -78,6 +78,8 @@ export default function RoomPage() {
   const autoGameTriggeredRef = React.useRef(false);
   const [userPoints, setUserPoints] = useState(0);
   const [showPointShop, setShowPointShop] = useState(false);
+  const [roomLocked, setRoomLocked] = useState(false);
+  const [passwordVerified, setPasswordVerified] = useState(false);
   const canSeeUserList = profile?.isAdmin || profile?.isModerator || false;
   const canStartGame = profile?.isAdmin || profile?.isModerator || false;
 
@@ -286,10 +288,77 @@ export default function RoomPage() {
     return () => unsub();
   }, [user?.uid]);
 
+  useEffect(() => {
+    if (isMainRoom || !roomId) return;
+    const roomDocRef = doc(firestore, 'rooms', roomId);
+    const unsub = onSnapshot(roomDocRef, (snap) => {
+      setRoomLocked(!!(snap.exists() && snap.data()?.hasPassword));
+    });
+    return () => unsub();
+  }, [roomId, isMainRoom]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-prize-500" />
+      </div>
+    );
+  }
+
+  if (roomLocked && !passwordVerified) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+        <div className="bg-gray-800 rounded-2xl p-6 w-full max-w-sm text-center">
+          <div className="text-5xl mb-4">🔒</div>
+          <h2 className="text-white font-bold text-lg mb-2">비밀방입니다</h2>
+          <p className="text-gray-400 text-sm mb-4">비밀번호를 입력해주세요</p>
+          <input
+            type="password"
+            id="room-password"
+            placeholder="비밀번호"
+            maxLength={20}
+            className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 mb-3 outline-none focus:ring-2 focus:ring-purple-500 text-center"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const input = document.getElementById('room-password') as HTMLInputElement;
+                fetch(`/api/room/${roomId}/verify-password`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ password: input.value }),
+                })
+                  .then((res) => res.json())
+                  .then((data) => {
+                    if (data.success) setPasswordVerified(true);
+                    else alert('비밀번호가 틀렸습니다');
+                  });
+              }
+            }}
+          />
+          <button
+            onClick={() => {
+              const input = document.getElementById('room-password') as HTMLInputElement;
+              fetch(`/api/room/${roomId}/verify-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: input.value }),
+              })
+                .then((res) => res.json())
+                .then((data) => {
+                  if (data.success) setPasswordVerified(true);
+                  else alert('비밀번호가 틀렸습니다');
+                });
+            }}
+            className="w-full py-2 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-500 transition"
+          >
+            입장하기
+          </button>
+          <button
+            onClick={() => router.push('/')}
+            className="w-full py-2 mt-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition"
+          >
+            돌아가기
+          </button>
+        </div>
       </div>
     );
   }

@@ -27,6 +27,7 @@ interface RoomData {
   maxPlayers: number;
   status: string;
   onlineCount: number;
+  hasPassword: boolean;
 }
 
 export default function HomePage() {
@@ -38,6 +39,7 @@ export default function HomePage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [newMax, setNewMax] = useState(50);
+  const [newPassword, setNewPassword] = useState("");
   const [creating, setCreating] = useState(false);
 
   const isAdmin = !!(profile?.isAdmin || profile?.isModerator);
@@ -60,6 +62,7 @@ export default function HomePage() {
         maxPlayers: d.data().maxPlayers || 50,
         status: d.data().status || "waiting",
         onlineCount: 0,
+        hasPassword: d.data().hasPassword || false,
       }));
       setRooms(list);
     });
@@ -101,9 +104,12 @@ export default function HomePage() {
         isMain: false,
         maxPlayers: newMax,
         status: "waiting",
+        hasPassword: !!newPassword.trim(),
+        password: newPassword.trim() || null,
       });
       setShowCreate(false);
       setNewName("");
+      setNewPassword("");
       router.push(`/room/${docRef.id}`);
     } catch (error) {
       console.error(error);
@@ -217,11 +223,32 @@ export default function HomePage() {
               {otherRooms.map((room) => (
                 <div
                   key={room.id}
-                  onClick={() => router.push(`/room/${room.id}`)}
+                  onClick={() => {
+                    if (room.hasPassword) {
+                      const pw = window.prompt("비밀번호를 입력하세요");
+                      if (pw === null) return;
+                      fetch(`/api/room/${room.id}/verify-password`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ password: pw }),
+                      })
+                        .then((res) => res.json())
+                        .then((data) => {
+                          if (data.success) router.push(`/room/${room.id}`);
+                          else alert("비밀번호가 틀렸습니다");
+                        })
+                        .catch(() => alert("네트워크 오류"));
+                    } else {
+                      router.push(`/room/${room.id}`);
+                    }
+                  }}
                   className="bg-gray-800/50 rounded-xl p-3.5 border border-gray-700/50 hover:border-purple-500/50 transition cursor-pointer active:scale-[0.98]"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-white truncate flex-1">{room.name}</span>
+                    <span className="font-bold text-sm text-white truncate flex-1">
+                      {room.hasPassword && <span className="text-yellow-400 mr-1">🔒</span>}
+                      {room.name}
+                    </span>
                     <div className="flex items-center gap-2 shrink-0 ml-2">
                       <div className="flex items-center gap-1 bg-gray-700/50 px-2 py-0.5 rounded-full">
                         <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
@@ -296,19 +323,42 @@ export default function HomePage() {
               className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 mb-4 outline-none focus:ring-2 focus:ring-purple-500"
             />
             <label className="text-sm text-gray-400 mb-1 block">최대 인원</label>
-            <div className="grid grid-cols-4 gap-2 mb-6">
-              {[10, 20, 50, 100, 200, 500, 1000, 9999].map((n) => (
+            <div className="flex items-center gap-2 mb-2">
+              <input
+                type="number"
+                value={newMax}
+                onChange={(e) => setNewMax(Math.max(2, Math.min(9999, Number(e.target.value) || 2)))}
+                min={2}
+                max={9999}
+                className="w-24 bg-gray-700 text-white rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-purple-500 text-center font-bold"
+              />
+              <span className="text-gray-400 text-sm">명</span>
+            </div>
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              {[10, 20, 50, 100].map((n) => (
                 <button
                   key={n}
                   onClick={() => setNewMax(n)}
-                  className={`py-2 rounded-lg text-sm font-bold transition ${
+                  className={`py-1.5 rounded-lg text-xs font-bold transition ${
                     newMax === n ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"
                   }`}
                 >
-                  {n >= 9999 ? "무제한" : n >= 1000 ? `${n / 1000}K` : n}
+                  {n}명
                 </button>
               ))}
             </div>
+            <label className="text-sm text-gray-400 mb-1 block">비밀번호 (선택)</label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="비밀번호 없이 공개방"
+              maxLength={20}
+              className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 mb-1 outline-none focus:ring-2 focus:ring-purple-500"
+            />
+            <p className="text-[10px] text-gray-500 mb-4">
+              {newPassword ? "🔒 비밀방으로 생성됩니다" : "🔓 누구나 입장 가능한 공개방"}
+            </p>
             <div className="flex gap-2">
               <button
                 onClick={() => setShowCreate(false)}
