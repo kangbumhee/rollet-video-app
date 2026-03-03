@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ref, push, onChildAdded, query, orderByChild, startAt } from 'firebase/database';
+import { ref, push, onChildAdded, query, orderByChild, limitToLast, get, startAfter } from 'firebase/database';
 import { realtimeDb } from '@/lib/firebase/config';
 import type { ChatMessage } from '@/types/chat';
 import { soundManager } from '@/lib/sounds/SoundManager';
@@ -15,58 +15,85 @@ interface ChatSender {
   isAdmin?: boolean;
 }
 
+function parseMessage(snapshot: { key: string | null; val: () => Record<string, unknown> }): ChatMessage {
+  const data = snapshot.val();
+  return {
+    id: snapshot.key || '',
+    uid: (data.uid as string) || '',
+    displayName: (data.displayName as string) || '익명',
+    level: (data.level as number) || 1,
+    message: (data.text as string) || (data.message as string) || '',
+    timestamp: (data.timestamp as number) || Date.now(),
+    isBot: data.type === 'bot' || !!data.isBot,
+    isSystem: data.type === 'system' || !!data.isSystem,
+    isModerator: !!data.isModerator,
+    isAdmin: !!data.isAdmin,
+  };
+}
+
 export function useChat(roomId: string, sender?: ChatSender) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const joinedAtRef = useRef<number>(Date.now());
+  const initialLoadDoneRef = useRef(false);
+  const lastTimestampRef = useRef<number>(0);
+  const liveUnsubRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!roomId) return;
 
-    // 접속 시점 타임스탬프 기록
-    const joinedAt = Date.now();
-    joinedAtRef.current = joinedAt;
+    initialLoadDoneRef.current = false;
+    lastTimestampRef.current = 0;
     setMessages([]);
+    liveUnsubRef.current = null;
 
     const chatRef = ref(realtimeDb, `chat/${roomId}/messages`);
-    // 접속 시점 이후 메시지만 구독
-    const chatQuery = query(
-      chatRef,
-      orderByChild('timestamp'),
-      startAt(joinedAt)
-    );
+    const recentQuery = query(chatRef, orderByChild('timestamp'), limitToLast(50));
 
-    const unsubscribe = onChildAdded(chatQuery, (snapshot) => {
-      const data = snapshot.val();
-      if (!data) return;
-      
-      const message: ChatMessage = {
-        id: snapshot.key || '',
-        uid: data.uid || '',
-        displayName: data.displayName || '익명',
-        level: data.level || 1,
-        message: data.text || data.message || '',
-        timestamp: data.timestamp || Date.now(),
-        isBot: data.type === 'bot' || data.isBot || false,
-        isSystem: data.type === 'system' || data.isSystem || false,
-        isModerator: data.isModerator || false,
-        isAdmin: data.isAdmin || false,
-      };
+    get(recentQuery)
+      .then((snapshot) => {
+        if (snapshot.exists()) {
+          const loaded: ChatMessage[] = [];
+          snapshot.forEach((child) => {
+            const msg = parseMessage(child);
+            loaded.push(msg);
+            if (msg.timestamp > lastTimestampRef.current) {
+              lastTimestampRef.current = msg.timestamp;
+            }
+          });
+          loaded.sort((a, b) => a.timestamp - b.timestamp);
+          setMessages(loaded);
+        }
+        initialLoadDoneRef.current = true;
 
-      if (message.uid !== (sender?.uid || '')) {
-        soundManager.play('chat-pop');
-      }
+        const liveQuery = query(
+          chatRef,
+          orderByChild('timestamp'),
+          startAfter(lastTimestampRef.current || Date.now())
+        );
 
-      setMessages((prev) => {
-        // 중복 방지
-        if (prev.some((m) => m.id === message.id)) return prev;
-        // 최대 100개 유지
-        const updated = [...prev, message];
-        return updated.length > 100 ? updated.slice(-100) : updated;
+        const unsub = onChildAdded(liveQuery, (childSnap) => {
+          const message = parseMessage(childSnap);
+
+          if (message.uid !== (sender?.uid || '')) {
+            soundManager.play('chat-pop');
+          }
+
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === message.id)) return prev;
+            const updated = [...prev, message];
+            return updated.length > 200 ? updated.slice(-200) : updated;
+          });
+        });
+        liveUnsubRef.current = unsub;
+      })
+      .catch((err) => {
+        console.error('[useChat] Initial load error:', err);
+        initialLoadDoneRef.current = true;
       });
-    });
 
     return () => {
-      unsubscribe();
+      liveUnsubRef.current?.();
+      liveUnsubRef.current = null;
+      setMessages([]);
     };
   }, [roomId, sender?.uid]);
 
@@ -98,7 +125,6 @@ export function useChat(roomId: string, sender?: ChatSender) {
 
       if (!text.trim()) return;
 
-      // 채팅 금지 체크
       try {
         const { auth: clientAuth } = await import('@/lib/firebase/config');
         const token = await clientAuth.currentUser?.getIdToken();
