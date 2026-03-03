@@ -29,8 +29,31 @@ const LIAR_WORDS = [
   { category: "사물", words: ["우산", "냉장고", "스마트폰", "자전거", "안경", "시계", "가방", "신발", "텔레비전", "에어컨"] },
 ];
 
+function getNextHalfHour(): number {
+  const now = new Date();
+  const ms = now.getTime();
+  const min = now.getMinutes();
+  const sec = now.getSeconds();
+  const msec = now.getMilliseconds();
+
+  let nextMin: number;
+  if (min < 30) {
+    nextMin = 30;
+  } else {
+    nextMin = 60;
+  }
+  let diffMs = (nextMin - min) * 60 * 1000 - sec * 1000 - msec;
+
+  // 5분 미만 남았으면 그 다음 30분 단위로
+  if (diffMs < 5 * 60 * 1000) {
+    diffMs += 30 * 60 * 1000;
+  }
+
+  return ms + diffMs;
+}
+
 async function scheduleNextGame(roomId: string) {
-  const nextGameAt = Date.now() + 30 * 60 * 1000;
+  const nextGameAt = getNextHalfHour();
 
   // 경품 게임이 다음 포인트 게임보다 먼저 예정되어 있으면 스케줄 안 함
   try {

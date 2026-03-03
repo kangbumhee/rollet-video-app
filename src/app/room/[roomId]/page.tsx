@@ -227,10 +227,19 @@ export default function RoomPage() {
       } else {
         setAutoGame(null);
         if (user?.uid) {
-          const candidateTime = Date.now() + 30 * 60 * 1000;
-          // 경품 게임이 30분 이내에 있으면 포인트 게임 스케줄 안 함
-          if (nextPrize?.scheduledAt && candidateTime >= nextPrize.scheduledAt) {
-            return; // 포인트 게임 스케줄 생략
+          // 다음 정각 또는 30분 기준 (5분 미만이면 다음 30분 단위)
+          const now = new Date();
+          const min = now.getMinutes();
+          const sec = now.getSeconds();
+          const msec = now.getMilliseconds();
+          const nextMin = min < 30 ? 30 : 60;
+          let diffMs = (nextMin - min) * 60 * 1000 - sec * 1000 - msec;
+          if (diffMs < 5 * 60 * 1000) diffMs += 30 * 60 * 1000;
+          const nextGameAt = now.getTime() + diffMs;
+
+          // 경품 게임이 먼저 예정되어 있으면 포인트 게임 스케줄 안 함
+          if (nextPrize?.scheduledAt && nextGameAt >= nextPrize.scheduledAt) {
+            return;
           }
           const GAME_LIST = [
             { id: 'oxSurvival', name: '⭕ OX 서바이벌' },
@@ -241,7 +250,7 @@ export default function RoomPage() {
           ];
           const next = GAME_LIST[Math.floor(Math.random() * GAME_LIST.length)];
           await set(autoRef, {
-            nextGameAt: candidateTime,
+            nextGameAt,
             nextGameType: next.id,
             nextGameName: next.name,
             reward: { type: 'point', amount: 100, label: '100 포인트' },
