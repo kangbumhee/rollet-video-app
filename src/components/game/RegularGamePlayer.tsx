@@ -1008,6 +1008,31 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     void processAuction();
   }, [current?.phase, current?.gameType, current?.round, current?.alive, allBids, isLeader, roundData, auctionPhase, chipsMap, roomId, advanceRound, current]);
 
+  // 빅 룰렛: 모든 참가자가 점수 제출하면 리더가 advanceRound 호출
+  useEffect(() => {
+    if (!current || current.gameType !== 'bigRoulette') return;
+    if (current.phase !== 'round_playing') return;
+    if (!isLeader) return;
+    if (advanceRoundCalledRef.current) return;
+
+    const unsub = onValue(
+      ref(realtimeDb, `games/${roomId}/playerChoices/round${current.round}`),
+      (snap) => {
+        if (!snap.exists()) return;
+        const choices = snap.val() as Record<string, unknown>;
+        const submittedCount = Object.keys(choices).length;
+        const aliveIds = Object.keys(current.alive || {}).filter((id) => current.alive![id]);
+        const totalPlayers = aliveIds.length;
+        if (totalPlayers > 0 && submittedCount >= totalPlayers) {
+          setTimeout(() => {
+            if (!advanceRoundCalledRef.current) void advanceRound();
+          }, 2000);
+        }
+      }
+    );
+    return () => unsub();
+  }, [current?.gameType, current?.phase, current?.round, current?.alive, isLeader, roomId, advanceRound]);
+
   const handleTimeUp = useCallback(async () => {
     if (!current || !roundData) return;
     const gt = current.gameType;
@@ -1368,6 +1393,18 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
             </span>
           </div>
 
+          {/* 룰렛 캔버스 — 항상 표시 */}
+          <div className="relative inline-block mx-auto mb-3">
+            <canvas ref={rouletteCanvasRef} width={320} height={320} className="rounded-xl bg-gray-800" />
+            {roulettePhase === 'spinning' && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none rounded-xl">
+                <span className="text-yellow-400 text-sm font-bold animate-pulse bg-black/50 px-3 py-1 rounded-full">
+                  돌아가는 중...
+                </span>
+              </div>
+            )}
+          </div>
+
           {roulettePhase === 'betting' && (
             <>
               <div className="text-center text-sm text-gray-300 mb-2">
@@ -1375,7 +1412,6 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
                 <span className="text-green-400 ml-2">기본 지급: +{(roundData?.baseCoins as number) || 100}🪙</span>
               </div>
               <div className="flex flex-wrap gap-3 justify-center items-start">
-                <canvas ref={rouletteCanvasRef} width={320} height={320} className="rounded-xl bg-gray-800" />
                 <div className="bg-black/30 rounded-xl p-3 min-w-[240px] max-w-[280px]">
                   <div className="text-yellow-400 font-bold text-sm mb-2">배율 선택</div>
                   <div className="grid grid-cols-3 gap-1.5 mb-2">
@@ -1467,7 +1503,6 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
 
           {roulettePhase === 'spinning' && (
             <div className="text-center">
-              <canvas ref={rouletteCanvasRef} width={320} height={320} className="rounded-xl bg-gray-800 mx-auto" />
               <div className="text-yellow-400 text-lg font-bold mt-2">어디에 멈출까...? 🎯</div>
               <div className="mt-1.5">
                 {Object.entries(rouletteBets).map(([mult, amt]) => (
