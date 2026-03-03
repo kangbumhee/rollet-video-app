@@ -330,7 +330,7 @@ export default function RoomPage() {
         }
         setAutoCountdown('모집 시작 중...');
         const phase = autoGame?.phase ?? 'waiting';
-        if (phase !== 'recruiting' && !autoGameTriggeredRef.current && onlineUsers.length > 0 && onlineUsers[0]?.uid === user?.uid) {
+        if (phase !== 'recruiting' && !autoGameTriggeredRef.current && user?.uid) {
           autoGameTriggeredRef.current = true;
           void triggerAutoGameRecruit();
         }
@@ -354,7 +354,7 @@ export default function RoomPage() {
       const remain = autoGame.recruitingUntil! - Date.now();
       if (remain <= 0) {
         setRecruitCountdown('0초');
-        if (!autoGameStartTriggeredRef.current && onlineUsers.length > 0 && onlineUsers[0]?.uid === user?.uid) {
+        if (!autoGameStartTriggeredRef.current && user?.uid && autoGame?.joinedPlayers?.[user.uid]) {
           autoGameStartTriggeredRef.current = true;
           void triggerAutoGameStart();
         }
@@ -622,6 +622,7 @@ export default function RoomPage() {
                   <p className="text-yellow-400 text-sm mt-1">🏆 보상: {autoGame.reward?.label ?? '100 포인트'}</p>
                   <p className="text-gray-400 text-xs mt-2">참가자: {Object.keys(autoGame.joinedPlayers ?? {}).length}명</p>
                   <p className="text-purple-300 text-lg font-bold mt-1">남은 시간: {recruitCountdown || '—'}</p>
+                  <p className="text-gray-500 text-[10px] mt-0.5">모집 종료 시 바로 게임이 시작됩니다 (1명 이상 시 시작)</p>
                   {autoGameSkippedMessage ? (
                     <p className="text-amber-400 text-sm mt-2">{autoGameSkippedMessage}</p>
                   ) : user && (autoGame.joinedPlayers ?? {})[user.uid] ? (

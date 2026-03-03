@@ -162,14 +162,22 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
       const autoData = (autoSnap.exists() ? autoSnap.val() : null) as AutoGameData | null;
       const joinedPlayers = autoData?.joinedPlayers || {};
       const playerEntries = Object.entries(joinedPlayers);
-      if (playerEntries.length < 2) {
+      if (playerEntries.length < 1) {
         await scheduleNextGame(roomId);
-        return NextResponse.json({ skipped: true, reason: "참가자 부족", nextGame: "다음 30분 단위" });
+        return NextResponse.json({ skipped: true, reason: "참가자 없음", nextGame: "다음 30분 단위" });
       }
       const players = playerEntries.map(([uid, d]) => ({ uid, displayName: d.displayName, level: 1 }));
       const allPlayerIds = players.map((p) => p.uid);
-      const gameType = autoData?.nextGameType ?? GAME_LIST[0].id;
-      const gameName = autoData?.nextGameName ?? GAME_LIST[0].name;
+
+      const SOLO_FRIENDLY_GAMES = ["oxSurvival", "typingBattle", "priceGuess", "quickTouch", "tapSurvival", "lineRunner"];
+      let finalGameType = autoData?.nextGameType ?? GAME_LIST[0].id;
+      let finalGameName = autoData?.nextGameName ?? GAME_LIST[0].name;
+      if (players.length === 1 && !SOLO_FRIENDLY_GAMES.includes(finalGameType)) {
+        const soloGame = GAME_LIST.find((g) => SOLO_FRIENDLY_GAMES.includes(g.id)) ?? GAME_LIST[0];
+        finalGameType = soloGame.id;
+        finalGameName = soloGame.name;
+      }
+
       const TOTAL_ROUNDS = 10;
 
       const currentSnap = await adminRealtimeDb.ref(`games/${roomId}/current`).get();
@@ -194,7 +202,7 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
     const roundsData: Record<string, unknown> = {};
     let gameConfig: Record<string, unknown> = {};
 
-    switch (gameType) {
+    switch (finalGameType) {
       case "drawGuess": {
         const words = await generateDrawWords(TOTAL_ROUNDS);
         const shuffled = [...allPlayerIds].sort(() => Math.random() - 0.5);
@@ -322,8 +330,8 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
 
     await adminRealtimeDb.ref(`games/${roomId}`).set({
       current: {
-        gameType,
-        gameName,
+        gameType: finalGameType,
+        gameName: finalGameName,
         phase: "game_intro",
         introStartedAt: Date.now(),
         totalPlayers: allPlayerIds.length,
@@ -347,7 +355,7 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
     await adminRealtimeDb.ref(`chat/${roomId}/messages`).push({
       uid: "BOT_HOST",
       displayName: "🤖 자동게임봇",
-      message: `🎮 자동 게임 시작! ${gameName} | ${allPlayerIds.length}명 참가 | 🏆 1등 보상: 100 포인트`,
+      message: `🎮 자동 게임 시작! ${finalGameName} | ${allPlayerIds.length}명 참가 | 🏆 1등 보상: 100 포인트`,
       timestamp: Date.now(),
       isBot: true,
       isSystem: false,
@@ -356,7 +364,7 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
 
     await scheduleNextGame(roomId);
 
-    return NextResponse.json({ success: true, gameName, gameType, totalPlayers: allPlayerIds.length });
+    return NextResponse.json({ success: true, gameName: finalGameName, gameType: finalGameType, totalPlayers: allPlayerIds.length });
     }
 
   } catch (error) {
