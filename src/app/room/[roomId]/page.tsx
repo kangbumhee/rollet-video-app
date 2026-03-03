@@ -675,7 +675,7 @@ export default function RoomPage() {
 
           {/* ── 미니게임 (항상 보이게) ── */}
           <div className="w-full">
-            <MiniGameLauncher />
+            <MiniGameLauncher roomId={roomId} />
           </div>
         </div>
       );
@@ -937,7 +937,7 @@ export default function RoomPage() {
         )}
 
         {/* 미니게임 */}
-        <MiniGameLauncher />
+        <MiniGameLauncher roomId={roomId} />
       </div>
     );
   };

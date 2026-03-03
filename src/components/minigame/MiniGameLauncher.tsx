@@ -80,7 +80,11 @@ const RECORD_MESSAGES: Record<string, (name: string, score: string) => string[]>
   stacktower: (n, s) => [`🏗️ ${n}님 탑 쌓기 ${s} 신기록!`],
 };
 
-export default function MiniGameLauncher() {
+interface MiniGameLauncherProps {
+  roomId?: string;
+}
+
+export default function MiniGameLauncher({ roomId = 'main' }: MiniGameLauncherProps) {
   const { user, profile } = useAuthStore();
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -99,15 +103,17 @@ export default function MiniGameLauncher() {
   }, []);
 
   const sendBotChat = (message: string) => {
-    const chatRef = ref(realtimeDb, 'chat/main/messages');
+    const chatRef = ref(realtimeDb, `chat/${roomId}/messages`);
     void push(chatRef, {
       uid: 'BOT',
-      displayName: '방장봇',
+      displayName: '🏆 신기록봇',
       message,
+      text: message,
       isBot: true,
       isSystem: false,
       level: 0,
       timestamp: Date.now(),
+      type: 'bot',
     });
   };
 
