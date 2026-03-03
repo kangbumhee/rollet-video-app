@@ -63,6 +63,8 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
   const [activeTarget, setActiveTarget] = useState<{ x: number; y: number; id: number } | null>(null);
   const [votes, setVotes] = useState<Record<string, string>>({});
   const [liarPhase, setLiarPhase] = useState<'discuss' | 'vote' | 'reveal'>('discuss');
+  const [onlinePlayers, setOnlinePlayers] = useState<Set<string>>(new Set());
+  const [isLeader, setIsLeader] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const scoreSubmittedRef = useRef(false);
@@ -74,6 +76,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
   const bombTickSoundKeyRef = useRef('');
   const quickTouchTimersRef = useRef<NodeJS.Timeout[]>([]);
   const quickTouchStartTimeRef = useRef<number>(0);
+  const absentHandledRef = useRef<string>('');
 
   useEffect(() => {
     const unsub = onValue(ref(realtimeDb, `games/${roomId}/current`), (snap) => {
@@ -82,6 +85,40 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     });
     return () => unsub();
   }, [roomId]);
+
+  // 게임 참가자 presence 감지
+  useEffect(() => {
+    if (!roomId) return;
+    const presRef = ref(realtimeDb, `rooms/${roomId}/presence`);
+    const unsub = onValue(presRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.val() as Record<string, { uid: string }>;
+        setOnlinePlayers(new Set(Object.keys(data)));
+      } else {
+        setOnlinePlayers(new Set());
+      }
+    });
+    return () => unsub();
+  }, [roomId]);
+
+  // 리더 자동 승계: startedBy가 오프라인이면 남은 참가자 중 첫 번째가 리더
+  useEffect(() => {
+    if (!current || !uid) {
+      setIsLeader(false);
+      return;
+    }
+    const startedBy = current.startedBy;
+    if (startedBy && onlinePlayers.has(startedBy)) {
+      setIsLeader(startedBy === uid);
+      return;
+    }
+    const alivePlayers = Object.keys(current.alive || {}).filter((id) => onlinePlayers.has(id)).sort();
+    const newLeader = alivePlayers[0] || null;
+    setIsLeader(newLeader === uid);
+    if (newLeader === uid && startedBy && !onlinePlayers.has(startedBy)) {
+      void set(ref(realtimeDb, `games/${roomId}/current/startedBy`), uid);
+    }
+  }, [current?.startedBy, current?.alive, onlinePlayers, uid, roomId]);
 
   useEffect(() => {
     if (!current || current.round < 1) return;
@@ -146,7 +183,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
   useEffect(() => {
     if (!current || !uid) return;
     if (current.phase !== 'game_intro') return;
-    if (!current.startedBy || current.startedBy !== uid) return;
+    if (!isLeader) return;
 
     if (current.round <= 1) {
       lastTransitionedRoundRef.current = 0;
@@ -170,13 +207,13 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     }, remaining);
 
     return () => clearTimeout(timer);
-  }, [current?.phase, current?.startedBy, current?.introStartedAt, uid, roomId]);
+  }, [current?.phase, isLeader, current?.introStartedAt, uid, roomId]);
 
   // round_waiting -> round_playing phase is handled on client
   useEffect(() => {
     if (!current || !uid) return;
     if (current.phase !== 'round_waiting') return;
-    if (!current.startedBy || current.startedBy !== uid) return;
+    if (!isLeader) return;
     if (current.round < 1) return;
 
     const timer = setTimeout(async () => {
@@ -193,13 +230,13 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [current?.phase, current?.round, current?.startedBy, uid, roomId]);
+  }, [current?.phase, current?.round, isLeader, uid, roomId]);
 
   // round_result -> next round_waiting/final_result transition is handled on client
   useEffect(() => {
     if (!current || !uid) return;
     if (current.phase !== 'round_result') return;
-    if (!current.startedBy || current.startedBy !== uid) return;
+    if (!isLeader) return;
     if (lastTransitionedRoundRef.current >= current.round) return;
 
     const roundAtStart = current.round;
@@ -229,7 +266,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     }, 5000);
 
     return () => clearTimeout(timer);
-  }, [current?.phase, current?.round, current?.totalRounds, current?.startedBy, uid, roomId]);
+  }, [current?.phase, current?.round, current?.totalRounds, isLeader, uid, roomId]);
 
   useEffect(() => {
     if (!current?.scores || !current?.nameMap) return;
@@ -262,7 +299,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     if (!current.isAutoGame) return;
     if (current.rewardDistributed) return;
     if (rewardCalledRef.current) return;
-    if (!current.startedBy || current.startedBy !== uid) return;
+    if (!isLeader) return;
 
     rewardCalledRef.current = true;
 
@@ -278,9 +315,9 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
       }
     };
     void callReward();
-  }, [current?.phase, current?.isAutoGame, current?.rewardDistributed, current?.startedBy, uid, roomId]);
+  }, [current?.phase, current?.isAutoGame, current?.rewardDistributed, isLeader, uid, roomId]);
 
-  // final_result 15초 후 자동 게임 정리 (시작자만 실행)
+  // final_result 15초 후 자동 게임 정리 (리더만 실행)
   const finalCleanupCalledRef = useRef(false);
   useEffect(() => {
     if (!current || !uid) return;
@@ -288,7 +325,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
       finalCleanupCalledRef.current = false;
       return;
     }
-    if (!current.startedBy || current.startedBy !== uid) return;
+    if (!isLeader) return;
     if (finalCleanupCalledRef.current) return;
 
     const timer = setTimeout(async () => {
@@ -304,7 +341,7 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     }, 15000);
 
     return () => clearTimeout(timer);
-  }, [current?.phase, current?.startedBy, uid, roomId]);
+  }, [current?.phase, isLeader, uid, roomId]);
 
   useEffect(() => {
     if (!current || current.gameType !== 'lineRunner') return;
@@ -507,12 +544,63 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
 
   const advanceRound = useCallback(async () => {
     if (!current) return;
-    if (!current.startedBy || current.startedBy !== uid) return;
+    if (!isLeader) return;
     if (advanceRoundCalledRef.current) return;
     advanceRoundCalledRef.current = true;
     soundManager.play('whoosh');
     await set(ref(realtimeDb, `games/${roomId}/current/phase`), 'round_result');
-  }, [current, roomId, uid]);
+  }, [current, roomId, uid, isLeader]);
+
+  // 나간 플레이어 감지 → drawer/bombHolder 라운드 강제 스킵
+  useEffect(() => {
+    if (!current || !roundData || !isLeader) return;
+    if (current.phase !== 'round_playing') return;
+    const roundKey = `${current.round}`;
+    if (absentHandledRef.current === roundKey) return;
+
+    const gt = current.gameType;
+    let criticalUid: string | null = null;
+    if (gt === 'drawGuess') {
+      criticalUid = (roundData.drawerId as string) || null;
+    } else if (gt === 'bombPass') {
+      criticalUid = currentBombHolder || (roundData.initialBombHolder as string) || null;
+    }
+    if (criticalUid && !onlinePlayers.has(criticalUid)) {
+      absentHandledRef.current = roundKey;
+      const timer = setTimeout(() => {
+        if (!onlinePlayers.has(criticalUid!)) {
+          void advanceRound();
+        }
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [current?.phase, current?.round, current?.gameType, roundData, onlinePlayers, isLeader, currentBombHolder, advanceRound]);
+
+  // alive에서 나간 플레이어 제거
+  useEffect(() => {
+    if (!current || !isLeader) return;
+    if (!current.alive) return;
+    const updates: Record<string, boolean> = {};
+    Object.keys(current.alive).forEach((playerId) => {
+      if (current!.alive[playerId] && !onlinePlayers.has(playerId)) {
+        updates[playerId] = false;
+      }
+    });
+    if (Object.keys(updates).length === 0) return;
+
+    const aliveRef = ref(realtimeDb, `games/${roomId}/current/alive`);
+    void get(aliveRef).then((snap) => {
+      if (!snap.exists()) return;
+      const currentAlive = snap.val() as Record<string, boolean>;
+      const merged = { ...currentAlive, ...updates };
+      const aliveCount = Object.values(merged).filter(Boolean).length;
+      if (aliveCount < 1) {
+        void set(ref(realtimeDb, `games/${roomId}/current/phase`), 'final_result');
+      } else {
+        void set(aliveRef, merged);
+      }
+    });
+  }, [current?.alive, onlinePlayers, isLeader, roomId]);
 
   const handleTimeUp = useCallback(async () => {
     if (!current || !roundData) return;
