@@ -7,6 +7,7 @@ const firestore_1 = require("firebase-admin/firestore");
 const database_1 = require("firebase-admin/database");
 const auth_1 = require("firebase-admin/auth");
 const firebase_functions_1 = require("firebase-functions");
+const geminiGameQuiz_1 = require("../lib/geminiGameQuiz");
 const PHASES = [
     { phase: 'ANNOUNCING', duration: 30 },
     { phase: 'ENTRY_GATE', duration: 60 },
@@ -245,425 +246,208 @@ exports.gameCycle = (0, scheduler_1.onSchedule)({
         });
         let winnerId = null;
         const GAME_TYPES = [
-            'luckyDice', 'stockRace', 'highLow', 'coinBet', 'horseRace',
-            'floorRoulette', 'goldRush', 'bombDefuse', 'tideWave', 'treasureHunt',
+            'drawGuess', 'lineRunner', 'liarVote', 'typingBattle', 'bombPass',
+            'priceGuess', 'oxSurvival', 'tapSurvival', 'nunchiGame', 'quickTouch',
         ];
         const GAME_NAMES = {
-            luckyDice: '🎲 운명의 주사위',
-            stockRace: '📈 주식 레이스',
-            highLow: '🃏 하이 & 로우',
-            coinBet: '🪙 코인 올인',
-            horseRace: '🏇 경마 레이스',
-            floorRoulette: '🎯 바닥 룰렛',
-            goldRush: '⛏️ 골드러시',
-            bombDefuse: '💣 폭탄 해제',
-            tideWave: '🌊 밀물 썰물',
-            treasureHunt: '🗺️ 보물찾기',
+            drawGuess: '🎨 그림 맞추기',
+            lineRunner: '✏️ 라인 러너',
+            liarVote: '🕵️ 라이어 투표',
+            typingBattle: '⌨️ 타이핑 배틀',
+            bombPass: '💣 폭탄 돌리기',
+            priceGuess: '💰 가격 맞추기',
+            oxSurvival: '⭕ OX 서바이벌',
+            tapSurvival: '👆 탭 서바이벌',
+            nunchiGame: '👀 눈치 게임',
+            quickTouch: '🎯 순발력 터치',
         };
+        const LIAR_WORDS = [
+            { category: '음식', words: ['떡볶이', '김치찌개', '치킨', '삼겹살', '비빔밥', '짜장면', '떡국', '불고기', '냉면', '김밥'] },
+            { category: '동물', words: ['고양이', '강아지', '펭귄', '코끼리', '기린', '사자', '토끼', '햄스터', '돌고래', '앵무새'] },
+            { category: '장소', words: ['학교', '편의점', '놀이공원', '병원', '도서관', '영화관', '공항', '수영장', '카페', '지하철'] },
+            { category: '직업', words: ['의사', '소방관', '요리사', '경찰', '선생님', '가수', '과학자', '운동선수', '화가', '우주비행사'] },
+            { category: '사물', words: ['우산', '냉장고', '스마트폰', '자전거', '안경', '시계', '가방', '신발', '텔레비전', '에어컨'] },
+        ];
         const pickedGameType = GAME_TYPES[Math.floor(Math.random() * GAME_TYPES.length)];
         const allPlayers = participants.map((p) => p.uid);
         const TOTAL_ROUNDS = 10;
         const scores = {};
         const nameMap = {};
+        const alive = {};
         allPlayers.forEach((pid) => { scores[pid] = 0; });
-        participants.forEach((p) => { nameMap[p.uid] = p.displayName || p.uid.slice(0, 6); });
-        await rtdb.ref('games/main/current').update({
-            gameType: pickedGameType,
-            gameName: GAME_NAMES[pickedGameType],
-            phase: 'game_intro',
-            totalPlayers: allPlayers.length,
-            totalRounds: TOTAL_ROUNDS,
-            scores,
-            nameMap,
+        participants.forEach((p) => {
+            nameMap[p.uid] = p.displayName || p.uid.slice(0, 6);
+            alive[p.uid] = true;
         });
-        await sendBotChat(rtdb, 'main', `🎮 ${GAME_NAMES[pickedGameType]} 시작! ${allPlayers.length}명 전원 참가! 10라운드!`);
-        await sleep(4000);
-        const getMultiplier = (round) => (round === TOTAL_ROUNDS ? 2 : 1);
-        const broadcastScores = async (round) => {
-            const sortedLocal = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-            const top3 = sortedLocal.slice(0, 3).map(([pid, s], i) => `${['🥇', '🥈', '🥉'][i]}${nameMap[pid]}: ${s}점`).join(' ');
-            await rtdb.ref('games/main/current').update({
-                phase: 'round_result',
-                round,
-                scores: { ...scores },
-                leaderboard: top3,
-                totalPlayers: allPlayers.length,
-            });
-        };
+        // ── Gemini로 라운드 데이터 생성 ──
+        const roundsData = {};
+        let gameConfig = {};
         switch (pickedGameType) {
-            case 'luckyDice': {
+            case 'drawGuess': {
+                const words = await (0, geminiGameQuiz_1.generateDrawWords)(TOTAL_ROUNDS);
+                const shuffled = [...allPlayers].sort(() => Math.random() - 0.5);
                 for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-                    const mult = getMultiplier(r);
-                    const dice = [1, 2, 3].map(() => Math.floor(Math.random() * 6) + 1);
-                    const sum = dice.reduce((a, b) => a + b, 0);
-                    const hasSeven = sum === 7 || sum === 14;
-                    await rtdb.ref('games/main/current').update({
-                        phase: 'playing', round: r, mult,
-                        message: '🎲 주사위 3개! SAFE(합계÷2 점수) or RISK(합계 그대로, 단 7/14면 0점)?',
-                        choiceDeadline: Date.now() + 15000,
-                    });
-                    await sleep(15000);
-                    const snap = await rtdb.ref(`games/main/choices/round${r}`).get();
-                    const choices = snap.exists() ? snap.val() : {};
-                    const roundResults = {};
-                    for (const pid of allPlayers) {
-                        const choice = choices[pid] || 'safe';
-                        roundResults[pid] = choice === 'risk'
-                            ? (hasSeven ? 0 : sum * mult)
-                            : Math.floor(sum / 2) * mult;
-                        scores[pid] += roundResults[pid];
-                    }
-                    await rtdb.ref('games/main/current').update({
-                        dice, sum, hasSeven, roundResults,
-                        message: `🎲 주사위: ${dice.join('+')}=${sum} ${hasSeven ? '💥 위험 숫자!' : '✅ 안전!'}`,
-                    });
-                    await broadcastScores(r);
-                    await sleep(4000);
+                    roundsData[`round${r}`] = {
+                        round: r,
+                        drawerId: shuffled[(r - 1) % shuffled.length],
+                        drawerName: nameMap[shuffled[(r - 1) % shuffled.length]],
+                        word: words[r - 1]?.word || '고양이',
+                        category: words[r - 1]?.category || '기본',
+                        difficulty: words[r - 1]?.difficulty || 'easy',
+                        timeLimit: 60,
+                        guessed: false,
+                    };
                 }
+                gameConfig = { type: 'drawGuess', needsCanvas: true };
                 break;
             }
-            case 'stockRace': {
-                const stocks = ['🚀 로켓코인', '💎 다이아주식', '🔥 파이어토큰'];
-                const stockPrices = [100, 100, 100];
+            case 'lineRunner': {
                 for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-                    const mult = getMultiplier(r);
-                    await rtdb.ref('games/main/current').update({
-                        phase: 'playing', round: r, mult,
-                        stocks, stockPrices: [...stockPrices],
-                        message: `📈 어디에 투자? ${stocks.map((s, i) => `${s}(${stockPrices[i]})`).join(' | ')}`,
-                        choiceDeadline: Date.now() + 12000,
-                    });
-                    await sleep(12000);
-                    const changes = stocks.map(() => Math.floor(Math.random() * 81) - 30);
-                    changes.forEach((c, i) => { stockPrices[i] = Math.max(10, stockPrices[i] + c); });
-                    const snap = await rtdb.ref(`games/main/choices/round${r}`).get();
-                    const choices = snap.exists() ? snap.val() : {};
-                    const roundResults = {};
-                    for (const pid of allPlayers) {
-                        const pick = choices[pid] !== undefined ? parseInt(choices[pid], 10) : Math.floor(Math.random() * 3);
-                        const gain = Math.max(0, changes[pick]) * mult;
-                        roundResults[pid] = gain;
-                        scores[pid] += gain;
+                    const obstacles = [];
+                    for (let i = 0; i < 15 + r * 3; i++) {
+                        obstacles.push({
+                            x: 300 + i * (200 - r * 10 + Math.floor(Math.random() * 80)),
+                            y: Math.floor(Math.random() * 250) + 50,
+                            w: 30 + Math.floor(Math.random() * 40),
+                            h: 30 + Math.floor(Math.random() * 40),
+                        });
                     }
-                    await rtdb.ref('games/main/current').update({
-                        changes, stockPrices: [...stockPrices], roundResults,
-                        message: `📈 ${stocks.map((s, i) => `${s} ${changes[i] >= 0 ? '+' : ''}${changes[i]}`).join(' | ')}`,
-                    });
-                    await broadcastScores(r);
-                    await sleep(4000);
+                    roundsData[`round${r}`] = { round: r, obstacles, speedMultiplier: 1 + r * 0.15, timeLimit: 30 };
                 }
+                gameConfig = { type: 'lineRunner', needsCanvas: true };
                 break;
             }
-            case 'highLow': {
-                let currentCard = Math.floor(Math.random() * 13) + 1;
+            case 'liarVote': {
                 for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-                    const mult = getMultiplier(r);
-                    const cardName = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'][currentCard - 1];
-                    await rtdb.ref('games/main/current').update({
-                        phase: 'playing', round: r, mult, currentCard, cardName,
-                        message: `🃏 현재 카드: ${cardName} → 다음 카드가 HIGH? LOW?`,
-                        choiceDeadline: Date.now() + 10000,
-                    });
-                    await sleep(10000);
-                    const nextCard = Math.floor(Math.random() * 13) + 1;
-                    const nextName = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'][nextCard - 1];
-                    const actual = nextCard > currentCard ? 'high' : nextCard < currentCard ? 'low' : 'same';
-                    const snap = await rtdb.ref(`games/main/choices/round${r}`).get();
-                    const choices = snap.exists() ? snap.val() : {};
-                    const roundResults = {};
-                    for (const pid of allPlayers) {
-                        const pick = choices[pid] || (Math.random() < 0.5 ? 'high' : 'low');
-                        if (actual === 'same')
-                            roundResults[pid] = 30 * mult;
-                        else if (pick === actual)
-                            roundResults[pid] = 20 * mult;
-                        else
-                            roundResults[pid] = 0;
-                        scores[pid] += roundResults[pid];
-                    }
-                    currentCard = nextCard;
-                    await rtdb.ref('games/main/current').update({
-                        nextCard, nextName, actual, roundResults,
-                        message: `🃏 ${cardName} → ${nextName}! 정답: ${actual === 'same' ? '같다! 모두 보너스!' : actual.toUpperCase()}`,
-                    });
-                    await broadcastScores(r);
-                    await sleep(4000);
+                    const cat = LIAR_WORDS[Math.floor(Math.random() * LIAR_WORDS.length)];
+                    const realWord = cat.words[Math.floor(Math.random() * cat.words.length)];
+                    const fakeWord = cat.words.filter((w) => w !== realWord)[Math.floor(Math.random() * (cat.words.length - 1))] || '???';
+                    const liarIdx = Math.floor(Math.random() * allPlayers.length);
+                    roundsData[`round${r}`] = {
+                        round: r,
+                        category: cat.category,
+                        realWord,
+                        fakeWord,
+                        liarId: allPlayers[liarIdx],
+                        liarName: nameMap[allPlayers[liarIdx]],
+                        discussionTime: 30,
+                        voteTime: 15,
+                    };
                 }
+                gameConfig = { type: 'liarVote' };
                 break;
             }
-            case 'coinBet': {
-                const bank = {};
-                allPlayers.forEach((pid) => { bank[pid] = 500; });
+            case 'typingBattle': {
+                const sentences = await (0, geminiGameQuiz_1.generateTypingSentences)(TOTAL_ROUNDS);
                 for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-                    await rtdb.ref('games/main/current').update({
-                        phase: 'playing', round: r, banks: { ...bank },
-                        message: '🪙 얼마를 걸까? (10/30/50/올인) 앞면=2배, 뒷면=잃음!',
-                        choiceDeadline: Date.now() + 12000,
-                    });
-                    await sleep(12000);
-                    const coinResult = Math.random() < 0.5 ? 'heads' : 'tails';
-                    const snap = await rtdb.ref(`games/main/choices/round${r}`).get();
-                    const choices = snap.exists() ? snap.val() : {};
-                    const roundResults = {};
-                    for (const pid of allPlayers) {
-                        const betStr = choices[pid] || '10';
-                        let bet = 10;
-                        if (betStr === 'allin')
-                            bet = bank[pid];
-                        else
-                            bet = Math.min(parseInt(betStr, 10) || 10, bank[pid]);
-                        bet = Math.max(0, bet);
-                        if (coinResult === 'heads') {
-                            bank[pid] += bet;
-                            roundResults[pid] = { bet, result: bet };
-                        }
-                        else {
-                            bank[pid] -= bet;
-                            roundResults[pid] = { bet, result: -bet };
-                        }
-                        bank[pid] = Math.max(0, bank[pid]);
-                    }
-                    if (r === TOTAL_ROUNDS) {
-                        allPlayers.forEach((pid) => { scores[pid] = bank[pid]; });
-                    }
-                    await rtdb.ref('games/main/current').update({
-                        coinResult, roundResults, banks: { ...bank },
-                        message: `🪙 ${coinResult === 'heads' ? '😀 앞면! 배팅 2배!' : '🌙 뒷면! 배팅 잃음!'}`,
-                    });
-                    const sortedBank = Object.entries(bank).sort((a, b) => b[1] - a[1]);
-                    const top3 = sortedBank.slice(0, 3).map(([pid, s], i) => `${['🥇', '🥈', '🥉'][i]}${nameMap[pid]}: ${s}`).join(' ');
-                    await rtdb.ref('games/main/current').update({ phase: 'round_result', round: r, leaderboard: top3 });
-                    await sleep(4000);
+                    roundsData[`round${r}`] = { round: r, sentence: sentences[r - 1] || `타이핑 테스트 ${r}`, timeLimit: 20 };
                 }
-                allPlayers.forEach((pid) => { scores[pid] = bank[pid]; });
+                gameConfig = { type: 'typingBattle' };
                 break;
             }
-            case 'horseRace': {
-                const horses = ['🐎 번개', '🦄 유니콘', '🐴 돌풍', '🏇 질주', '🎠 회전목마'];
-                const payouts = [100, 60, 30, 10, 0];
+            case 'bombPass': {
+                const quizzes = await (0, geminiGameQuiz_1.generateBombQuizzes)(TOTAL_ROUNDS * 3);
                 for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-                    const mult = getMultiplier(r);
-                    const odds = horses.map(() => (Math.random() * 4 + 1).toFixed(1));
-                    await rtdb.ref('games/main/current').update({
-                        phase: 'playing', round: r, mult, horses, odds,
-                        message: `🏇 어느 말에 걸까? ${horses.map((h, i) => `${h}(x${odds[i]})`).join(' ')}`,
-                        choiceDeadline: Date.now() + 12000,
-                    });
-                    await sleep(12000);
-                    const result = [...horses].sort(() => Math.random() - 0.5);
-                    const snap = await rtdb.ref(`games/main/choices/round${r}`).get();
-                    const choices = snap.exists() ? snap.val() : {};
-                    const roundResults = {};
-                    for (const pid of allPlayers) {
-                        const pick = choices[pid] !== undefined ? parseInt(choices[pid], 10) : Math.floor(Math.random() * 5);
-                        const pickedHorse = horses[pick];
-                        const rank = result.indexOf(pickedHorse);
-                        roundResults[pid] = payouts[rank] * mult;
-                        scores[pid] += roundResults[pid];
-                    }
-                    await rtdb.ref('games/main/current').update({
-                        raceResult: result, roundResults,
-                        message: `🏇 결과: ${result.map((h, i) => `${i + 1}등 ${h}`).join(' > ')}`,
-                    });
-                    await broadcastScores(r);
-                    await sleep(5000);
+                    roundsData[`round${r}`] = {
+                        round: r,
+                        quizzes: quizzes.slice((r - 1) * 3, r * 3),
+                        initialBombHolder: allPlayers[Math.floor(Math.random() * allPlayers.length)],
+                        fuseTime: Math.max(8, 20 - r),
+                    };
                 }
+                gameConfig = { type: 'bombPass' };
                 break;
             }
-            case 'floorRoulette': {
-                const zones = ['🟥 빨강', '🟦 파랑', '🟩 초록', '🟨 노랑'];
+            case 'priceGuess': {
+                const items = await (0, geminiGameQuiz_1.generatePriceItems)(TOTAL_ROUNDS);
                 for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-                    const mult = getMultiplier(r);
-                    await rtdb.ref('games/main/current').update({
-                        phase: 'playing', round: r, mult, zones,
-                        message: '🎯 어느 구역에 서시겠습니까? 적게 몰리면 더 높은 점수!',
-                        choiceDeadline: Date.now() + 10000,
-                    });
-                    await sleep(10000);
-                    const winZone = Math.floor(Math.random() * 4);
-                    const snap = await rtdb.ref(`games/main/choices/round${r}`).get();
-                    const choices = snap.exists() ? snap.val() : {};
-                    const zoneCounts = [0, 0, 0, 0];
-                    const playerZones = {};
-                    for (const pid of allPlayers) {
-                        const pick = choices[pid] !== undefined ? parseInt(choices[pid], 10) : Math.floor(Math.random() * 4);
-                        playerZones[pid] = pick;
-                        zoneCounts[pick]++;
-                    }
-                    const winnersCount = zoneCounts[winZone] || 1;
-                    const pointPerWinner = Math.floor((200 / winnersCount)) * mult;
-                    const roundResults = {};
-                    for (const pid of allPlayers) {
-                        roundResults[pid] = playerZones[pid] === winZone ? pointPerWinner : 0;
-                        scores[pid] += roundResults[pid];
-                    }
-                    await rtdb.ref('games/main/current').update({
-                        winZone, winZoneName: zones[winZone], zoneCounts, roundResults,
-                        message: `🎯 당첨: ${zones[winZone]}! (${winnersCount}명 → 각 ${pointPerWinner}점)`,
-                    });
-                    await broadcastScores(r);
-                    await sleep(4000);
+                    const item = items[r - 1] || { name: `상품${r}`, price: 10000, hint: '📦', category: '기타' };
+                    roundsData[`round${r}`] = { round: r, itemName: item.name, actualPrice: item.price, hint: item.hint, category: item.category, timeLimit: 15 };
                 }
+                gameConfig = { type: 'priceGuess' };
                 break;
             }
-            case 'goldRush': {
-                const mines = ['⛏️ A광산', '🏔️ B광산', '🌋 C광산'];
+            case 'oxSurvival': {
+                const quizzes = await (0, geminiGameQuiz_1.generateOXQuizzes)(TOTAL_ROUNDS);
                 for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-                    const mult = getMultiplier(r);
-                    const golds = mines.map(() => Math.floor(Math.random() * 251) + 50);
-                    await rtdb.ref('games/main/current').update({
-                        phase: 'playing', round: r, mult, mines,
-                        message: '⛏️ 어느 광산? 금은 랜덤! 사람 적은 곳이 유리!',
-                        choiceDeadline: Date.now() + 10000,
-                    });
-                    await sleep(10000);
-                    const snap = await rtdb.ref(`games/main/choices/round${r}`).get();
-                    const choices = snap.exists() ? snap.val() : {};
-                    const mineCounts = [0, 0, 0];
-                    const playerMines = {};
-                    for (const pid of allPlayers) {
-                        const pick = choices[pid] !== undefined ? parseInt(choices[pid], 10) : Math.floor(Math.random() * 3);
-                        playerMines[pid] = pick;
-                        mineCounts[pick]++;
-                    }
-                    const roundResults = {};
-                    for (const pid of allPlayers) {
-                        const mine = playerMines[pid];
-                        const miners = Math.max(1, mineCounts[mine]);
-                        const earned = Math.floor(golds[mine] / miners) * mult;
-                        roundResults[pid] = earned;
-                        scores[pid] += earned;
-                    }
-                    await rtdb.ref('games/main/current').update({
-                        golds, mineCounts, roundResults,
-                        message: `⛏️ 금: ${mines.map((m, i) => `${m} ${golds[i]}g(${mineCounts[i]}명)`).join(' | ')}`,
-                    });
-                    await broadcastScores(r);
-                    await sleep(4000);
+                    const quiz = quizzes[r - 1] || { q: `비상 퀴즈 ${r}`, a: true, explanation: '' };
+                    roundsData[`round${r}`] = { round: r, question: quiz.q, answer: quiz.a, explanation: quiz.explanation, timeLimit: 10 };
                 }
+                gameConfig = { type: 'oxSurvival', elimination: true };
                 break;
             }
-            case 'bombDefuse': {
-                const wires = ['🔴 빨간선', '🔵 파란선', '🟢 초록선'];
+            case 'tapSurvival': {
                 for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-                    const mult = getMultiplier(r);
-                    const bombWire = Math.floor(Math.random() * 3);
-                    await rtdb.ref('games/main/current').update({
-                        phase: 'playing', round: r, mult, wires,
-                        message: '💣 폭탄 해제! 3개 선 중 하나를 자르세요! 1개가 폭탄!',
-                        choiceDeadline: Date.now() + 10000,
-                    });
-                    await sleep(10000);
-                    const snap = await rtdb.ref(`games/main/choices/round${r}`).get();
-                    const choices = snap.exists() ? snap.val() : {};
-                    const roundResults = {};
-                    for (const pid of allPlayers) {
-                        const pick = choices[pid] !== undefined ? parseInt(choices[pid], 10) : Math.floor(Math.random() * 3);
-                        roundResults[pid] = pick === bombWire ? -30 * mult : 50 * mult;
-                        scores[pid] = Math.max(0, scores[pid] + roundResults[pid]);
-                    }
-                    await rtdb.ref('games/main/current').update({
-                        bombWire, bombWireName: wires[bombWire], roundResults,
-                        message: `💣 폭탄은 ${wires[bombWire]}! 💥`,
-                    });
-                    await broadcastScores(r);
-                    await sleep(4000);
+                    roundsData[`round${r}`] = { round: r, duration: 10, eliminatePercent: 30 };
                 }
+                gameConfig = { type: 'tapSurvival', elimination: true };
                 break;
             }
-            case 'tideWave': {
+            case 'nunchiGame': {
                 for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-                    const mult = getMultiplier(r);
-                    await rtdb.ref('games/main/current').update({
-                        phase: 'playing', round: r, mult,
-                        message: '🌊 0~100 중 숫자를 선택! 해수면보다 높으면 생존! 낮을수록 고득점!',
-                        choiceDeadline: Date.now() + 12000,
-                    });
-                    await sleep(12000);
-                    const seaLevel = Math.floor(Math.random() * 80) + 10;
-                    const snap = await rtdb.ref(`games/main/choices/round${r}`).get();
-                    const choices = snap.exists() ? snap.val() : {};
-                    const roundResults = {};
-                    for (const pid of allPlayers) {
-                        const pick = choices[pid] !== undefined ? parseInt(choices[pid], 10) : 50;
-                        const clamped = Math.max(0, Math.min(100, pick));
-                        roundResults[pid] = clamped >= seaLevel ? (100 - clamped) * mult : 0;
-                        scores[pid] += roundResults[pid];
-                    }
-                    await rtdb.ref('games/main/current').update({
-                        seaLevel, roundResults,
-                        message: `🌊 해수면: ${seaLevel}! 낮은 숫자로 살아남은 사람이 고득점!`,
-                    });
-                    await broadcastScores(r);
-                    await sleep(4000);
+                    roundsData[`round${r}`] = { round: r, maxNumber: Math.max(3, allPlayers.length - r + 1), timeLimit: 15 };
                 }
+                gameConfig = { type: 'nunchiGame', elimination: true };
                 break;
             }
-            case 'treasureHunt': {
+            case 'quickTouch': {
                 for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-                    const mult = getMultiplier(r);
-                    const grid = new Array(25).fill(0);
-                    const diamond = Math.floor(Math.random() * 25);
-                    grid[diamond] = 100;
-                    let gold1 = Math.floor(Math.random() * 25);
-                    while (gold1 === diamond)
-                        gold1 = Math.floor(Math.random() * 25);
-                    grid[gold1] = 50;
-                    let gold2 = Math.floor(Math.random() * 25);
-                    while (gold2 === diamond || gold2 === gold1)
-                        gold2 = Math.floor(Math.random() * 25);
-                    grid[gold2] = 50;
-                    let silver1 = Math.floor(Math.random() * 25);
-                    while ([diamond, gold1, gold2].includes(silver1))
-                        silver1 = Math.floor(Math.random() * 25);
-                    grid[silver1] = 20;
-                    let silver2 = Math.floor(Math.random() * 25);
-                    while ([diamond, gold1, gold2, silver1].includes(silver2))
-                        silver2 = Math.floor(Math.random() * 25);
-                    grid[silver2] = 20;
-                    for (let t = 0; t < 3; t++) {
-                        let trap = Math.floor(Math.random() * 25);
-                        while (grid[trap] !== 0)
-                            trap = Math.floor(Math.random() * 25);
-                        grid[trap] = -20;
+                    const targets = [];
+                    for (let i = 0; i < 8 + r * 2; i++) {
+                        targets.push({
+                            x: Math.floor(Math.random() * 80) + 10,
+                            y: Math.floor(Math.random() * 70) + 10,
+                            delay: i * (800 - r * 30) + Math.floor(Math.random() * 300),
+                            size: Math.max(20, 50 - r * 2),
+                        });
                     }
-                    await rtdb.ref('games/main/current').update({
-                        phase: 'playing', round: r, mult, gridSize: 25,
-                        message: '🗺️ 5x5 보물지도! 한 칸을 선택하세요! (0~24번)',
-                        choiceDeadline: Date.now() + 10000,
-                    });
-                    await sleep(10000);
-                    const snap = await rtdb.ref(`games/main/choices/round${r}`).get();
-                    const choices = snap.exists() ? snap.val() : {};
-                    const roundResults = {};
-                    for (const pid of allPlayers) {
-                        const pick = choices[pid] !== undefined ? parseInt(choices[pid], 10) % 25 : Math.floor(Math.random() * 25);
-                        const earned = grid[pick] * mult;
-                        roundResults[pid] = earned;
-                        scores[pid] = Math.max(0, scores[pid] + earned);
-                    }
-                    await rtdb.ref('games/main/current').update({
-                        grid, roundResults,
-                        message: `🗺️ 보물 공개! 💎=${diamond}번 🥇=${gold1},${gold2}번 💀=함정!`,
-                    });
-                    await broadcastScores(r);
-                    await sleep(5000);
+                    roundsData[`round${r}`] = { round: r, targets, duration: 15 };
                 }
+                gameConfig = { type: 'quickTouch' };
                 break;
             }
         }
-        const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+        // ── RTDB에 게임 데이터 쓰기 (클라이언트가 게임 진행) ──
+        await rtdb.ref('games/main').set({
+            current: {
+                gameType: pickedGameType,
+                gameName: GAME_NAMES[pickedGameType],
+                phase: 'game_intro',
+                introStartedAt: Date.now(),
+                totalPlayers: allPlayers.length,
+                totalRounds: TOTAL_ROUNDS,
+                round: 0,
+                scores,
+                nameMap,
+                alive,
+                startedAt: Date.now(),
+                startedBy: 'SYSTEM',
+                config: gameConfig,
+            },
+            participants: Object.fromEntries(participants.map((p) => [
+                p.uid,
+                { displayName: p.displayName, level: 1, alive: true },
+            ])),
+            rounds: roundsData,
+        });
+        await sendBotChat(rtdb, 'main', `🎮 ${GAME_NAMES[pickedGameType]} 시작! ${allPlayers.length}명 참가! ${TOTAL_ROUNDS}라운드!`);
+        // ── 클라이언트가 게임을 진행하는 동안 대기 (5분) ──
+        await sleep(PHASES[4].duration * 1000);
+        // ── 게임 끝난 후 최종 스코어 읽기 ──
+        const finalSnap = await rtdb.ref('games/main/current/scores').get();
+        const finalScores = finalSnap.exists() ? finalSnap.val() : scores;
+        const sorted = Object.entries(finalScores).sort((a, b) => b[1] - a[1]);
         winnerId = sorted[0]?.[0] || allPlayers[0] || null;
-        const finalLeaderboard = sorted.slice(0, 5).map(([pid, s], i) => `${i + 1}위 ${nameMap[pid]}: ${s}점`).join('\n');
+        const finalLeaderboard = sorted.slice(0, 5).map(([pid, s], i) => `${i + 1}위 ${nameMap[pid] || pid}: ${s}점`).join('\n');
         await rtdb.ref('games/main/current').update({
             phase: 'final_result',
             winnerId,
-            winnerName: winnerId ? nameMap[winnerId] : null,
-            finalScores: scores,
+            winnerName: winnerId ? (nameMap[winnerId] || winnerId) : null,
+            finalScores,
             finalLeaderboard,
         });
         if (winnerId) {
-            await sendBotChat(rtdb, 'main', `🏆 ${GAME_NAMES[pickedGameType]} 우승: ${nameMap[winnerId]}! (${sorted[0][1]}점)`);
+            await sendBotChat(rtdb, 'main', `🏆 ${GAME_NAMES[pickedGameType]} 우승: ${nameMap[winnerId] || winnerId}! (${sorted[0][1]}점)`);
         }
         // ── Phase 6: GAME_RESULT ──
         phaseStart = Date.now();
