@@ -32,6 +32,10 @@
           ".read": true,
           ".write": "auth != null"
         },
+        "autoGame": {
+          ".read": true,
+          ".write": "auth != null"
+        },
         "state": {
           ".read": true,
           ".write": false

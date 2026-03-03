@@ -21,8 +21,10 @@ import FreePlayLobby from '@/components/game/FreePlayLobby';
 import { Badge } from '@/components/ui/badge';
 import { SoundToggle } from '@/components/ui/SoundToggle';
 import { onValue, ref, set } from 'firebase/database';
-import { realtimeDb } from '@/lib/firebase/config';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { realtimeDb, firestore } from '@/lib/firebase/config';
 import Image from 'next/image';
+import { PointShop } from '@/components/shop/PointShop';
 
 const REGULAR_GAMES = [
   { id: 'drawGuess', name: '그림 맞추기', emoji: '🎨' },
@@ -74,6 +76,8 @@ export default function RoomPage() {
   } | null>(null);
   const [autoCountdown, setAutoCountdown] = useState('');
   const autoGameTriggeredRef = React.useRef(false);
+  const [userPoints, setUserPoints] = useState(0);
+  const [showPointShop, setShowPointShop] = useState(false);
   const canSeeUserList = profile?.isAdmin || profile?.isModerator || false;
   const canStartGame = profile?.isAdmin || profile?.isModerator || false;
 
@@ -269,6 +273,18 @@ export default function RoomPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setUserPoints(0);
+      return;
+    }
+    const userRef = doc(firestore, 'users', user.uid);
+    const unsub = onSnapshot(userRef, (snap) => {
+      setUserPoints(snap.data()?.points ?? 0);
+    });
+    return () => unsub();
+  }, [user?.uid]);
 
   if (loading) {
     return (
@@ -612,6 +628,9 @@ export default function RoomPage() {
             )}
             <SoundToggle />
             {hasTicket && <Badge className="bg-green-600 text-white text-[10px] px-1.5 py-0.5">🎫</Badge>}
+            <button onClick={() => setShowPointShop(true)} className="flex items-center gap-1 bg-yellow-500/10 border border-yellow-500/30 px-2 py-1 rounded-full">
+              <span className="text-yellow-400 text-xs font-bold">🪙 {userPoints.toLocaleString()}P</span>
+            </button>
             {profile && <LevelBadge level={profile.level} size="sm" />}
           </div>
         </div>
@@ -732,6 +751,13 @@ export default function RoomPage() {
           </div>
         </div>
       )}
+
+      <PointShop
+        isOpen={showPointShop}
+        onClose={() => setShowPointShop(false)}
+        userPoints={userPoints}
+        uid={user?.uid || ''}
+      />
     </div>
   );
 }

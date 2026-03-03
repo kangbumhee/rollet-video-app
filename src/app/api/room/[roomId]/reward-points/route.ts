@@ -43,27 +43,56 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
 
     const [winnerId, winnerScore] = sorted[0];
     const winnerName = nameMap[winnerId] || winnerId.slice(0, 6);
+    const gameName = (currentSnap.val() as { gameName?: string })?.gameName || '자동 게임';
 
     const userRef = adminFirestore.collection("users").doc(winnerId);
     const userDoc = await userRef.get();
     const userData = userDoc.data();
     const currentPoints = userData?.points || 0;
+    const winnerNewBalance = currentPoints + rewardAmount;
     await userRef.update({
-      points: currentPoints + rewardAmount,
+      points: winnerNewBalance,
+    });
+    await adminFirestore.collection("users").doc(winnerId).collection("pointHistory").add({
+      type: "earn",
+      amount: rewardAmount,
+      reason: `게임 보상 (1등) - ${gameName}`,
+      balance: winnerNewBalance,
+      createdAt: Date.now(),
     });
 
     if (sorted.length >= 2) {
       const [secondId] = sorted[1];
       const secondDoc = await adminFirestore.collection("users").doc(secondId).get();
+      const secondPoints = secondDoc.data()?.points || 0;
+      const secondReward = Math.floor(rewardAmount / 2);
+      const secondNewBalance = secondPoints + secondReward;
       await adminFirestore.collection("users").doc(secondId).update({
-        points: (secondDoc.data()?.points || 0) + Math.floor(rewardAmount / 2),
+        points: secondNewBalance,
+      });
+      await adminFirestore.collection("users").doc(secondId).collection("pointHistory").add({
+        type: "earn",
+        amount: secondReward,
+        reason: `게임 보상 (2등) - ${gameName}`,
+        balance: secondNewBalance,
+        createdAt: Date.now(),
       });
     }
     if (sorted.length >= 3) {
       const [thirdId] = sorted[2];
       const thirdDoc = await adminFirestore.collection("users").doc(thirdId).get();
+      const thirdPoints = thirdDoc.data()?.points || 0;
+      const thirdReward = Math.floor(rewardAmount / 4);
+      const thirdNewBalance = thirdPoints + thirdReward;
       await adminFirestore.collection("users").doc(thirdId).update({
-        points: (thirdDoc.data()?.points || 0) + Math.floor(rewardAmount / 4),
+        points: thirdNewBalance,
+      });
+      await adminFirestore.collection("users").doc(thirdId).collection("pointHistory").add({
+        type: "earn",
+        amount: thirdReward,
+        reason: `게임 보상 (3등) - ${gameName}`,
+        balance: thirdNewBalance,
+        createdAt: Date.now(),
       });
     }
 
