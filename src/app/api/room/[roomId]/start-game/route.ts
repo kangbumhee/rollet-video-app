@@ -41,8 +41,26 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
     const decoded = await adminAuth.verifyIdToken(token);
     const userDoc = await adminFirestore.collection("users").doc(decoded.uid).get();
     const userData = userDoc.data();
-    if (!userData?.isAdmin && !userData?.isModerator) {
-      return NextResponse.json({ error: "매니저 권한 필요" }, { status: 403 });
+    const isAdminOrMod = !!(userData?.isAdmin || userData?.isModerator);
+
+    if (!isAdminOrMod) {
+      const today = new Date().toISOString().slice(0, 10);
+      const limitDoc = await adminFirestore
+        .collection("users")
+        .doc(decoded.uid)
+        .collection("gameCreations")
+        .doc(today)
+        .get();
+
+      if (limitDoc.exists) {
+        const data = limitDoc.data();
+        if (data && data.count >= 1) {
+          return NextResponse.json(
+            { error: "일반 유저는 하루 1회만 게임을 생성할 수 있습니다." },
+            { status: 429 }
+          );
+        }
+      }
     }
 
     const { gameType } = (await req.json()) as { gameType?: string };
@@ -273,6 +291,21 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
       ),
       rounds: roundsData,
     });
+
+    if (!isAdminOrMod) {
+      const today = new Date().toISOString().slice(0, 10);
+      const limitRef = adminFirestore
+        .collection("users")
+        .doc(decoded.uid)
+        .collection("gameCreations")
+        .doc(today);
+      const limitDoc = await limitRef.get();
+      if (limitDoc.exists) {
+        await limitRef.update({ count: (limitDoc.data()?.count || 0) + 1 });
+      } else {
+        await limitRef.set({ count: 1, date: today });
+      }
+    }
 
     await adminRealtimeDb.ref(`chat/${roomId}/messages`).push({
       uid: "BOT_HOST",

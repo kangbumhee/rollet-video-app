@@ -81,7 +81,8 @@ export default function RoomPage() {
   const [roomLocked, setRoomLocked] = useState(false);
   const [passwordVerified, setPasswordVerified] = useState(false);
   const canSeeUserList = profile?.isAdmin || profile?.isModerator || false;
-  const canStartGame = profile?.isAdmin || profile?.isModerator || false;
+  const isAdminOrMod = !!(profile?.isAdmin || profile?.isModerator);
+  const canStartGame = true;
 
   const fmtCount = (n: number) => {
     if (n >= 10000) return `${(n / 10000).toFixed(1)}만`;
@@ -579,7 +580,7 @@ export default function RoomPage() {
       return (
         <div className="flex-1 flex flex-col overflow-y-auto">
           <RegularGamePlayer roomId={roomId} uid={user?.uid || ''} displayName={profile?.displayName || '익명'} />
-          {canStartGame && (
+          {isAdminOrMod && (
             <div className="p-4">
               <button
                 onClick={() => void handleResetGame(true)}
@@ -597,7 +598,7 @@ export default function RoomPage() {
       return (
         <div className="flex-1 flex flex-col overflow-y-auto">
           <RegularGamePlayer roomId={roomId} uid={user?.uid || ''} displayName={profile?.displayName || '익명'} />
-          {canStartGame && (
+          {isAdminOrMod && (
             <div className="p-4">
               <button
                 onClick={() => void handleResetGame(false)}
@@ -613,14 +614,16 @@ export default function RoomPage() {
 
     return (
       <div className="flex-1 flex flex-col overflow-y-auto p-4 gap-4">
-        {/* 매니저 전용: 정규게임 시작 패널 */}
+        {/* 정규게임 시작 패널 (관리자/매니저 무제한, 일반 유저 하루 1회) */}
         {canStartGame && (
           <div className="w-full">
             <button
               onClick={() => setShowGameLauncher(!showGameLauncher)}
               className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 rounded-xl"
             >
-              <span className="text-white font-bold text-sm">🏆 정규게임 시작 (매니저 전용)</span>
+              <span className="text-white font-bold text-sm">
+                🏆 정규게임 시작 {isAdminOrMod ? '(무제한)' : '(하루 1회)'}
+              </span>
               <span className="text-gray-400 text-xs">{showGameLauncher ? '접기 ▲' : '펼치기 ▼'}</span>
             </button>
             {showGameLauncher && (
@@ -638,6 +641,11 @@ export default function RoomPage() {
                 ))}
                 {onlineCount < 2 && (
                   <p className="col-span-5 text-center text-red-400 text-xs">최소 2명 접속 시 시작 가능</p>
+                )}
+                {!isAdminOrMod && (
+                  <p className="col-span-5 text-center text-yellow-400 text-xs mt-1">
+                    ⚡ 일반 유저는 하루 1회 게임 생성 가능
+                  </p>
                 )}
               </div>
             )}
