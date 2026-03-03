@@ -6,36 +6,46 @@ import { parseSlotId } from '@/lib/schedule/slots';
 const ADMIN_UID = process.env.ADMIN_UID || '';
 
 async function updateNextSlotInRTDB() {
-  const now = Date.now();
-  const slotsSnap = await adminFirestore
-    .collection('scheduleSlots')
-    .where('status', '==', 'ASSIGNED')
-    .where('scheduledAt', '>', now)
-    .orderBy('scheduledAt', 'asc')
-    .limit(1)
-    .get();
+  try {
+    const now = Date.now();
+    const slotsSnap = await adminFirestore
+      .collection('scheduleSlots')
+      .where('status', '==', 'ASSIGNED')
+      .where('scheduledAt', '>', now)
+      .orderBy('scheduledAt', 'asc')
+      .limit(1)
+      .get();
 
-  if (slotsSnap.empty) {
-    await adminRealtimeDb.ref('cycle/main').update({
-      nextSlot: null,
-      currentPrizeTitle: null,
-      currentPrizeImage: null,
-      currentGameType: null,
+    if (slotsSnap.empty) {
+      await adminRealtimeDb.ref('cycle/main').update({
+        nextSlot: '',
+        currentPrizeTitle: '',
+        currentPrizeImage: '',
+        currentGameType: '',
+      });
+      return;
+    }
+
+    const nextSlotData = slotsSnap.docs[0].data();
+    const slotDate = nextSlotData.date as string;
+    const slotTime = nextSlotData.time as string;
+    const nextSlotString = `${slotDate} ${slotTime} KST`;
+
+    console.log('[updateNextSlotInRTDB] Writing to RTDB:', {
+      nextSlot: nextSlotString,
+      currentPrizeTitle: nextSlotData.prizeTitle,
+      currentPrizeImage: nextSlotData.prizeImageURL,
     });
-    return;
+
+    await adminRealtimeDb.ref('cycle/main').update({
+      nextSlot: nextSlotString,
+      currentPrizeTitle: nextSlotData.prizeTitle || '',
+      currentPrizeImage: nextSlotData.prizeImageURL || '',
+      currentGameType: nextSlotData.gameType || '',
+    });
+  } catch (error) {
+    console.error('[updateNextSlotInRTDB] Error:', error);
   }
-
-  const nextSlotData = slotsSnap.docs[0].data();
-  const slotDate = nextSlotData.date as string;
-  const slotTime = nextSlotData.time as string;
-  const nextSlotString = `${slotDate}T${slotTime}`;
-
-  await adminRealtimeDb.ref('cycle/main').update({
-    nextSlot: nextSlotString,
-    currentPrizeTitle: nextSlotData.prizeTitle || null,
-    currentPrizeImage: nextSlotData.prizeImageURL || null,
-    currentGameType: nextSlotData.gameType || null,
-  });
 }
 
 export async function POST(req: NextRequest) {

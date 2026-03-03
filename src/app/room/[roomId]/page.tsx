@@ -376,7 +376,12 @@ export default function RoomPage() {
     }
 
     if (!cycle || cycle.currentPhase === 'IDLE' || cycle.currentPhase === 'COOLDOWN') {
-      const hasPrize = !!(cycle?.nextSlot && cycle?.currentPrizeTitle);
+      const hasPrize = !!(
+        cycle?.nextSlot &&
+        String(cycle.nextSlot).trim().length > 0 &&
+        cycle?.currentPrizeTitle &&
+        String(cycle.currentPrizeTitle).trim().length > 0
+      );
 
       return (
         <div className="flex flex-col items-center p-4 w-full overflow-y-auto gap-4">
@@ -661,7 +666,7 @@ export default function RoomPage() {
         )}
 
         {/* 경품 예정이 있으면 경품을 메인으로, 없으면 자동 게임/대기 메시지 */}
-        {cycle?.nextSlot && cycle?.currentPrizeTitle ? (
+        {cycle?.nextSlot && String(cycle.nextSlot).trim().length > 0 && cycle?.currentPrizeTitle && String(cycle.currentPrizeTitle).trim().length > 0 ? (
           <div className="w-full bg-gradient-to-b from-yellow-900/20 to-gray-900/60 border border-yellow-500/30 rounded-2xl p-5 text-center">
             <p className="text-yellow-400 text-sm font-bold mb-3 tracking-widest">🎁 다음 경품 게임</p>
             {cycle.currentPrizeImage && (
@@ -696,7 +701,7 @@ export default function RoomPage() {
         {autoGame && (
           <div
             className={`w-full border border-gray-700/50 rounded-2xl p-4 text-center ${
-              cycle?.nextSlot && cycle?.currentPrizeTitle ? 'bg-gray-800/40' : 'bg-gradient-to-b from-gray-800/60 to-gray-900/60'
+              cycle?.nextSlot && String(cycle?.nextSlot).trim().length > 0 && cycle?.currentPrizeTitle && String(cycle.currentPrizeTitle).trim().length > 0 ? 'bg-gray-800/40' : 'bg-gradient-to-b from-gray-800/60 to-gray-900/60'
             }`}
           >
             <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-3">

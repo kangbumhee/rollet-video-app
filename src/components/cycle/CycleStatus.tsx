@@ -45,47 +45,48 @@ export default function CycleStatus({ phase, nextSlotTime, prizeTitle, prizeImag
 
   // IDLE / COOLDOWN: 큰 카운트다운 표시
   if (!phase || phase === 'IDLE' || phase === 'COOLDOWN') {
-    // 진행률 (30분 = 1800초 기준)
     const maxSeconds = 1800;
     const progress = Math.max(0, Math.min(100, ((maxSeconds - totalSeconds) / maxSeconds) * 100));
+    const hasNextSlot = nextSlotTime && String(nextSlotTime).trim().length > 0;
 
     return (
       <div className="flex flex-col items-center justify-center flex-1 w-full px-4">
-        <p className="text-gray-400 text-sm mb-4 tracking-widest uppercase">다음 경품까지</p>
+        {hasNextSlot ? (
+          <>
+            <p className="text-gray-400 text-sm mb-4 tracking-widest uppercase">다음 경품까지</p>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-2xl px-6 py-4 min-w-[100px] text-center">
+                <span className="text-6xl sm:text-7xl font-black text-white tabular-nums tracking-tight">
+                  {pad(timeLeft.minutes)}
+                </span>
+                <p className="text-gray-500 text-xs mt-1">분</p>
+              </div>
+              <div className="flex flex-col gap-2">
+                <div className="w-3 h-3 rounded-full bg-purple-500 animate-pulse" />
+                <div className="w-3 h-3 rounded-full bg-purple-500 animate-pulse" />
+              </div>
+              <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-2xl px-6 py-4 min-w-[100px] text-center">
+                <span className="text-6xl sm:text-7xl font-black text-white tabular-nums tracking-tight">
+                  {pad(timeLeft.seconds)}
+                </span>
+                <p className="text-gray-500 text-xs mt-1">초</p>
+              </div>
+            </div>
+            <div className="w-full max-w-xs h-2 bg-gray-800 rounded-full overflow-hidden mb-4">
+              <div
+                className="h-full bg-gradient-to-r from-purple-600 to-pink-500 rounded-full transition-all duration-1000"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="text-purple-400 text-sm font-mono">{nextSlotTime}</p>
+          </>
+        ) : (
+          <p className="text-gray-500 text-sm">예정된 경품 게임이 없습니다</p>
+        )}
 
-        <div className="flex items-center gap-3 mb-4">
-          <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-2xl px-6 py-4 min-w-[100px] text-center">
-            <span className="text-6xl sm:text-7xl font-black text-white tabular-nums tracking-tight">
-              {pad(timeLeft.minutes)}
-            </span>
-            <p className="text-gray-500 text-xs mt-1">분</p>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <div className="w-3 h-3 rounded-full bg-purple-500 animate-pulse" />
-            <div className="w-3 h-3 rounded-full bg-purple-500 animate-pulse" />
-          </div>
-
-          <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-2xl px-6 py-4 min-w-[100px] text-center">
-            <span className="text-6xl sm:text-7xl font-black text-white tabular-nums tracking-tight">
-              {pad(timeLeft.seconds)}
-            </span>
-            <p className="text-gray-500 text-xs mt-1">초</p>
-          </div>
-        </div>
-
-        <div className="w-full max-w-xs h-2 bg-gray-800 rounded-full overflow-hidden mb-4">
-          <div
-            className="h-full bg-gradient-to-r from-purple-600 to-pink-500 rounded-full transition-all duration-1000"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-
-        <p className="text-purple-400 text-sm font-mono">{nextSlotTime || '대기 중...'}</p>
-
-        {prizeTitle && (
+        {prizeTitle && String(prizeTitle).length > 0 && (
           <div className="mt-6 flex flex-col items-center gap-2">
-            {prizeImageURL && (
+            {prizeImageURL && String(prizeImageURL).length > 0 && (
               <img
                 src={prizeImageURL}
                 alt={prizeTitle}
@@ -106,7 +107,7 @@ export default function CycleStatus({ phase, nextSlotTime, prizeTitle, prizeImag
         <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
         <span className="text-green-400 text-sm font-semibold">{phase}</span>
       </div>
-      {prizeTitle && <span className="text-white text-sm">{prizeTitle}</span>}
+      {prizeTitle && String(prizeTitle).length > 0 && <span className="text-white text-sm">{prizeTitle}</span>}
     </div>
   );
 }
