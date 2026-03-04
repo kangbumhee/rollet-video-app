@@ -1,4 +1,3 @@
-// src/components/ui/SoundToggle.tsx
 'use client';
 
 import { useState } from 'react';
@@ -20,14 +19,22 @@ export function SoundToggle({ className, size = 'default' }: SoundToggleProps) {
     <div className={`flex items-center shrink-0 ${gapClass} ${className ?? ''}`}>
       <button
         onClick={() => setSfx(soundManager.toggleSFX())}
-        className={`${btnClass} transition-colors ${sfx ? 'bg-yellow-600 text-white' : 'bg-gray-700 text-gray-400'}`}
+        className={`${btnClass} transition-colors ${
+          sfx
+            ? 'bg-neon-amber/20 text-neon-amber border border-neon-amber/25'
+            : 'bg-surface-elevated text-white/30 border border-white/[0.06]'
+        }`}
         title="효과음 on/off"
       >
         {sfx ? '🔊' : '🔇'} 효과음
       </button>
       <button
         onClick={() => setBgm(soundManager.toggleBGM())}
-        className={`${btnClass} transition-colors ${bgm ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-400'}`}
+        className={`${btnClass} transition-colors ${
+          bgm
+            ? 'bg-neon-magenta/20 text-neon-magenta border border-neon-magenta/25'
+            : 'bg-surface-elevated text-white/30 border border-white/[0.06]'
+        }`}
         title="배경음 on/off"
       >
         {bgm ? '🎵' : '🔇'} BGM

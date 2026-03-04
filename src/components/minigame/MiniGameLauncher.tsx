@@ -236,42 +236,42 @@ export default function MiniGameLauncher({ roomId = 'main' }: MiniGameLauncherPr
       case 'coinflip':
         return (
           <>
-            {recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}
+            {recordDisplay && <span className="text-neon-amber text-xs font-bold">{recordDisplay}</span>}
             <CoinFlip {...props} />
           </>
         );
       case 'dice':
         return (
           <>
-            {recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}
+            {recordDisplay && <span className="text-neon-amber text-xs font-bold">{recordDisplay}</span>}
             <DiceGame {...props} />
           </>
         );
       case 'slot':
         return (
           <>
-            {recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}
+            {recordDisplay && <span className="text-neon-amber text-xs font-bold">{recordDisplay}</span>}
             <SlotMachine {...props} />
           </>
         );
       case 'memory':
         return (
           <>
-            {recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}
+            {recordDisplay && <span className="text-neon-amber text-xs font-bold">{recordDisplay}</span>}
             <MemoryGame {...props} />
           </>
         );
       case 'reaction':
         return (
           <>
-            {recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}
+            {recordDisplay && <span className="text-neon-amber text-xs font-bold">{recordDisplay}</span>}
             <ReactionTest {...props} />
           </>
         );
       case 'typing':
         return (
           <>
-            {recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}
+            {recordDisplay && <span className="text-neon-amber text-xs font-bold">{recordDisplay}</span>}
             <TypingGame {...props} />
           </>
         );
@@ -304,30 +304,30 @@ export default function MiniGameLauncher({ roomId = 'main' }: MiniGameLauncherPr
       case 'stacktower':
         return (
           <>
-            {recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}
+            {recordDisplay && <span className="text-neon-amber text-xs font-bold">{recordDisplay}</span>}
             <StackTower {...props} />
           </>
         );
       case 'luckydoor':
-        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<LuckyDoor {...props} /></>;
+        return <>{recordDisplay && <span className="text-neon-amber text-xs font-bold">{recordDisplay}</span>}<LuckyDoor {...props} /></>;
       case 'fortunewheel':
-        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<FortuneWheel {...props} /></>;
+        return <>{recordDisplay && <span className="text-neon-amber text-xs font-bold">{recordDisplay}</span>}<FortuneWheel {...props} /></>;
       case 'cardbattle':
-        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<CardBattle {...props} /></>;
+        return <>{recordDisplay && <span className="text-neon-amber text-xs font-bold">{recordDisplay}</span>}<CardBattle {...props} /></>;
       case 'treasuredive':
-        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<TreasureDive {...props} /></>;
+        return <>{recordDisplay && <span className="text-neon-amber text-xs font-bold">{recordDisplay}</span>}<TreasureDive {...props} /></>;
       case 'rockdraw':
-        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<RockDraw {...props} /></>;
+        return <>{recordDisplay && <span className="text-neon-amber text-xs font-bold">{recordDisplay}</span>}<RockDraw {...props} /></>;
       case 'animalrace':
-        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<AnimalRace {...props} /></>;
+        return <>{recordDisplay && <span className="text-neon-amber text-xs font-bold">{recordDisplay}</span>}<AnimalRace {...props} /></>;
       case 'lottopick':
-        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<LottoPick {...props} /></>;
+        return <>{recordDisplay && <span className="text-neon-amber text-xs font-bold">{recordDisplay}</span>}<LottoPick {...props} /></>;
       case 'crystalball':
-        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<CrystalBall {...props} /></>;
+        return <>{recordDisplay && <span className="text-neon-amber text-xs font-bold">{recordDisplay}</span>}<CrystalBall {...props} /></>;
       case 'pirategold':
-        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<PirateGold {...props} /></>;
+        return <>{recordDisplay && <span className="text-neon-amber text-xs font-bold">{recordDisplay}</span>}<PirateGold {...props} /></>;
       case 'shootingstar':
-        return <>{recordDisplay && <span className="text-yellow-400 text-xs font-bold">{recordDisplay}</span>}<ShootingStar {...props} /></>;
+        return <>{recordDisplay && <span className="text-neon-amber text-xs font-bold">{recordDisplay}</span>}<ShootingStar {...props} /></>;
       default:
         return null;
     }
@@ -336,10 +336,10 @@ export default function MiniGameLauncher({ roomId = 'main' }: MiniGameLauncherPr
   if (selectedGame) {
     return (
       <div className="flex flex-col gap-2 w-full">
-        <div className="flex items-center justify-between sticky top-0 bg-gray-900 z-10 py-2">
+        <div className="flex items-center justify-between sticky top-0 bg-surface-base z-10 py-2">
           <button
             onClick={handleBack}
-            className="px-3 py-1.5 bg-gray-700 text-white text-xs rounded-lg hover:bg-gray-600 transition font-bold"
+            className="px-3 py-1.5 bg-surface-elevated text-white text-xs rounded-lg hover:bg-white/[0.08] transition font-bold"
           >
             ← 목록으로
           </button>
@@ -347,7 +347,7 @@ export default function MiniGameLauncher({ roomId = 'main' }: MiniGameLauncherPr
             {GAMES.find((g) => g.id === selectedGame)?.emoji} {GAMES.find((g) => g.id === selectedGame)?.name}
           </span>
           {records[selectedGame] && (
-            <span className="text-yellow-400 text-[10px] font-bold truncate ml-2">
+            <span className="text-neon-amber text-[10px] font-bold truncate ml-2">
               🏆 {records[selectedGame].holder}
             </span>
           )}
@@ -362,10 +362,10 @@ export default function MiniGameLauncher({ roomId = 'main' }: MiniGameLauncherPr
       {/* 헤더 버튼 — 더 눈에 띄는 디자인 */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center justify-between w-full px-4 py-3 bg-gradient-to-r from-indigo-600/20 to-purple-600/20 border border-indigo-500/30 rounded-xl hover:border-indigo-500/60 transition"
+        className="flex items-center justify-between w-full px-4 py-3 bg-gradient-to-r from-neon-magenta/15 to-neon-cyan/15 border border-neon-magenta/25 rounded-xl hover:border-neon-magenta/40 transition"
       >
         <span className="text-white font-bold text-sm">🎮 미니게임</span>
-        <span className="text-indigo-300 text-xs font-medium">{expanded ? '접기 ▲' : `펼치기 ▼ (${GAMES.length}종)`}</span>
+        <span className="text-neon-cyan text-xs font-medium">{expanded ? '접기 ▲' : `펼치기 ▼ (${GAMES.length}종)`}</span>
       </button>
 
       {/* 접힌 상태에서도 인기 게임 미리보기 4개 표시 */}
@@ -375,7 +375,7 @@ export default function MiniGameLauncher({ roomId = 'main' }: MiniGameLauncherPr
             <button
               key={game.id}
               onClick={() => handleSelectGame(game.id)}
-              className="flex flex-col items-center gap-0.5 p-2 bg-gray-800/60 rounded-lg hover:bg-gray-700 transition border border-gray-700/30 hover:border-purple-500/50"
+              className="flex flex-col items-center gap-0.5 p-2 bg-surface-base/60 rounded-lg hover:bg-surface-elevated transition border border-white/[0.04] hover:border-neon-cyan/30"
             >
               <span className="text-lg leading-none">{game.emoji}</span>
               <span className="text-white text-[8px] font-medium leading-tight text-center truncate w-full">
@@ -388,7 +388,7 @@ export default function MiniGameLauncher({ roomId = 'main' }: MiniGameLauncherPr
 
       {/* 펼친 상태 — 전체 게임 목록 */}
       {expanded && (
-        <div className="max-h-[50vh] overflow-y-auto rounded-xl bg-gray-900/50 p-2 pb-6">
+        <div className="max-h-[50vh] overflow-y-auto rounded-xl bg-surface-base/50 p-2 pb-6">
           <div className="grid grid-cols-5 gap-1.5">
             {GAMES.map((game) => {
               const rec = records[game.id];
@@ -396,14 +396,14 @@ export default function MiniGameLauncher({ roomId = 'main' }: MiniGameLauncherPr
                 <button
                   key={game.id}
                   onClick={() => handleSelectGame(game.id)}
-                  className="flex flex-col items-center gap-0.5 p-1.5 bg-gray-800 rounded-lg hover:bg-gray-700 transition border border-gray-700/50 hover:border-purple-500/50"
+                  className="flex flex-col items-center gap-0.5 p-1.5 bg-surface-base rounded-lg hover:bg-surface-elevated transition border border-white/[0.06] hover:border-neon-cyan/30"
                 >
                   <span className="text-lg leading-none">{game.emoji}</span>
                   <span className="text-white text-[9px] font-medium leading-tight text-center truncate w-full">
                     {game.name}
                   </span>
                   {rec && (
-                    <span className="text-yellow-400 text-[7px] truncate w-full text-center">
+                    <span className="text-neon-amber text-[7px] truncate w-full text-center">
                       🏆{rec.holder}
                     </span>
                   )}
