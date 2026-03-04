@@ -7,6 +7,8 @@ import {
   generateTypingSentences,
 } from "@/lib/gemini/gameQuiz";
 
+export const dynamic = 'force-dynamic';
+
 const GAME_NAMES: Record<string, string> = {
   drawGuess: "🎨 그림 맞추기",
   lineRunner: "✏️ 라인 러너",

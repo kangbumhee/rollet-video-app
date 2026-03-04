@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminFirestore } from '@/lib/firebase/admin';
 import { getDatabase } from 'firebase-admin/database';
 
+export const dynamic = 'force-dynamic';
+
 async function checkAdminOrMod(token: string) {
   const decoded = await adminAuth.verifyIdToken(token);
   const userDoc = await adminFirestore.collection('users').doc(decoded.uid).get();

@@ -31,6 +31,7 @@ export function useGameSounds(phase?: string, gameType?: string) {
     switch (phase) {
       case 'IDLE':
       case 'COOLDOWN':
+        soundManager.stopBGM();
         soundManager.playBGM('bgm-lobby');
         break;
       case 'ANNOUNCING':

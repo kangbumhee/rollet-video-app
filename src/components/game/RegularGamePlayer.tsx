@@ -334,18 +334,50 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     setRankings(sorted);
   }, [current?.scores, current?.nameMap, current?.photoMap]);
 
+  // 게임 phase별 BGM 관리
   useEffect(() => {
-    if (!current) return;
-    if (current.phase === 'final_result') {
-      if (!finalSoundPlayedRef.current) {
-        finalSoundPlayedRef.current = true;
-        soundManager.play('win-fanfare');
-        soundManager.playBGM('bgm-winner');
-      }
+    if (!current) {
+      soundManager.stopBGM();
+      soundManager.playBGM('bgm-lobby');
+      finalSoundPlayedRef.current = false;
       return;
     }
-    finalSoundPlayedRef.current = false;
-  }, [current?.phase, current]);
+
+    switch (current.phase) {
+      case 'game_intro':
+        soundManager.play('game-start');
+        soundManager.playBGM('bgm-game');
+        break;
+      case 'round_waiting':
+      case 'round_playing':
+        soundManager.playBGM('bgm-game');
+        break;
+      case 'round_result':
+        break;
+      case 'final_result':
+        if (!finalSoundPlayedRef.current) {
+          finalSoundPlayedRef.current = true;
+          soundManager.stopBGM();
+          soundManager.play('win-fanfare');
+          soundManager.playBGM('bgm-winner');
+        }
+        break;
+      default:
+        break;
+    }
+
+    if (current.phase !== 'final_result') {
+      finalSoundPlayedRef.current = false;
+    }
+  }, [current?.phase]);
+
+  // 컴포넌트 언마운트 시 BGM 정지
+  useEffect(() => {
+    return () => {
+      soundManager.stopBGM();
+      soundManager.playBGM('bgm-lobby');
+    };
+  }, []);
 
   const rewardCalledRef = useRef(false);
   useEffect(() => {
@@ -1135,51 +1167,64 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
 
   if (current.phase === 'final_result') {
     return (
-      <div className="flex flex-col items-center p-4 space-y-4 overflow-y-auto">
-        <div className="text-5xl mb-2">🏆</div>
-        <h2 className="text-xl font-bold text-yellow-400">{current.gameName} 최종 결과</h2>
-        {rankings.length > 0 && (
-          <div className="w-full max-w-sm mb-4 text-center bg-gradient-to-b from-yellow-500/20 to-transparent rounded-2xl p-4 border border-yellow-500/30">
-            <div className="text-2xl mb-2">👑</div>
-            <PlayerAvatar r={rankings[0]} size={64} />
-            <p className={`text-lg font-bold mt-2 ${rankings[0].uid === uid ? 'text-amber-400' : 'text-yellow-400'}`}>
-              {rankings[0].name} {rankings[0].uid === uid && '(나)'}
-            </p>
-            <p className="text-white text-xl font-bold">{rankings[0].score}점</p>
+      <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto p-4 text-center overflow-y-auto">
+        <div className="text-4xl mb-2">🏆</div>
+        <h2 className="text-yellow-400 text-xl font-bold mb-4">최종 결과</h2>
+
+        {/* 1등 — 중앙 정렬 */}
+        {rankings[0] && (
+          <div className="flex flex-col items-center justify-center w-full mb-4">
+            <div className="relative mx-auto">
+              {rankings[0].photoURL ? (
+                <img
+                  src={rankings[0].photoURL}
+                  alt={rankings[0].name}
+                  referrerPolicy="no-referrer"
+                  className="w-20 h-20 rounded-full border-4 border-yellow-500 object-cover mx-auto"
+                />
+              ) : (
+                <div className="w-20 h-20 rounded-full bg-yellow-500/20 border-4 border-yellow-500 flex items-center justify-center text-3xl font-bold text-yellow-400 mx-auto">
+                  {rankings[0].name[0]}
+                </div>
+              )}
+              <span className="absolute -top-2 -right-2 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded-full">
+                👑 1등
+              </span>
+            </div>
+            <p className="text-white font-bold text-lg mt-2">{rankings[0].name} {rankings[0].uid === uid && '(나)'}</p>
+            <p className="text-yellow-400 text-2xl font-bold">{rankings[0].score}점</p>
             {rankings[0].uid === uid && <p className="text-green-400 text-sm mt-1">🎉 축하합니다!</p>}
           </div>
         )}
-        <div className="w-full max-w-sm space-y-2">
-          {rankings.map((r, i) => (
-            <div key={r.uid} className={`flex items-center justify-between gap-3 px-4 py-2 rounded-xl ${
-              i === 0 ? 'bg-yellow-500/20 border border-yellow-500/50' :
-              i === 1 ? 'bg-gray-500/20 border border-gray-500/30' :
-              i === 2 ? 'bg-orange-500/20 border border-orange-500/30' : 'bg-gray-800/50'
-            } ${r.uid === uid ? 'ring-2 ring-purple-500' : ''}`}>
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="text-lg font-bold w-8 text-center flex-shrink-0">
-                  {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`}
-                </span>
-                <PlayerAvatar r={r} size={36} />
-                <span className={`text-sm font-medium truncate ${r.uid === uid ? 'text-purple-300' : 'text-white'}`}>
-                  {r.name} {r.uid === uid && '(나)'}
-                </span>
-              </div>
-              <span className="text-sm font-bold text-yellow-400 flex-shrink-0">{r.score}점</span>
+
+        {/* 나머지 순위 */}
+        <div className="w-full space-y-1.5 mb-4">
+          {rankings.slice(1).map((r, i) => (
+            <div
+              key={r.uid}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
+                r.uid === uid ? 'bg-purple-500/20 border border-purple-500/30' : 'bg-gray-800/60'
+              }`}
+            >
+              <span className="text-gray-400 text-sm font-bold w-6">{i + 2}위</span>
+              {r.photoURL ? (
+                <img src={r.photoURL} alt="" referrerPolicy="no-referrer" className="w-7 h-7 rounded-full object-cover" />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-gray-600 flex items-center justify-center text-xs text-white font-bold">
+                  {r.name[0]}
+                </div>
+              )}
+              <span className="text-white text-sm font-medium flex-1 truncate">{r.name} {r.uid === uid && '(나)'}</span>
+              <span className="text-yellow-400 text-sm font-bold">{r.score}점</span>
             </div>
           ))}
         </div>
+
+        {/* 보상 정보 (자동 게임인 경우) */}
         {current.isAutoGame && current.reward && (
-          <div className="w-full max-w-sm mt-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 text-center">
-            <p className="text-yellow-400 font-bold text-sm mb-2">🎁 자동 게임 보상</p>
-            <div className="space-y-1 text-xs">
-              <p className="text-white">🥇 1등: +{current.reward.amount}P</p>
-              <p className="text-gray-300">🥈 2등: +{Math.floor(current.reward.amount / 2)}P</p>
-              <p className="text-gray-300">🥉 3등: +{Math.floor(current.reward.amount / 4)}P</p>
-            </div>
-            {current.rewardDistributed && (
-              <p className="text-green-400 text-xs mt-2 font-bold">✅ 포인트 지급 완료!</p>
-            )}
+          <div className="bg-green-900/30 border border-green-500/30 rounded-xl p-3 w-full text-center mb-3">
+            <p className="text-green-400 text-sm font-bold">🏆 1등 보상: {current.reward.label}</p>
+            {current.rewardDistributed && <p className="text-green-300 text-xs mt-1 font-bold">✅ 포인트 지급 완료!</p>}
           </div>
         )}
       </div>
@@ -1621,14 +1666,27 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
     };
     const table = (roundData?.enhanceTable as Array<{ success: number; fail: number; down: number; destroy: number }>)?.[forgeLevel] ?? null;
 
+    const multColor = multiplier >= 5 ? 'from-red-500 to-orange-500' :
+                      multiplier >= 3 ? 'from-purple-500 to-pink-500' :
+                      multiplier >= 2 ? 'from-blue-500 to-cyan-500' :
+                      'from-gray-500 to-gray-400';
+
     return (
       <div className="flex flex-col p-3 overflow-y-auto">
         {renderHeader()}
         {renderScoreBar()}
 
+        {/* 이번 라운드 배율 강조 */}
+        <div className={`w-full bg-gradient-to-r ${multColor} rounded-xl p-3 text-center shadow-lg mb-3 ${multiplier >= 3 ? 'animate-pulse' : ''}`}>
+          <p className="text-white/80 text-xs font-medium">이번 라운드 배율</p>
+          <p className="text-white text-3xl font-black">×{multiplier}</p>
+          {multiplier >= 3 && <p className="text-white/90 text-xs mt-0.5">🔥 고배율 기회!</p>}
+          {multiplier >= 5 && <p className="text-yellow-200 text-xs font-bold">⚡ 최대 배율!!</p>}
+        </div>
+
         {weapon && (
           <div className={`bg-gray-800/60 border-2 ${rarityColors[weapon.rarity] || 'border-gray-500/30'} rounded-2xl p-4 text-center mb-3`}>
-            <p className="text-gray-500 text-[10px] mb-1">{rarityLabels[weapon.rarity] || '일반'} 무기 · 배율 ×{multiplier}</p>
+            <p className="text-gray-500 text-[10px] mb-1">{rarityLabels[weapon.rarity] || '일반'} 무기</p>
             <div className={`text-6xl mb-2 ${forgeAnimating ? 'animate-bounce' : ''} ${forgePerfect ? 'animate-pulse' : ''}`}>{weapon.emoji}</div>
             <p className="text-white font-bold text-lg">{weapon.name}</p>
             <div className="mt-2">
@@ -1686,13 +1744,19 @@ export default function RegularGamePlayer({ roomId, uid, displayName }: RegularG
           </div>
         )}
 
+        {/* 마지막 강화 결과 한 줄만 표시 */}
         {forgeLog.length > 0 && (
-          <div className="bg-gray-800/30 rounded-xl p-2 mb-3 max-h-24 overflow-y-auto">
-            {forgeLog.slice(-5).reverse().map((log, i) => (
-              <div key={i} className={`text-xs px-2 py-0.5 ${log.result === 'success' ? 'text-green-400' : log.result === 'down' ? 'text-orange-400' : log.result === 'destroy' ? 'text-red-400' : 'text-gray-500'}`}>
-                {log.action} → {log.result === 'success' ? `✅ 성공! +${log.toLevel}` : log.result === 'fail' ? '❌ 실패 (유지)' : log.result === 'down' ? `⬇️ 하락! +${log.toLevel}` : '💥 파괴! +0'}
-              </div>
-            ))}
+          <div className={`w-full text-center py-1.5 rounded-lg text-sm font-bold mb-3 ${
+            forgeLog[forgeLog.length - 1].result === 'success' ? 'bg-green-500/20 text-green-400' :
+            forgeLog[forgeLog.length - 1].result === 'fail' ? 'bg-gray-500/20 text-gray-400' :
+            forgeLog[forgeLog.length - 1].result === 'down' ? 'bg-orange-500/20 text-orange-400' :
+            'bg-red-500/20 text-red-400'
+          }`}>
+            {forgeLog[forgeLog.length - 1].result === 'success' ? '✅ 성공!' :
+             forgeLog[forgeLog.length - 1].result === 'fail' ? '❌ 실패' :
+             forgeLog[forgeLog.length - 1].result === 'down' ? '⬇️ 하락...' :
+             '💥 파괴!'}
+            {' '}+{forgeLog[forgeLog.length - 1].fromLevel} → +{forgeLog[forgeLog.length - 1].toLevel}
           </div>
         )}
 

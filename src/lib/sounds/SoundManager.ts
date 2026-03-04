@@ -35,7 +35,7 @@ type SoundName =
   | 'dice-roll' | 'horse-gallop'
   // ── BGM ──
   | 'bgm-lobby' | 'bgm-battle' | 'bgm-winner'
-  | 'bgm-tension' | 'bgm-minigame';
+  | 'bgm-tension' | 'bgm-minigame' | 'bgm-game';
 
 // 새 효과음은 기존 파일을 재활용 매핑 (파일이 없으면 가장 유사한 기존 파일 사용)
 // -> 나중에 실제 파일로 교체하면 됨
@@ -125,6 +125,7 @@ const SOUND_CONFIG: Record<SoundName, { path: string; volume: number; loop?: boo
   'bgm-winner':         { path: '/sounds/bgm-winner.mp3', volume: 0.35, loop: true },
   'bgm-tension':        { path: '/sounds/bgm-battle.mp3', volume: 0.35, loop: true },
   'bgm-minigame':       { path: '/sounds/bgm-battle.mp3', volume: 0.2, loop: true },
+  'bgm-game':           { path: '/sounds/bgm-battle.mp3', volume: 0.2, loop: true },
 };
 
 class SoundManager {

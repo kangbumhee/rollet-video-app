@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth, adminFirestore, adminRealtimeDb } from '@/lib/firebase/admin';
 import { parseSlotId } from '@/lib/schedule/slots';
 
+export const dynamic = 'force-dynamic';
+
 const ADMIN_UID = process.env.ADMIN_UID || '';
 
 async function updateNextSlotInRTDB() {

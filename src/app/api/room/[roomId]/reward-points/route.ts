@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminRealtimeDb, adminFirestore } from "@/lib/firebase/admin";
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest, { params }: { params: { roomId: string } }) {
   try {
     const { roomId } = params;

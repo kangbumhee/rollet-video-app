@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server';
 import { adminRealtimeDb } from '@/lib/firebase/admin';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const snap = await adminRealtimeDb.ref('cycle/main').get();

@@ -7,6 +7,8 @@ import {
   generateTypingSentences,
 } from "@/lib/gemini/gameQuiz";
 
+export const dynamic = 'force-dynamic';
+
 const GAME_LIST = [
   { id: "drawGuess", name: "🎨 그림 맞추기" },
   { id: "bigRoulette", name: "🎰 빅 룰렛" },

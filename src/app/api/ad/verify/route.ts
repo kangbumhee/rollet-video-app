@@ -3,6 +3,8 @@ import { verifyAuth } from '@/lib/firebase/admin';
 import { adminFirestore } from '@/lib/firebase/admin';
 import { getDatabase } from 'firebase-admin/database';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     const token = req.headers.get('authorization')?.replace('Bearer ', '');

@@ -41,7 +41,18 @@ if (getApps().length === 0) {
 
 export const adminAuth = getAuth(adminApp);
 export const adminFirestore = getFirestore(adminApp);
-export const adminRealtimeDb = getDatabase(adminApp);
+
+// Realtime DB는 빌드 시점에 URL이 없으면 getDatabase()가 에러를 내므로, 런타임에만 접근하도록 지연 초기화
+let _adminRealtimeDb: ReturnType<typeof getDatabase> | null = null;
+function getAdminRealtimeDb(): ReturnType<typeof getDatabase> {
+  if (!_adminRealtimeDb) _adminRealtimeDb = getDatabase(adminApp);
+  return _adminRealtimeDb;
+}
+export const adminRealtimeDb = new Proxy({} as ReturnType<typeof getDatabase>, {
+  get(_, prop) {
+    return (getAdminRealtimeDb() as unknown as Record<string | symbol, unknown>)[prop];
+  },
+});
 
 // 토큰 검증 헬퍼
 export async function verifyAuth(
