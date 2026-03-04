@@ -265,8 +265,10 @@ export default function RoomClient() {
       return <RegularGamePlayer roomId={roomId} uid={profile.uid} displayName={profile.displayName || '익명'} />;
     }
 
-    const isAutoRecruiting = autoGame?.phase === 'recruiting';
-    const isAutoWaiting = autoGame?.phase === 'waiting';
+    const isAutoRecruiting = autoGame?.phase === 'recruiting' &&
+      (autoGame?.recruitingUntil ? autoGame.recruitingUntil > Date.now() : true);
+    const isAutoWaiting = autoGame?.phase === 'waiting' &&
+      (autoGame?.nextGameAt ? autoGame.nextGameAt > Date.now() : false);
 
     return (
       <div className="flex flex-col flex-1 w-full min-h-0">
