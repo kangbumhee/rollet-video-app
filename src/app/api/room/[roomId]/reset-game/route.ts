@@ -15,18 +15,20 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
     const decoded = await adminAuth.verifyIdToken(token);
     const userDoc = await adminFirestore.collection("users").doc(decoded.uid).get();
     const userData = userDoc.data();
-    const isAdminOrMod = userData?.isAdmin || userData?.isModerator;
+    const isAdminOrMod = !!(userData?.isAdmin || userData?.isModerator);
 
-    if (roomId === "main") {
-      if (!isAdminOrMod) {
+    const currentSnap = await adminRealtimeDb.ref(`games/${roomId}/current`).get();
+    if (currentSnap.exists()) {
+      const gameData = currentSnap.val() as { startedBy?: string; phase?: string };
+
+      if (roomId === "main" && !isAdminOrMod) {
         return NextResponse.json({ error: "매니저 권한이 필요합니다" }, { status: 403 });
       }
-    } else {
-      // 일반방: 게임 시작자 또는 관리자/모더만 초기화 가능
-      const currentSnap = await adminRealtimeDb.ref(`games/${roomId}/current`).get();
-      if (currentSnap.exists()) {
-        const gameData = currentSnap.val() as { startedBy?: string };
-        if (gameData.startedBy !== decoded.uid && !isAdminOrMod) {
+
+      if (roomId !== "main") {
+        const isStarter = gameData.startedBy === decoded.uid;
+        const isFinalResult = gameData.phase === 'final_result';
+        if (!isStarter && !isAdminOrMod && !isFinalResult) {
           return NextResponse.json(
             { error: "게임을 시작한 사람만 중단할 수 있습니다" },
             { status: 403 }
@@ -35,14 +37,12 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
       }
     }
 
-    // 게임 데이터 전체 삭제
     await adminRealtimeDb.ref(`games/${roomId}`).remove();
 
-    // 채팅 알림
     await adminRealtimeDb.ref(`chat/${roomId}/messages`).push({
       uid: "BOT_HOST",
       displayName: "🎪 방장봇",
-      message: "🔄 게임이 초기화되었습니다. 새 게임을 시작할 수 있습니다.",
+      message: "🔄 게임이 종료되었습니다. 새 게임을 시작할 수 있습니다.",
       timestamp: Date.now(),
       isBot: true,
       isSystem: false,

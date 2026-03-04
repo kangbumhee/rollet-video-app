@@ -11,8 +11,8 @@ interface Props {
 }
 
 const COLS = 10;
-const ROWS = 16;
-const CELL = 20;
+const ROWS = 18;
+const CELL = 24;
 
 const SHAPES = [
   { blocks: [[0,0],[1,0],[2,0],[3,0]], color: '#06b6d4' },
@@ -30,10 +30,28 @@ function createGrid(): Grid {
   return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
 }
 
+function generateRandomFloor(grid: Grid, round: number) {
+  const floorRows = Math.min(3, Math.floor(round / 3));
+  const colors = ['#6b7280', '#4b5563', '#374151'];
+  for (let r = 0; r < floorRows; r++) {
+    const rowIdx = ROWS - 1 - r;
+    const holes = 2 + Math.floor(Math.random() * 3);
+    const holePositions = new Set<number>();
+    while (holePositions.size < holes) {
+      holePositions.add(Math.floor(Math.random() * COLS));
+    }
+    for (let c = 0; c < COLS; c++) {
+      if (!holePositions.has(c)) {
+        grid[rowIdx][c] = colors[Math.floor(Math.random() * colors.length)];
+      }
+    }
+  }
+}
+
 export default function TetrisBattleGame({ roundData, round, timeLeft, onSubmit }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [submitted, setSubmitted] = useState(false);
-  const [score, setScore] = useState(0);
+  const [displayScore, setDisplayScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
 
   const gridRef = useRef<Grid>(createGrid());
@@ -42,6 +60,7 @@ export default function TetrisBattleGame({ roundData, round, timeLeft, onSubmit 
   const dropTimerRef = useRef(0);
   const gameOverRef = useRef(false);
   const rafRef = useRef<number>(0);
+  const submittedRef = useRef(false);
 
   const spawnPiece = useCallback(() => {
     const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
@@ -90,7 +109,7 @@ export default function TetrisBattleGame({ roundData, round, timeLeft, onSubmit 
     if (cleared > 0) {
       const bonus = [0, 10, 30, 60, 100][Math.min(cleared, 4)];
       scoreRef.current += bonus;
-      setScore(scoreRef.current);
+      setDisplayScore(scoreRef.current);
     }
     spawnPiece();
   }
@@ -131,12 +150,15 @@ export default function TetrisBattleGame({ roundData, round, timeLeft, onSubmit 
 
   useEffect(() => {
     setSubmitted(false);
-    setScore(0);
+    setDisplayScore(0);
     setGameOver(false);
-    gridRef.current = createGrid();
+    submittedRef.current = false;
     scoreRef.current = 0;
     gameOverRef.current = false;
     dropTimerRef.current = 0;
+    const newGrid = createGrid();
+    generateRandomFloor(newGrid, round);
+    gridRef.current = newGrid;
     spawnPiece();
   }, [round, spawnPiece]);
 
@@ -232,16 +254,17 @@ export default function TetrisBattleGame({ roundData, round, timeLeft, onSubmit 
   };
 
   useEffect(() => {
-    if ((gameOver || timeLeft <= 0) && !submitted) {
+    if ((gameOver || timeLeft <= 0) && !submittedRef.current) {
+      submittedRef.current = true;
       setSubmitted(true);
       onSubmit(scoreRef.current, { linesScore: scoreRef.current });
     }
-  }, [gameOver, timeLeft, submitted, onSubmit]);
+  }, [gameOver, timeLeft, onSubmit]);
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <p className="text-white/30 text-xs">줄을 지워서 점수를 획득하세요! ← → 이동 / ↑ 회전 / ↓ 드롭</p>
-      <div className="text-neon-amber font-bold font-score text-lg">{score}점</div>
+      <p className="text-white/30 text-xs">화살표/스와이프: 이동 · 탭: 회전 · 아래: 드롭</p>
+      <div className="text-neon-amber font-bold font-score text-lg">{displayScore}점</div>
       <canvas
         ref={canvasRef}
         width={COLS * CELL}
@@ -251,11 +274,11 @@ export default function TetrisBattleGame({ roundData, round, timeLeft, onSubmit 
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       />
-      <div className="flex gap-3 md:hidden">
-        <button onClick={() => movePiece(-1, 0)} className="px-4 py-2 bg-surface-elevated rounded-lg text-white/60 active:bg-white/10">←</button>
-        <button onClick={() => rotatePiece()} className="px-4 py-2 bg-surface-elevated rounded-lg text-white/60 active:bg-white/10">↻</button>
-        <button onClick={() => hardDrop()} className="px-4 py-2 bg-surface-elevated rounded-lg text-white/60 active:bg-white/10">↓</button>
-        <button onClick={() => movePiece(1, 0)} className="px-4 py-2 bg-surface-elevated rounded-lg text-white/60 active:bg-white/10">→</button>
+      <div className="flex gap-2 md:hidden">
+        <button onClick={() => movePiece(-1, 0)} className="px-6 py-3 bg-surface-elevated rounded-xl text-white/60 active:bg-white/10 text-lg font-bold">◀</button>
+        <button onClick={() => rotatePiece()} className="px-6 py-3 bg-surface-elevated rounded-xl text-white/60 active:bg-white/10 text-lg font-bold">↻</button>
+        <button onClick={() => hardDrop()} className="px-6 py-3 bg-neon-cyan/10 border border-neon-cyan/20 rounded-xl text-neon-cyan active:bg-neon-cyan/20 text-lg font-bold">▼</button>
+        <button onClick={() => movePiece(1, 0)} className="px-6 py-3 bg-surface-elevated rounded-xl text-white/60 active:bg-white/10 text-lg font-bold">▶</button>
       </div>
     </div>
   );

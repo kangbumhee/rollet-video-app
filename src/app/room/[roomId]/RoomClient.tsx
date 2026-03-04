@@ -37,6 +37,7 @@ const REGULAR_GAMES = [
   { id: 'tetrisBattle', name: '테트리스 배틀', emoji: '🧱' },
   { id: 'memoryMatch', name: '메모리 매치', emoji: '🃏' },
   { id: 'slitherBattle', name: '스네이크 서바이벌', emoji: '🐍' },
+  { id: 'weaponForge', name: '검 강화', emoji: '⚔️' },
 ] as const;
 
 interface GameCurrent {
@@ -114,8 +115,29 @@ export default function RoomClient() {
 
   const chatCollapsedRef = useRef(false);
   const lastMessageCountRef = useRef(0);
+  const chatWasCollapsedRef = useRef<boolean | null>(null);
 
   useEffect(() => { chatCollapsedRef.current = chatCollapsed; }, [chatCollapsed]);
+
+  useEffect(() => {
+    const hasActiveRegularGame =
+      activeGame && activeGame.phase && activeGame.phase !== 'idle' && activeGame.phase !== 'final_result' &&
+      REGULAR_GAMES.some((g) => g.id === activeGame.gameType);
+
+    if (hasActiveRegularGame) {
+      if (chatWasCollapsedRef.current === null) {
+        chatWasCollapsedRef.current = chatCollapsed;
+      }
+      if (!chatCollapsed) {
+        setChatCollapsed(true);
+      }
+    } else if (chatWasCollapsedRef.current !== null) {
+      if (chatWasCollapsedRef.current === false && chatCollapsed) {
+        setChatCollapsed(false);
+      }
+      chatWasCollapsedRef.current = null;
+    }
+  }, [activeGame, chatCollapsed]);
 
   useEffect(() => {
     if (chatCollapsed && messages.length > lastMessageCountRef.current) {
@@ -524,7 +546,7 @@ export default function RoomClient() {
       </div>
 
       {/* ── 미니게임 모달 (커스텀방에서만) ── */}
-      {showFreePlay && !isMainRoom && (
+      {showFreePlay && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowFreePlay(false)}>
           <div className="bg-surface-elevated border border-white/[0.06] rounded-2xl max-w-lg w-full max-h-[90vh] overflow-auto p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">

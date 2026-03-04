@@ -20,6 +20,8 @@ import { onValue, ref } from "firebase/database";
 import LiveBadge from "@/components/room/LiveBadge";
 import NoticeTicker from "@/components/notice/NoticeTicker";
 import FreeBoard from "@/components/board/FreeBoard";
+import { SoundToggle } from "@/components/ui/SoundToggle";
+import { soundManager } from "@/lib/sounds/SoundManager";
 
 interface RoomData {
   id: string;
@@ -97,6 +99,10 @@ export default function HomeClient() {
       setMainRoomCount(s.exists() ? Object.keys(s.val()).length : 0);
     });
     return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    soundManager.playBGM('bgm-lobby');
   }, []);
 
   const handleCreate = async () => {
@@ -206,7 +212,8 @@ export default function HomeClient() {
             PartyPlay
           </span>
         </div>
-        <div>
+        <div className="flex items-center gap-2">
+          <SoundToggle size="sm" />
           {profile ? (
             <button
               onClick={() => router.push("/mypage")}

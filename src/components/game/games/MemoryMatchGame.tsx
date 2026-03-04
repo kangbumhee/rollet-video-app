@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface Props {
   roundData: Record<string, unknown>;
@@ -21,6 +21,8 @@ export default function MemoryMatchGame({ roundData, round, timeLeft, onSubmit }
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [checking, setChecking] = useState(false);
+  const scoreRef = useRef(0);
+  const submittedRef = useRef(false);
 
   useEffect(() => {
     setFlipped([]);
@@ -29,6 +31,8 @@ export default function MemoryMatchGame({ roundData, round, timeLeft, onSubmit }
     setScore(0);
     setCombo(0);
     setChecking(false);
+    scoreRef.current = 0;
+    submittedRef.current = false;
   }, [round]);
 
   const handleFlip = useCallback((idx: number) => {
@@ -46,6 +50,7 @@ export default function MemoryMatchGame({ roundData, round, timeLeft, onSubmit }
         const newScore = score + bonus;
         setCombo(newCombo);
         setScore(newScore);
+        scoreRef.current = newScore;
 
         setTimeout(() => {
           setMatched((prev) => {
@@ -53,10 +58,12 @@ export default function MemoryMatchGame({ roundData, round, timeLeft, onSubmit }
             next.add(a);
             next.add(b);
 
-            if (next.size >= cards.length) {
+            if (next.size >= cards.length && !submittedRef.current) {
+              submittedRef.current = true;
               setSubmitted(true);
               const timeBonus = timeLeft * 3;
-              onSubmit(newScore + timeBonus, { matches: next.size / 2, timeBonus });
+              const finalScore = scoreRef.current + timeBonus;
+              onSubmit(finalScore, { matches: next.size / 2, timeBonus });
             }
 
             return next;
@@ -75,11 +82,12 @@ export default function MemoryMatchGame({ roundData, round, timeLeft, onSubmit }
   }, [flipped, matched, cards, submitted, checking, combo, score, timeLeft, onSubmit]);
 
   useEffect(() => {
-    if (timeLeft <= 0 && !submitted) {
+    if (timeLeft <= 0 && !submittedRef.current) {
+      submittedRef.current = true;
       setSubmitted(true);
-      onSubmit(score, { matches: matched.size / 2, timedOut: true });
+      onSubmit(scoreRef.current, { matches: matched.size / 2, timedOut: true });
     }
-  }, [timeLeft, submitted, score, matched, onSubmit]);
+  }, [timeLeft, matched, onSubmit]);
 
   return (
     <div className="flex flex-col items-center gap-4">

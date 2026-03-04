@@ -51,6 +51,7 @@ export default function SlitherBattleGame({ roundData, round, timeLeft, onSubmit
   useEffect(() => {
     if (submitted || gameOver) return;
 
+    const moveSpeed = (roundData?.speed as number) || 150;
     intervalRef.current = setInterval(() => {
       if (gameOverRef.current) return;
       const snake = snakeRef.current;
@@ -113,12 +114,12 @@ export default function SlitherBattleGame({ roundData, round, timeLeft, onSubmit
         ctx.fillRect(s.x * CELL + 1, s.y * CELL + 1, CELL - 2, CELL - 2);
       });
 
-    }, 150);
+    }, moveSpeed);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [round, submitted, gameOver, spawnFood]);
+  }, [round, submitted, gameOver, spawnFood, roundData?.speed]);
 
   useEffect(() => {
     if (submitted || gameOver) return;

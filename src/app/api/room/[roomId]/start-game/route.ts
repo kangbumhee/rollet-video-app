@@ -4,6 +4,7 @@ import {
   generatePriceItems,
   generateDrawWords,
   generateTypingSentences,
+  generateBombQuizzes,
 } from "@/lib/gemini/gameQuiz";
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic';
 type MainGameType =
   | 'drawGuess' | 'flappyBattle' | 'bigRoulette' | 'typingBattle'
   | 'priceGuess' | 'blindAuction' | 'bombSurvival' | 'tetrisBattle'
-  | 'memoryMatch' | 'slitherBattle';
+  | 'memoryMatch' | 'slitherBattle' | 'weaponForge';
 
 const GAME_NAMES: Record<MainGameType, string> = {
   drawGuess: '🎨 그림 맞추기',
@@ -25,6 +26,7 @@ const GAME_NAMES: Record<MainGameType, string> = {
   tetrisBattle: '🧱 테트리스 배틀',
   memoryMatch: '🃏 메모리 매치',
   slitherBattle: '🐍 스네이크 서바이벌',
+  weaponForge: '⚔️ 검 강화',
 };
 const VALID_GAMES = Object.keys(GAME_NAMES) as MainGameType[];
 
@@ -164,7 +166,7 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
       case "flappyBattle": {
         for (let r = 1; r <= TOTAL_ROUNDS; r++) {
           roundsData[`round${r}`] = {
-            round: r, speedMultiplier: 1 + r * 0.15, timeLimit: 30, gameType: 'flappyBattle',
+            round: r, speedMultiplier: 1 + r * 0.08, timeLimit: 30, gameType: 'flappyBattle',
           };
         }
         gameConfig = { type: "flappyBattle", needsCanvas: true };
@@ -256,7 +258,12 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
         break;
       }
       case "bombSurvival": {
-        const quizzes = getFallbackBombQuizzes(TOTAL_ROUNDS);
+        let quizzes: Array<{ q: string; a: string; acceptable: string[] }>;
+        try {
+          quizzes = await generateBombQuizzes(TOTAL_ROUNDS);
+        } catch {
+          quizzes = getFallbackBombQuizzes(TOTAL_ROUNDS);
+        }
         for (let r = 1; r <= TOTAL_ROUNDS; r++) {
           const quiz = quizzes[r - 1] || { q: '1+1=?', a: '2', acceptable: ['2'] };
           roundsData[`round${r}`] = {
@@ -306,11 +313,29 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
             });
           }
           roundsData[`round${r}`] = {
-            round: r, initialFoods: foods, timeLimit: 20,
-            gridSize: gridCells, gameType: 'slitherBattle',
+            round: r, initialFoods: foods,
+            timeLimit: 20 + Math.min(r * 2, 10),
+            gridSize: gridCells,
+            speed: Math.max(100, 250 - r * 12),
+            gameType: 'slitherBattle',
           };
         }
         gameConfig = { type: "slitherBattle" };
+        break;
+      }
+      case "weaponForge": {
+        const WEAPONS = ['🗡️ 나무 검', '⚔️ 철 검', '🔪 강철 검', '🗡️ 미스릴 검', '⚔️ 다이아 검', '🔱 전설의 창', '🪓 마법 도끼', '🏹 룬 활', '⚔️ 용의 검', '🗡️ 신의 검'];
+        for (let r = 1; r <= TOTAL_ROUNDS; r++) {
+          const baseSuccess = Math.max(30, 80 - r * 6);
+          roundsData[`round${r}`] = {
+            round: r,
+            weaponName: WEAPONS[r - 1] || `+${r} 무기`,
+            baseSuccessRate: baseSuccess,
+            timeLimit: 10,
+            gameType: 'weaponForge',
+          };
+        }
+        gameConfig = { type: "weaponForge" };
         break;
       }
     }

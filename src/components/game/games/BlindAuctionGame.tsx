@@ -15,7 +15,7 @@ export default function BlindAuctionGame({ roundData, round, onSubmit }: Props) 
   const [submitted, setSubmitted] = useState(false);
   const [revealed, setRevealed] = useState(false);
 
-  const chest = roundData?.chest as { type?: string; label?: string; points?: number } | undefined;
+  const chest = roundData?.chest as { type?: string; label?: string; points?: number; special?: string } | undefined;
   const chestHint = roundData?.chestHint as string | undefined;
   const maxBid = (roundData?.maxBid as number) || 10;
   const max = maxBid || 10;
@@ -33,11 +33,26 @@ export default function BlindAuctionGame({ roundData, round, onSubmit }: Props) 
     setTimeout(() => {
       setRevealed(true);
       const points = chest?.points || 0;
-      const riskMultiplier = 1 + (bid / max) * 0.5;
-      const score = points > 0
-        ? Math.round(points * riskMultiplier)
-        : Math.round(points * riskMultiplier);
-      onSubmit(Math.max(0, score + 10), { bid, chestType: chest?.type, rawPoints: points });
+      const bidRatio = bid / max;
+
+      let score: number;
+      if (points > 0) {
+        score = Math.round(points * (1 + bidRatio * 0.5));
+      } else if (points < 0) {
+        score = Math.round(points * (1 + bidRatio * 1.5));
+      } else {
+        if (chest?.special === 'mirror') {
+          score = bid * 2;
+        } else if (chest?.special === 'double') {
+          score = 20;
+        } else if (chest?.special === 'steal') {
+          score = -bid;
+        } else {
+          score = 0;
+        }
+      }
+
+      onSubmit(score, { bid, chestType: chest?.type, rawPoints: points });
     }, 1000);
   };
 

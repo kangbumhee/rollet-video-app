@@ -79,7 +79,6 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
     const roundTimedOut = current.roundEndsAt && (now > current.roundEndsAt + 3000);
 
     if (roundTimedOut) {
-      // 미제출 유저 강제 제출
       const forceUpdates: Record<string, unknown> = {};
       for (const uid of activePlayerIds) {
         if (!actions[uid]?.done) {
@@ -94,6 +93,19 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
       }
       if (Object.keys(forceUpdates).length > 0) {
         await adminRealtimeDb.ref().update(forceUpdates);
+      }
+    }
+
+    const gameType = current.gameType as string;
+    if (gameType === 'drawGuess') {
+      const roundDataSnap = await adminRealtimeDb.ref(`games/${roomId}/rounds/${roundKey}`).get();
+      const roundInfo = roundDataSnap.val() as { drawerId?: string } | null;
+      const drawerId = roundInfo?.drawerId;
+      if (drawerId && !actions[drawerId]?.done) {
+        await adminRealtimeDb.ref(`games/${roomId}/roundActions/${roundKey}/${drawerId}`).set({
+          done: true, score: 0, submittedAt: Date.now(), timedOut: false, isDrawer: true,
+        });
+        doneCount++;
       }
     }
 
@@ -123,12 +135,15 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
     const freshActionsSnap = await adminRealtimeDb.ref(`games/${roomId}/roundActions/${roundKey}`).get();
     const freshActions = freshActionsSnap.val() || {};
 
-    // 점수 집계
+    const currentRound = (current.round as number) ?? 0;
+    const roundMultiplier = Math.min(1 + (currentRound - 1) * 0.2, 3.0);
+
     const updates: Record<string, unknown> = {};
     const prevScores = (current.scores as Record<string, number>) || {};
     for (const uid of activePlayerIds) {
       const action = freshActions[uid];
-      const roundScore = action?.done ? (action.score as number) || 0 : 0;
+      const rawScore = action?.done ? (action.score as number) || 0 : 0;
+      const roundScore = Math.round(rawScore * roundMultiplier);
       const prevScore = prevScores[uid] || 0;
       updates[`games/${roomId}/current/scores/${uid}`] = prevScore + roundScore;
     }
@@ -141,7 +156,6 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
     // 2.5초 후 다음 라운드 세팅 (서버 측에서 대기)
     await new Promise((r) => setTimeout(r, 2500));
 
-    const currentRound = (current.round as number) ?? 0;
     const totalRounds = (current.totalRounds as number) ?? 10;
 
     // 마지막 라운드면 최종 결과

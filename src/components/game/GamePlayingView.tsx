@@ -17,6 +17,7 @@ import BombSurvivalGame from './games/BombSurvivalGame';
 import TetrisBattleGame from './games/TetrisBattleGame';
 import MemoryMatchGame from './games/MemoryMatchGame';
 import SlitherBattleGame from './games/SlitherBattleGame';
+import WeaponForgeGame from './games/WeaponForgeGame';
 
 interface Props {
   roomId: string;
@@ -24,7 +25,7 @@ interface Props {
 
 export default function GamePlayingView({ roomId }: Props) {
   const game = useGameRound(roomId);
-  const [endCountdown, setEndCountdown] = useState(10);
+  const [endCountdown, setEndCountdown] = useState(5);
   const [resetting, setResetting] = useState(false);
   const prevPhaseRef = useRef<string>('');
   const prevRoundRef = useRef<number>(0);
@@ -72,24 +73,20 @@ export default function GamePlayingView({ roomId }: Props) {
     }
   }, [game.submitted, game.phase]);
 
-  // ── 시상식 10초 카운트다운 ──
+  // ── 시상식 5초 카운트다운 ──
   useEffect(() => {
     if (game.phase !== 'final_result') {
-      setEndCountdown(10);
+      setEndCountdown(5);
+      setResetting(false);
       return;
     }
-
-    setEndCountdown(10);
+    setEndCountdown(5);
     const t = setInterval(() => {
       setEndCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(t);
-          return 0;
-        }
+        if (prev <= 1) { clearInterval(t); return 0; }
         return prev - 1;
       });
     }, 1000);
-
     return () => clearInterval(t);
   }, [game.phase]);
 
@@ -113,16 +110,20 @@ export default function GamePlayingView({ roomId }: Props) {
     }
   }, [game.phase, endCountdown, resetting, roomId]);
 
-  // ── 강제 종료 (게임 시작한 사람만) ──
+  // ── 강제 종료 ──
   const handleForceEnd = useCallback(async () => {
     if (!confirm('게임을 강제 종료할까요?')) return;
     try {
       const token = await auth.currentUser?.getIdToken();
-      if (!token) return;
-      await fetch(`/api/room/${roomId}/reset-game`, {
+      if (!token) { alert('로그인이 필요합니다'); return; }
+      const res = await fetch(`/api/room/${roomId}/reset-game`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || '종료 실패');
+      }
     } catch (e) {
       console.error('force end failed:', e);
       alert('종료 실패');
@@ -212,6 +213,8 @@ export default function GamePlayingView({ roomId }: Props) {
   const showTransition = game.phase === 'round_result';
   const showWaiting = game.phase === 'playing' && game.submitted;
 
+  const roundMultiplier = Math.min(1 + (game.round - 1) * 0.2, 3.0);
+
   const commonProps = {
     roundData: game.roundData ?? {},
     round: game.round,
@@ -246,6 +249,7 @@ export default function GamePlayingView({ roomId }: Props) {
       case 'tetrisBattle':   return <TetrisBattleGame {...commonProps} />;
       case 'memoryMatch':    return <MemoryMatchGame {...commonProps} />;
       case 'slitherBattle':  return <SlitherBattleGame {...commonProps} />;
+      case 'weaponForge':    return <WeaponForgeGame {...commonProps} />;
       default:
         return <div className="text-center text-white/30 py-10">알 수 없는 게임: {gameType}</div>;
     }
@@ -264,6 +268,12 @@ export default function GamePlayingView({ roomId }: Props) {
         submitted={game.submitted}
         gameName={game.gameName}
       />
+
+      {game.phase === 'playing' && game.round > 1 && (
+        <div className="absolute top-2 left-3 z-30 px-2 py-1 text-[10px] rounded-lg bg-neon-amber/10 border border-neon-amber/20 text-neon-amber font-bold">
+          ×{roundMultiplier.toFixed(1)} 배수
+        </div>
+      )}
 
       {/* ★ 강제 종료 버튼 (게임 시작한 사람만) */}
       {isStarter && game.phase !== 'final_result' && (

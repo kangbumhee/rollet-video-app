@@ -13,16 +13,17 @@ interface Props {
 const W = 320;
 const H = 480;
 const BIRD_R = 12;
-const GAP = 130;
+const GAP = 140;
 const PIPE_W = 40;
-const GRAVITY = 0.35;
-const JUMP = -6;
+const GRAVITY = 0.3;
+const JUMP = -5.5;
 
 export default function FlappyBattleGame({ roundData, round, timeLeft, onSubmit }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [submitted, setSubmitted] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [score, setScore] = useState(0);
+  const [started, setStarted] = useState(false);
   const gameRef = useRef<{ y: number; vy: number; pipes: { x: number; topH: number }[]; dist: number; alive: boolean; score: number }>({ y: H / 2, vy: 0, pipes: [], dist: 0, alive: true, score: 0 });
   const rafRef = useRef<number>(0);
 
@@ -30,6 +31,7 @@ export default function FlappyBattleGame({ roundData, round, timeLeft, onSubmit 
     setSubmitted(false);
     setGameOver(false);
     setScore(0);
+    setStarted(false);
     gameRef.current = { y: H / 2, vy: 0, pipes: [], dist: 0, alive: true, score: 0 };
   }, [round]);
 
@@ -41,13 +43,14 @@ export default function FlappyBattleGame({ roundData, round, timeLeft, onSubmit 
   }, [submitted, onSubmit]);
 
   useEffect(() => {
-    if (submitted || gameOver) return;
+    if (submitted || gameOver || !started) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const speed = 2.5 * ((roundData?.speedMultiplier as number) || 1);
+    const speedMult = (roundData?.speedMultiplier as number) || 1;
+    const speed = 1.8 * speedMult;
     let lastTime = performance.now();
 
     const loop = (now: number) => {
@@ -61,7 +64,7 @@ export default function FlappyBattleGame({ roundData, round, timeLeft, onSubmit 
       g.y += g.vy * dt;
       g.dist += speed * dt;
 
-      if (g.pipes.length === 0 || g.pipes[g.pipes.length - 1].x < W - 200) {
+      if (g.pipes.length === 0 || g.pipes[g.pipes.length - 1].x < W - 220) {
         g.pipes.push({ x: W + 20, topH: 60 + Math.random() * (H - GAP - 120) });
       }
 
@@ -113,19 +116,47 @@ export default function FlappyBattleGame({ roundData, round, timeLeft, onSubmit 
 
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [round, submitted, gameOver, roundData, doSubmit]);
+  }, [round, submitted, gameOver, roundData, doSubmit, started]);
 
   useEffect(() => {
     if (timeLeft <= 0 && !submitted) {
-      gameRef.current.alive = false;
+      if (!started) {
+        setSubmitted(true);
+        onSubmit(0);
+      } else {
+        gameRef.current.alive = false;
+      }
     }
-  }, [timeLeft, submitted]);
+  }, [timeLeft, submitted, started, onSubmit]);
 
   const handleJump = () => {
+    if (!started) {
+      setStarted(true);
+      gameRef.current.vy = JUMP;
+      return;
+    }
     if (gameRef.current.alive) {
       gameRef.current.vy = JUMP;
     }
   };
+
+  if (!started && !gameOver) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-8">
+        <div className="text-6xl">🐦</div>
+        <h3 className="text-white font-bold text-lg">플래피 배틀</h3>
+        <div className="bg-surface-base rounded-xl p-4 border border-white/[0.06] max-w-xs text-center space-y-2">
+          <p className="text-white/60 text-sm">화면을 <span className="text-neon-cyan font-bold">탭/클릭</span>하면 새가 점프합니다!</p>
+          <p className="text-white/60 text-sm">초록색 파이프 사이를 통과하세요.</p>
+          <p className="text-white/40 text-xs">파이프를 많이 통과할수록 높은 점수!</p>
+        </div>
+        <button onClick={handleJump}
+          className="px-8 py-4 rounded-xl bg-neon-cyan/15 border border-neon-cyan/25 text-neon-cyan font-bold text-lg hover:bg-neon-cyan/25 active:scale-95 transition-all animate-pulse">
+          탭하여 시작!
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center gap-3">

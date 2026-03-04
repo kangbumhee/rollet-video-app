@@ -27,24 +27,26 @@ export default function TypingRaceGame({ roundData, round, onSubmit }: Props) {
   const calcAccuracy = useCallback(() => {
     if (!input.length) return 0;
     let correct = 0;
-    for (let i = 0; i < Math.min(input.length, sentence.length); i++) {
-      if (input[i] === sentence[i]) correct++;
+    const normalizedInput = input.normalize('NFC');
+    const normalizedSentence = sentence.normalize('NFC');
+    for (let i = 0; i < Math.min(normalizedInput.length, normalizedSentence.length); i++) {
+      if (normalizedInput[i] === normalizedSentence[i]) correct++;
     }
-    return Math.round((correct / sentence.length) * 100);
+    return Math.round((correct / normalizedSentence.length) * 100);
   }, [input, sentence]);
 
   useEffect(() => {
     if (submitted) return;
-    if (input.length >= sentence.length && input.length > 0) {
+    if (input === sentence && input.length > 0) {
       setSubmitted(true);
       const elapsed = startTime ? (Date.now() - startTime) / 1000 : 30;
-      const acc = calcAccuracy();
+      const acc = 100;
       const timeLimit = (roundData?.timeLimit as number) || 20;
       const speedBonus = Math.max(0, timeLimit - elapsed);
       const score = Math.round(acc * (1 + speedBonus / timeLimit));
       onSubmit(score, { accuracy: acc, elapsed: Math.round(elapsed * 10) / 10 });
     }
-  }, [input, sentence.length, startTime, submitted, calcAccuracy, onSubmit, roundData?.timeLimit]);
+  }, [input, sentence, startTime, submitted, onSubmit, roundData?.timeLimit]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (submitted) return;

@@ -81,7 +81,9 @@ export default function BigRouletteGame({ roundData, round, timeLeft, onSubmit }
 
   return (
     <div className="flex flex-col items-center gap-4">
-      <p className="text-white/30 text-xs">스핀해서 배율을 결정하세요! 기본 코인: {baseCoins}</p>
+      <p className="text-white/30 text-xs">
+        스핀해서 배율을 결정하세요! 이번 라운드 베팅: <span className="text-neon-amber font-bold">{baseCoins}코인</span>
+      </p>
       <div className="text-neon-magenta text-2xl">▼</div>
       <div className="relative w-64 h-64">
         <div
