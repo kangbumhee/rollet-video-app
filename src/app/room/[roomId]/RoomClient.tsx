@@ -25,7 +25,6 @@ import { SoundToggle } from '@/components/ui/SoundToggle';
 import { ArrowLeft, Users, MessageCircle, ChevronDown, ChevronUp, ShoppingBag } from 'lucide-react';
 import type { OnlineUser } from '@/hooks/usePresence';
 
-// ─── 정규 게임 목록 (id / name / emoji) ───
 const REGULAR_GAMES = [
   { id: 'drawGuess', name: '그림 맞추기', emoji: '🎨' },
   { id: 'lineRunner', name: '라인 러너', emoji: '✏️' },
@@ -74,7 +73,6 @@ export default function RoomClient() {
 
   const isMainRoom = roomId === 'main';
 
-  // Room meta (Firestore)
   const [roomData, setRoomData] = useState<RoomData | null>(null);
   const [roomLocked, setRoomLocked] = useState(false);
   const [passwordVerified, setPasswordVerified] = useState(false);
@@ -94,7 +92,6 @@ export default function RoomClient() {
   const { cycle, isLoading: cycleLoading, isLive } = useCycle(roomId);
   useWakeLock();
 
-  // State
   const [showUserList, setShowUserList] = useState(false);
   const [showFreePlay, setShowFreePlay] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
@@ -108,9 +105,7 @@ export default function RoomClient() {
   const [userPoints, setUserPoints] = useState(0);
   const [showPointShop, setShowPointShop] = useState(false);
   const [nextPrize, setNextPrize] = useState<{ title: string | null; imageURL: string | null; nextSlot: string | null }>({
-    title: null,
-    imageURL: null,
-    nextSlot: null,
+    title: null, imageURL: null, nextSlot: null,
   });
   const [showPrizeDetail, setShowPrizeDetail] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -118,9 +113,7 @@ export default function RoomClient() {
   const chatCollapsedRef = useRef(false);
   const lastMessageCountRef = useRef(0);
 
-  useEffect(() => {
-    chatCollapsedRef.current = chatCollapsed;
-  }, [chatCollapsed]);
+  useEffect(() => { chatCollapsedRef.current = chatCollapsed; }, [chatCollapsed]);
 
   useEffect(() => {
     if (chatCollapsed && messages.length > lastMessageCountRef.current) {
@@ -129,176 +122,106 @@ export default function RoomClient() {
     lastMessageCountRef.current = messages.length;
   }, [messages.length, chatCollapsed]);
 
-  // Room doc (name, hasPassword)
   useEffect(() => {
     if (!roomId) return;
     const roomRef = doc(firestore, 'rooms', roomId);
-    const unsub = onSnapshot(
-      roomRef,
-      (snap) => {
-        if (snap.exists()) {
-          const d = snap.data();
-          setRoomData({
-            name: (d?.name as string) || roomId,
-            hasPassword: !!(d?.hasPassword ?? d?.password),
-          });
-          setRoomLocked(!!(d?.hasPassword ?? d?.password));
-          if (!(d?.hasPassword ?? d?.password)) setPasswordVerified(true);
-        } else {
-          setRoomData({ name: roomId === 'main' ? '메인' : roomId, hasPassword: false });
-          setRoomLocked(false);
-          setPasswordVerified(true);
-        }
-        setLoading(false);
-      },
-      () => {
+    const unsub = onSnapshot(roomRef, (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setRoomData({ name: (d?.name as string) || roomId, hasPassword: !!(d?.hasPassword ?? d?.password) });
+        setRoomLocked(!!(d?.hasPassword ?? d?.password));
+        if (!(d?.hasPassword ?? d?.password)) setPasswordVerified(true);
+      } else {
         setRoomData({ name: roomId === 'main' ? '메인' : roomId, hasPassword: false });
-        setRoomLocked(false);
-        setPasswordVerified(true);
-        setLoading(false);
+        setRoomLocked(false); setPasswordVerified(true);
       }
-    );
+      setLoading(false);
+    }, () => {
+      setRoomData({ name: roomId === 'main' ? '메인' : roomId, hasPassword: false });
+      setRoomLocked(false); setPasswordVerified(true); setLoading(false);
+    });
     return () => unsub();
   }, [roomId]);
 
-  // User points
   useEffect(() => {
     if (!profile?.uid) return;
     const userRef = doc(firestore, 'users', profile.uid);
-    getDoc(userRef).then((snap) => {
-      if (snap.exists()) setUserPoints((snap.data()?.points as number) ?? 0);
-    });
-    const unsub = onSnapshot(userRef, (snap) => {
-      if (snap.exists()) setUserPoints((snap.data()?.points as number) ?? 0);
-    });
+    getDoc(userRef).then((snap) => { if (snap.exists()) setUserPoints((snap.data()?.points as number) ?? 0); });
+    const unsub = onSnapshot(userRef, (snap) => { if (snap.exists()) setUserPoints((snap.data()?.points as number) ?? 0); });
     return () => unsub();
   }, [profile?.uid]);
 
-  // games/{roomId}/current
   useEffect(() => {
     if (!roomId) return;
     const gameRef = ref(realtimeDb, `games/${roomId}/current`);
-    const unsub = onValue(gameRef, (snap) => {
-      if (snap.exists()) setActiveGame(snap.val() as GameCurrent);
-      else setActiveGame(null);
-    });
+    const unsub = onValue(gameRef, (snap) => { if (snap.exists()) setActiveGame(snap.val() as GameCurrent); else setActiveGame(null); });
     return () => unsub();
   }, [roomId]);
 
-  // rooms/{roomId}/autoGame (main room)
   useEffect(() => {
     if (!roomId || !isMainRoom) return;
     const autoRef = ref(realtimeDb, `rooms/${roomId}/autoGame`);
-    const unsub = onValue(autoRef, (snap) => {
-      if (snap.exists()) setAutoGame(snap.val() as AutoGameData);
-      else setAutoGame(null);
-    });
+    const unsub = onValue(autoRef, (snap) => { if (snap.exists()) setAutoGame(snap.val() as AutoGameData); else setAutoGame(null); });
     return () => unsub();
   }, [roomId, isMainRoom]);
 
-  // Auto countdown (nextGameAt)
   useEffect(() => {
-    if (!autoGame?.nextGameAt) {
-      setAutoCountdown(0);
-      return;
-    }
-    const tick = () => {
-      const diff = Math.max(0, Math.ceil((autoGame.nextGameAt! - Date.now()) / 1000));
-      setAutoCountdown(diff);
-    };
-    tick();
-    const t = setInterval(tick, 1000);
-    return () => clearInterval(t);
+    if (!autoGame?.nextGameAt) { setAutoCountdown(0); return; }
+    const tick = () => { setAutoCountdown(Math.max(0, Math.ceil((autoGame.nextGameAt! - Date.now()) / 1000))); };
+    tick(); const t = setInterval(tick, 1000); return () => clearInterval(t);
   }, [autoGame?.nextGameAt]);
 
-  // Recruit countdown (recruitingUntil)
   useEffect(() => {
-    if (!autoGame?.recruitingUntil) {
-      setRecruitCountdown(0);
-      return;
-    }
-    const tick = () => {
-      const diff = Math.max(0, Math.ceil((autoGame.recruitingUntil! - Date.now()) / 1000));
-      setRecruitCountdown(diff);
-    };
-    tick();
-    const t = setInterval(tick, 1000);
-    return () => clearInterval(t);
+    if (!autoGame?.recruitingUntil) { setRecruitCountdown(0); return; }
+    const tick = () => { setRecruitCountdown(Math.max(0, Math.ceil((autoGame.recruitingUntil! - Date.now()) / 1000))); };
+    tick(); const t = setInterval(tick, 1000); return () => clearInterval(t);
   }, [autoGame?.recruitingUntil]);
 
-  // Next prize from cycle
   useEffect(() => {
     if (!cycle) return;
-    setNextPrize({
-      title: cycle.currentPrizeTitle ?? null,
-      imageURL: cycle.currentPrizeImage ?? null,
-      nextSlot: cycle.nextSlot ?? null,
-    });
+    setNextPrize({ title: cycle.currentPrizeTitle ?? null, imageURL: cycle.currentPrizeImage ?? null, nextSlot: cycle.nextSlot ?? null });
   }, [cycle]);
 
   useGameSounds(cycle?.currentPhase ?? undefined, activeGame?.gameType);
 
-  const handleKick = useCallback(
-    async (uid: string, displayName: string) => {
-      if (!profile?.uid || (!profile.isAdmin && !profile.isModerator)) return;
-      try {
-        const config = await import('@/lib/firebase/config');
-        const token = await config.auth.currentUser?.getIdToken();
-        if (!token) return;
-        const res = await fetch('/api/admin/moderate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ action: 'kick', targetUid: uid, targetDisplayName: displayName, roomId }),
-        });
-        const data = (await res.json()) as { error?: string };
-        if (!res.ok) alert(data.error || '강퇴 실패');
-      } catch (e) {
-        console.error(e);
-        alert('강퇴 요청 실패');
-      }
-    },
-    [roomId, profile]
-  );
+  const handleKick = useCallback(async (uid: string, displayName: string) => {
+    if (!profile?.uid || (!profile.isAdmin && !profile.isModerator)) return;
+    try {
+      const config = await import('@/lib/firebase/config');
+      const token = await config.auth.currentUser?.getIdToken();
+      if (!token) return;
+      const res = await fetch('/api/admin/moderate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'kick', targetUid: uid, targetDisplayName: displayName, roomId }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) alert(data.error || '강퇴 실패');
+    } catch (e) { console.error(e); alert('강퇴 요청 실패'); }
+  }, [roomId, profile]);
 
-  const handleStartRegularGame = useCallback(
-    async (gameType: string) => {
-      if (!user || !roomId) return;
-      setStartingGame(true);
-      try {
-        const token = await user.getIdToken();
-        const res = await fetch(`/api/room/${roomId}/start-game`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ gameType }),
-        });
-        const data = (await res.json()) as { error?: string };
-        if (!res.ok) alert(data.error || '게임 시작 실패');
-        else setShowGameLauncher(false);
-      } catch (e) {
-        console.error(e);
-        alert('게임 시작 요청 실패');
-      } finally {
-        setStartingGame(false);
-      }
-    },
-    [user, roomId]
-  );
+  const handleStartRegularGame = useCallback(async (gameType: string) => {
+    if (!user || !roomId) return;
+    setStartingGame(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/room/${roomId}/start-game`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ gameType }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) alert(data.error || '게임 시작 실패'); else setShowGameLauncher(false);
+    } catch (e) { console.error(e); alert('게임 시작 요청 실패'); } finally { setStartingGame(false); }
+  }, [user, roomId]);
 
   const handleResetGame = useCallback(async () => {
     if (!user || !roomId) return;
     if (!confirm('게임을 초기화할까요?')) return;
     try {
       const token = await user.getIdToken();
-      const res = await fetch(`/api/room/${roomId}/reset-game`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(`/api/room/${roomId}/reset-game`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) alert(data.error || '초기화 실패');
-    } catch (e) {
-      console.error(e);
-      alert('초기화 요청 실패');
-    }
+    } catch (e) { console.error(e); alert('초기화 요청 실패'); }
   }, [user, roomId]);
 
   const joinAutoGame = useCallback(async () => {
@@ -306,23 +229,17 @@ export default function RoomClient() {
     try {
       const token = await user.getIdToken();
       const res = await fetch(`/api/room/${roomId}/auto-game`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: 'join' }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) alert(data.error || '참가 실패');
-    } catch (e) {
-      console.error(e);
-      alert('참가 요청 실패');
-    }
+    } catch (e) { console.error(e); alert('참가 요청 실패'); }
   }, [user, roomId]);
 
-  const handleChatExpand = () => {
-    setChatCollapsed(false);
-    setUnreadCount(0);
-  };
+  const handleChatExpand = () => { setChatCollapsed(false); setUnreadCount(0); };
 
+  /* ── 메인방 콘텐츠 ── */
   const renderMainRoomContent = () => {
     const phase = (cycle?.currentPhase ?? 'IDLE') as CyclePhase;
     const nextSlotTime = cycle?.nextSlot ?? null;
@@ -332,26 +249,17 @@ export default function RoomClient() {
     if (cycleLoading) {
       return (
         <div className="flex items-center justify-center flex-1 min-h-[200px]">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-yellow-500" />
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-neon-magenta" />
         </div>
       );
     }
 
     const hasActiveRegularGame =
-      activeGame &&
-      activeGame.phase &&
-      activeGame.phase !== 'idle' &&
-      activeGame.phase !== 'final_result' &&
+      activeGame && activeGame.phase && activeGame.phase !== 'idle' && activeGame.phase !== 'final_result' &&
       REGULAR_GAMES.some((g) => g.id === activeGame.gameType);
 
     if (hasActiveRegularGame && activeGame && user && profile) {
-      return (
-        <RegularGamePlayer
-          roomId={roomId}
-          uid={profile.uid}
-          displayName={profile.displayName || '익명'}
-        />
-      );
+      return <RegularGamePlayer roomId={roomId} uid={profile.uid} displayName={profile.displayName || '익명'} />;
     }
 
     const isAutoRecruiting = autoGame?.phase === 'recruiting';
@@ -359,16 +267,11 @@ export default function RoomClient() {
 
     return (
       <div className="flex flex-col flex-1 w-full min-h-0">
-        <CycleStatus
-          phase={phase}
-          nextSlotTime={nextSlotTime}
-          prizeTitle={prizeTitle}
-          prizeImageURL={prizeImageURL}
-        />
+        <CycleStatus phase={phase} nextSlotTime={nextSlotTime} prizeTitle={prizeTitle} prizeImageURL={prizeImageURL} />
 
         {isMainRoom && (isAutoWaiting || isAutoRecruiting) && (
-          <div className="mt-4 mx-4 p-4 bg-gray-800/80 rounded-xl border border-gray-700">
-            <p className="text-sm font-semibold text-yellow-400 mb-2">
+          <div className="mt-4 mx-4 p-4 bg-surface-base rounded-xl border border-white/[0.06]">
+            <p className="text-sm font-semibold text-neon-amber mb-2">
               {isAutoRecruiting ? '🎮 자동 게임 모집 중' : '⏰ 다음 자동 게임'}
             </p>
             {isAutoRecruiting ? (
@@ -376,16 +279,14 @@ export default function RoomClient() {
                 <p className="text-white text-sm mb-2">
                   {autoGame.nextGameName} · 보상: {autoGame.reward?.label ?? '100 포인트'}
                 </p>
-                <p className="text-gray-400 text-xs mb-2">참가 인원: {Object.keys(autoGame.joinedPlayers ?? {}).length}명</p>
+                <p className="text-white/40 text-xs mb-2">참가 인원: {Object.keys(autoGame.joinedPlayers ?? {}).length}명</p>
                 <div className="flex items-center gap-2">
-                  <span className="text-lg font-mono tabular-nums">{recruitCountdown}초</span>
-                  <span className="text-gray-500 text-sm">후 시작</span>
+                  <span className="text-lg font-score tabular-nums text-neon-cyan">{recruitCountdown}초</span>
+                  <span className="text-white/30 text-sm">후 시작</span>
                 </div>
                 {user && (
-                  <button
-                    onClick={joinAutoGame}
-                    className="mt-3 w-full py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-lg transition"
-                  >
+                  <button onClick={joinAutoGame}
+                    className="mt-3 w-full py-2.5 bg-neon-amber/15 border border-neon-amber/25 text-neon-amber font-bold rounded-xl hover:bg-neon-amber/25 active:scale-[0.98] transition-all">
                     참가하기
                   </button>
                 )}
@@ -393,7 +294,7 @@ export default function RoomClient() {
             ) : (
               <>
                 <p className="text-white text-sm">{autoGame?.nextGameName ?? '랜덤 게임'}</p>
-                <p className="text-gray-400 text-xs mt-1">
+                <p className="text-white/30 text-xs mt-1 font-score">
                   {Math.floor(autoCountdown / 60)}분 {autoCountdown % 60}초 후
                 </p>
               </>
@@ -403,11 +304,9 @@ export default function RoomClient() {
 
         {!hasActiveRegularGame && (
           <div className="flex flex-col items-center justify-center flex-1 py-8 px-4">
-            <p className="text-gray-500 text-sm mb-4">경품 게임 대기 중이거나 자유 플레이를 즐기세요.</p>
-            <button
-              onClick={() => setShowFreePlay(true)}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-medium transition"
-            >
+            <p className="text-white/30 text-sm mb-4">경품 게임 대기 중이거나 자유 플레이를 즐기세요.</p>
+            <button onClick={() => setShowFreePlay(true)}
+              className="px-5 py-2.5 bg-neon-magenta/15 border border-neon-magenta/25 text-neon-magenta font-bold rounded-xl hover:bg-neon-magenta/25 active:scale-[0.98] transition-all">
               미니게임 하기
             </button>
           </div>
@@ -416,46 +315,28 @@ export default function RoomClient() {
     );
   };
 
+  /* ── 커스텀방 콘텐츠 ── */
   const renderCustomRoomContent = () => {
     const hasActiveRegularGame =
-      activeGame &&
-      activeGame.phase &&
-      activeGame.phase !== 'idle' &&
-      activeGame.phase !== 'final_result' &&
+      activeGame && activeGame.phase && activeGame.phase !== 'idle' && activeGame.phase !== 'final_result' &&
       REGULAR_GAMES.some((g) => g.id === activeGame.gameType);
 
     if (hasActiveRegularGame && activeGame && user && profile) {
-      return (
-        <RegularGamePlayer
-          roomId={roomId}
-          uid={profile.uid}
-          displayName={profile.displayName || '익명'}
-        />
-      );
+      return <RegularGamePlayer roomId={roomId} uid={profile.uid} displayName={profile.displayName || '익명'} />;
     }
 
     if (user && profile) {
       return (
         <div className="flex flex-col flex-1 min-h-0">
-          <GameContainer
-            roomId={roomId}
-            uid={profile.uid}
-            displayName={profile.displayName || '익명'}
-            photoURL={profile.photoURL}
-            level={profile.level}
-          />
-          <div className="mt-4 flex justify-center">
-            <button
-              onClick={() => setShowGameLauncher(true)}
-              className="px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-xl transition"
-            >
+          <GameContainer roomId={roomId} uid={profile.uid} displayName={profile.displayName || '익명'} photoURL={profile.photoURL} level={profile.level} />
+          <div className="mt-4 flex justify-center gap-2">
+            <button onClick={() => setShowGameLauncher(true)}
+              className="px-4 py-2.5 bg-neon-amber/15 border border-neon-amber/25 text-neon-amber font-bold rounded-xl hover:bg-neon-amber/25 active:scale-[0.98] transition-all">
               정규 게임 시작
             </button>
             {(profile.isAdmin || profile.isModerator || activeGame?.startedAt) && (
-              <button
-                onClick={() => handleResetGame()}
-                className="ml-2 px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-xl transition"
-              >
+              <button onClick={() => handleResetGame()}
+                className="px-4 py-2.5 bg-surface-elevated border border-white/[0.06] text-white/50 rounded-xl hover:text-white/70 active:scale-[0.98] transition-all">
                 게임 초기화
               </button>
             )}
@@ -465,7 +346,7 @@ export default function RoomClient() {
     }
 
     return (
-      <div className="flex flex-col items-center justify-center flex-1 text-gray-500 py-12">
+      <div className="flex flex-col items-center justify-center flex-1 text-white/30 py-12">
         <p>로그인하면 게임에 참여할 수 있어요.</p>
       </div>
     );
@@ -474,55 +355,41 @@ export default function RoomClient() {
   const handlePasswordSubmit = async (password: string) => {
     try {
       const res = await fetch(`/api/room/${roomId}/verify-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }),
       });
       const data = (await res.json()) as { success?: boolean; error?: string };
-      if (data.success) setPasswordVerified(true);
-      else alert(data.error || '비밀번호가 틀렸습니다');
-    } catch {
-      alert('확인 요청 실패');
-    }
+      if (data.success) setPasswordVerified(true); else alert(data.error || '비밀번호가 틀렸습니다');
+    } catch { alert('확인 요청 실패'); }
   };
 
+  /* ── 로딩 ── */
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500" />
+      <div className="min-h-screen bg-[#0A0A12] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-neon-magenta" />
       </div>
     );
   }
 
+  /* ── 비밀번호 입력 ── */
   if (roomLocked && !passwordVerified) {
     return (
-      <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-6">
-        <h1 className="text-xl font-bold mb-2">{roomData?.name ?? roomId}</h1>
-        <p className="text-gray-400 text-sm mb-4">비밀번호를 입력하세요</p>
-        <form
-          className="w-full max-w-xs flex flex-col gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const form = e.currentTarget;
-            const input = form.querySelector<HTMLInputElement>('input[name="password"]');
-            if (input?.value) handlePasswordSubmit(input.value);
-          }}
-        >
-          <input
-            name="password"
-            type="password"
-            placeholder="비밀번호"
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-            autoFocus
-          />
-          <button type="submit" className="w-full py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-lg">
+      <div className="min-h-screen bg-[#0A0A12] text-white flex flex-col items-center justify-center p-6">
+        <h1 className="text-xl font-display mb-2">{roomData?.name ?? roomId}</h1>
+        <p className="text-white/40 text-sm mb-4">비밀번호를 입력하세요</p>
+        <form className="w-full max-w-xs flex flex-col gap-3" onSubmit={(e) => {
+          e.preventDefault();
+          const input = e.currentTarget.querySelector<HTMLInputElement>('input[name="password"]');
+          if (input?.value) handlePasswordSubmit(input.value);
+        }}>
+          <input name="password" type="password" placeholder="비밀번호" autoFocus
+            className="w-full bg-surface-base border border-white/[0.06] rounded-xl px-4 py-2.5 text-white placeholder-white/20 focus:outline-none focus:border-neon-cyan/40 transition-colors" />
+          <button type="submit"
+            className="w-full py-2.5 bg-neon-cyan/15 border border-neon-cyan/25 text-neon-cyan font-bold rounded-xl hover:bg-neon-cyan/25 transition-all">
             입장
           </button>
         </form>
-        <button
-          onClick={() => router.push('/rooms')}
-          className="mt-4 text-gray-400 hover:text-white text-sm"
-        >
+        <button onClick={() => router.push('/')} className="mt-4 text-white/30 hover:text-white/50 text-sm transition-colors">
           목록으로
         </button>
       </div>
@@ -531,24 +398,19 @@ export default function RoomClient() {
 
   const roomName = roomData?.name ?? (roomId === 'main' ? '메인' : roomId);
 
+  /* ── 메인 렌더 ── */
   return (
-    <div className="min-h-screen bg-gray-950 text-white flex flex-col">
-      {/* Header */}
-      <header className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-800 bg-gray-900/80">
+    <div className="min-h-screen bg-[#0A0A12] text-white flex flex-col">
+      {/* ── 헤더 ── */}
+      <header className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 border-b border-white/[0.06] bg-surface-base/80 backdrop-blur-sm">
         <div className="flex items-center gap-2 min-w-0">
-          <button
-            onClick={() => router.push('/rooms')}
-            className="p-1.5 rounded-lg hover:bg-gray-800 text-gray-300"
-            aria-label="뒤로"
-          >
+          <button onClick={() => router.push('/')} className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/50" aria-label="뒤로">
             <ArrowLeft size={20} />
           </button>
           <span className="font-bold text-sm truncate">{roomName}</span>
           {isLive && <LiveBadge />}
-          <button
-            onClick={() => setShowUserList((v) => !v)}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-800 text-gray-300 text-xs"
-          >
+          <button onClick={() => setShowUserList((v) => !v)}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-elevated text-white/50 text-xs">
             <Users size={14} />
             {onlineCount}
           </button>
@@ -556,10 +418,8 @@ export default function RoomClient() {
         <div className="flex items-center gap-2 shrink-0">
           <SoundToggle size="sm" />
           {isMainRoom && (
-            <button
-              onClick={() => setShowPointShop(true)}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-yellow-500/20 text-yellow-400 text-xs font-medium"
-            >
+            <button onClick={() => setShowPointShop(true)}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-neon-amber/10 border border-neon-amber/20 text-neon-amber text-xs font-score font-medium">
               <ShoppingBag size={14} />
               {userPoints.toLocaleString()}P
             </button>
@@ -568,12 +428,12 @@ export default function RoomClient() {
         </div>
       </header>
 
-      {/* User list panel */}
+      {/* ── 유저 목록 패널 ── */}
       {showUserList && (
-        <div className="shrink-0 border-b border-gray-800 bg-gray-900/60 max-h-48 overflow-y-auto">
+        <div className="shrink-0 border-b border-white/[0.06] bg-surface-base/60 max-h-48 overflow-y-auto">
           <div className="px-3 py-2 flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-400">접속 중 ({onlineUsers.length})</span>
-            <button onClick={() => setShowUserList(false)} className="text-gray-500 hover:text-white p-1">
+            <span className="text-xs font-semibold text-white/40">접속 중 ({onlineUsers.length})</span>
+            <button onClick={() => setShowUserList(false)} className="text-white/30 hover:text-white p-1">
               <ChevronUp size={16} />
             </button>
           </div>
@@ -581,11 +441,11 @@ export default function RoomClient() {
             {onlineUsers.map((u: OnlineUser) => (
               <li key={u.uid} className="flex items-center gap-2 text-sm">
                 {u.photoURL ? (
-                  <img src={u.photoURL} alt="" className="w-6 h-6 rounded-full object-cover" />
+                  <img src={u.photoURL} alt="" className="w-6 h-6 rounded-full object-cover ring-1 ring-white/10" />
                 ) : (
-                  <div className="w-6 h-6 rounded-full bg-gray-600" />
+                  <div className="w-6 h-6 rounded-full bg-surface-elevated" />
                 )}
-                <span className="truncate">{u.displayName}</span>
+                <span className="truncate text-white/80">{u.displayName}</span>
                 <LevelBadge level={u.level} size="sm" />
               </li>
             ))}
@@ -593,27 +453,23 @@ export default function RoomClient() {
         </div>
       )}
 
-      {/* Main + Chat layout */}
+      {/* ── 메인 + 채팅 레이아웃 ── */}
       <div className="flex-1 flex min-h-0">
         <main className="flex-1 flex flex-col min-w-0 min-h-0 overflow-auto">
           {isMainRoom ? renderMainRoomContent() : renderCustomRoomContent()}
         </main>
 
-        {/* Chat aside */}
-        <aside
-          className={`shrink-0 flex flex-col border-l border-gray-800 bg-gray-900/50 transition-all ${
-            chatCollapsed ? 'w-10' : 'w-72 sm:w-80'
-          }`}
-        >
+        {/* ── 채팅 사이드 ── */}
+        <aside className={`shrink-0 flex flex-col border-l border-white/[0.06] bg-surface-base/50 transition-all ${
+          chatCollapsed ? 'w-10' : 'w-72 sm:w-80'
+        }`}>
           {chatCollapsed ? (
             <div className="flex flex-col h-full">
-              <button
-                onClick={handleChatExpand}
-                className="flex items-center justify-center gap-1 py-2 border-b border-gray-800 hover:bg-gray-800/50 relative"
-              >
+              <button onClick={handleChatExpand}
+                className="flex items-center justify-center gap-1 py-2 border-b border-white/[0.06] hover:bg-white/[0.04] relative text-white/50">
                 <MessageCircle size={18} />
                 {unreadCount > 0 && (
-                  <Badge className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center p-0 text-[10px] bg-red-500">
+                  <Badge className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center p-0 text-[10px] bg-neon-magenta border-0">
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </Badge>
                 )}
@@ -621,73 +477,45 @@ export default function RoomClient() {
             </div>
           ) : (
             <>
-              <div className="shrink-0 flex items-center justify-between px-2 py-1.5 border-b border-gray-800">
-                <span className="text-xs font-semibold text-gray-400">채팅</span>
-                <button
-                  onClick={() => setChatCollapsed(true)}
-                  className="p-1 text-gray-500 hover:text-white"
-                >
+              <div className="shrink-0 flex items-center justify-between px-2 py-1.5 border-b border-white/[0.06]">
+                <span className="text-xs font-semibold text-white/40">채팅</span>
+                <button onClick={() => setChatCollapsed(true)} className="p-1 text-white/30 hover:text-white">
                   <ChevronDown size={16} />
                 </button>
               </div>
               <div className="flex-1 min-h-0 overflow-hidden">
-                <ChatWindow
-                  messages={messages}
-                  onSendMessage={sendMessage}
-                  currentUid={profile?.uid}
-                  onKick={handleKick}
-                />
+                <ChatWindow messages={messages} onSendMessage={sendMessage} currentUid={profile?.uid ?? ''} onKick={handleKick} />
               </div>
             </>
           )}
         </aside>
       </div>
 
-      {/* FreePlay Lobby modal */}
+      {/* ── 미니게임 모달 ── */}
       {showFreePlay && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
-          onClick={() => setShowFreePlay(false)}
-        >
-          <div
-            className="bg-gray-800 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-auto p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowFreePlay(false)}>
+          <div className="bg-surface-elevated border border-white/[0.06] rounded-2xl max-w-lg w-full max-h-[90vh] overflow-auto p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold">미니게임</h2>
-              <button onClick={() => setShowFreePlay(false)} className="p-1 rounded hover:bg-gray-700">
-                ✕
-              </button>
+              <button onClick={() => setShowFreePlay(false)} className="p-1 rounded hover:bg-white/[0.06] text-white/50">✕</button>
             </div>
             <FreePlayLobby roomId={roomId} />
           </div>
         </div>
       )}
 
-      {/* Game launcher modal (custom room) */}
+      {/* ── 정규게임 선택 모달 ── */}
       {showGameLauncher && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
-          onClick={() => setShowGameLauncher(false)}
-        >
-          <div
-            className="bg-gray-800 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-auto p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowGameLauncher(false)}>
+          <div className="bg-surface-elevated border border-white/[0.06] rounded-2xl max-w-lg w-full max-h-[90vh] overflow-auto p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold">정규 게임 선택</h2>
-              <button onClick={() => setShowGameLauncher(false)} className="p-1 rounded hover:bg-gray-700">
-                ✕
-              </button>
+              <button onClick={() => setShowGameLauncher(false)} className="p-1 rounded hover:bg-white/[0.06] text-white/50">✕</button>
             </div>
             <div className="grid grid-cols-2 gap-2">
               {REGULAR_GAMES.map((g) => (
-                <button
-                  key={g.id}
-                  disabled={startingGame}
-                  onClick={() => handleStartRegularGame(g.id)}
-                  className="flex items-center gap-2 p-3 rounded-xl bg-gray-700 hover:bg-gray-600 text-left transition disabled:opacity-50"
-                >
+                <button key={g.id} disabled={startingGame} onClick={() => handleStartRegularGame(g.id)}
+                  className="flex items-center gap-2 p-3 rounded-xl bg-surface-base border border-white/[0.06] hover:border-neon-cyan/30 hover:bg-surface-base/80 text-left transition-all disabled:opacity-40 active:scale-[0.98]">
                   <span className="text-2xl">{g.emoji}</span>
                   <span className="text-sm font-medium truncate">{g.name}</span>
                 </button>
@@ -697,42 +525,25 @@ export default function RoomClient() {
         </div>
       )}
 
-      {/* Prize detail modal */}
+      {/* ── 경품 상세 모달 ── */}
       {showPrizeDetail && nextPrize.title && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
-          onClick={() => setShowPrizeDetail(false)}
-        >
-          <div
-            className="bg-gray-800 rounded-2xl max-w-sm w-full p-6 text-center"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowPrizeDetail(false)}>
+          <div className="bg-surface-elevated border border-white/[0.06] rounded-2xl max-w-sm w-full p-6 text-center" onClick={(e) => e.stopPropagation()}>
             {nextPrize.imageURL && (
-              <img
-                src={nextPrize.imageURL}
-                alt={nextPrize.title}
-                className="w-24 h-24 rounded-xl object-cover mx-auto mb-3 border-2 border-purple-500/30"
-              />
+              <img src={nextPrize.imageURL} alt={nextPrize.title}
+                className="w-24 h-24 rounded-xl object-cover mx-auto mb-3 border border-neon-amber/30" />
             )}
             <h3 className="text-lg font-bold text-white">{nextPrize.title}</h3>
-            {nextPrize.nextSlot && <p className="text-gray-400 text-sm mt-1">{nextPrize.nextSlot}</p>}
-            <button
-              onClick={() => setShowPrizeDetail(false)}
-              className="mt-4 w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
-            >
+            {nextPrize.nextSlot && <p className="text-white/40 text-sm mt-1">{nextPrize.nextSlot}</p>}
+            <button onClick={() => setShowPrizeDetail(false)}
+              className="mt-4 w-full py-2.5 bg-surface-base border border-white/[0.06] hover:bg-white/[0.04] rounded-xl text-white/60 transition-all">
               닫기
             </button>
           </div>
         </div>
       )}
 
-      {/* Point shop */}
-      <PointShop
-        isOpen={showPointShop}
-        onClose={() => setShowPointShop(false)}
-        userPoints={userPoints}
-        uid={profile?.uid ?? ''}
-      />
+      <PointShop isOpen={showPointShop} onClose={() => setShowPointShop(false)} userPoints={userPoints} uid={profile?.uid ?? ''} />
     </div>
   );
 }
