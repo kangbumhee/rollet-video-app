@@ -17,7 +17,11 @@ export default function CycleStatus({ phase, nextSlotTime, prizeTitle, prizeImag
     if (!nextSlotTime) return;
 
     const parseTarget = () => {
-      const cleaned = nextSlotTime.replace(' KST', '').replace('T', ' ');
+      // "2026-03-04 22:30 KST" 또는 "2026-03-04T22:30" 둘 다 처리
+      const cleaned = nextSlotTime!
+        .replace(' KST', '')
+        .replace('T', ' ')
+        .trim();
       const [datePart, timePartRaw] = cleaned.split(' ');
       const timePart = (timePartRaw || '00:00').slice(0, 5);
       return new Date(`${datePart}T${timePart}:00+09:00`);
@@ -77,7 +81,11 @@ export default function CycleStatus({ phase, nextSlotTime, prizeTitle, prizeImag
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="text-neon-amber text-sm font-score">{nextSlotTime}</p>
+            {totalSeconds > 0 ? (
+              <p className="text-neon-amber text-sm font-score">{nextSlotTime}</p>
+            ) : (
+              <p className="text-white/20 text-sm">다음 경품 일정을 준비 중입니다...</p>
+            )}
           </>
         ) : (
           <p className="text-white/20 text-sm">예정된 경품 게임이 없습니다</p>

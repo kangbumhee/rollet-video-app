@@ -23,16 +23,34 @@ const PHASES = [
 
 function calcNextSlot(nowMs: number): string {
   const kst = new Date(nowMs + 9 * 60 * 60 * 1000);
-  const y = kst.getFullYear();
-  const mo = String(kst.getMonth() + 1).padStart(2, '0');
-  const d = String(kst.getDate()).padStart(2, '0');
-  const h = kst.getHours();
-  const m = kst.getMinutes();
-  let slotH = h;
+  const y = kst.getUTCFullYear();
+  let mo = kst.getUTCMonth(); // 0-based
+  let d = kst.getUTCDate();
+  const h = kst.getUTCHours();
+  const m = kst.getUTCMinutes();
+
+  let slotH: number;
   let slotM: number;
-  if (m < 30) { slotM = 30; } else { slotM = 0; slotH = h + 1; }
-  if (slotH >= 24) slotH = 0;
-  return `${y}-${mo}-${d}T${String(slotH).padStart(2, '0')}:${String(slotM).padStart(2, '0')}`;
+  if (m < 30) {
+    slotM = 30;
+    slotH = h;
+  } else {
+    slotM = 0;
+    slotH = h + 1;
+  }
+
+  if (slotH >= 24) {
+    slotH -= 24;
+    const nextDay = new Date(Date.UTC(y, mo, d + 1));
+    mo = nextDay.getUTCMonth();
+    d = nextDay.getUTCDate();
+  }
+
+  const moStr = String(mo + 1).padStart(2, '0');
+  const dStr = String(d).padStart(2, '0');
+  const hStr = String(slotH).padStart(2, '0');
+  const mStr = String(slotM).padStart(2, '0');
+  return `${y}-${moStr}-${dStr} ${hStr}:${mStr} KST`;
 }
 
 function sleep(ms: number): Promise<void> {
