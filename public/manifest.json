@@ -1,13 +1,14 @@
 {
-  "name": "PrizeLive - 24시간 라이브 경품 게임",
-  "short_name": "PrizeLive",
-  "description": "광고 보고 가위바위보로 경품 받자!",
+  "name": "PartyPlay - 실시간 파티게임",
+  "short_name": "PartyPlay",
+  "description": "친구들과 함께하는 실시간 파티 게임 플랫폼! 다양한 멀티 게임과 미니게임을 무료로 즐기고 경품도 받아가세요.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0A0A0F",
-  "theme_color": "#0A0A0F",
+  "background_color": "#0A0A12",
+  "theme_color": "#0A0A12",
   "orientation": "portrait",
-  "categories": ["games", "entertainment"],
+  "categories": ["games", "entertainment", "social"],
+  "lang": "ko",
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
