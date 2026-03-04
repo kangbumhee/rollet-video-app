@@ -465,19 +465,31 @@ export default function RoomClient() {
 
         {/* ── 채팅 ── */}
         <aside className={`shrink-0 flex flex-col border-t md:border-t-0 md:border-l border-white/[0.06] bg-surface-base/50 transition-all ${
-          chatCollapsed ? 'h-10 md:h-auto md:w-10' : 'h-64 md:h-auto md:w-72 lg:w-80'
+          chatCollapsed ? 'h-auto md:h-auto md:w-10' : 'h-80 md:h-auto md:w-72 lg:w-80'
         }`}>
           {chatCollapsed ? (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col">
               <button onClick={handleChatExpand}
                 className="flex items-center justify-center gap-1 py-2 border-b border-white/[0.06] hover:bg-white/[0.04] relative text-white/50">
                 <MessageCircle size={18} />
+                <span className="text-[10px] text-white/30">채팅</span>
                 {unreadCount > 0 && (
                   <Badge className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center p-0 text-[10px] bg-neon-magenta border-0">
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </Badge>
                 )}
               </button>
+              {/* 최신 메시지 2줄 미리보기 */}
+              <div onClick={handleChatExpand} className="px-2 py-1.5 cursor-pointer hover:bg-white/[0.02] transition">
+                {messages.slice(-2).map((msg, i) => (
+                  <p key={i} className="text-[10px] text-white/30 truncate leading-tight">
+                    <span className="text-white/50 font-medium">{msg.displayName}:</span> {(msg as { text?: string; message: string }).text ?? msg.message}
+                  </p>
+                ))}
+                {messages.length === 0 && (
+                  <p className="text-[10px] text-white/15 text-center">메시지 없음</p>
+                )}
+              </div>
             </div>
           ) : (
             <>

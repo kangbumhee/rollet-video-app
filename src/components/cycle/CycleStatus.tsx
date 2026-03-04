@@ -10,7 +10,7 @@ interface CycleStatusProps {
 }
 
 export default function CycleStatus({ phase, nextSlotTime, prizeTitle, prizeImageURL }: CycleStatusProps) {
-  const [timeLeft, setTimeLeft] = useState({ minutes: 0, seconds: 0 });
+  const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
   const [totalSeconds, setTotalSeconds] = useState(0);
 
   useEffect(() => {
@@ -34,7 +34,8 @@ export default function CycleStatus({ phase, nextSlotTime, prizeTitle, prizeImag
       const diff = Math.max(0, Math.floor((target.getTime() - now.getTime()) / 1000));
       setTotalSeconds(diff);
       setTimeLeft({
-        minutes: Math.floor(diff / 60),
+        hours: Math.floor(diff / 3600),
+        minutes: Math.floor((diff % 3600) / 60),
         seconds: diff % 60,
       });
     };
@@ -48,7 +49,7 @@ export default function CycleStatus({ phase, nextSlotTime, prizeTitle, prizeImag
 
   // IDLE / COOLDOWN: 큰 카운트다운 표시
   if (!phase || phase === 'IDLE' || phase === 'COOLDOWN') {
-    const maxSeconds = 1800;
+    const maxSeconds = totalSeconds > 1800 ? totalSeconds : 1800;
     const progress = Math.max(0, Math.min(100, ((maxSeconds - totalSeconds) / maxSeconds) * 100));
     const hasNextSlot = nextSlotTime && String(nextSlotTime).trim().length > 0;
 
@@ -57,22 +58,36 @@ export default function CycleStatus({ phase, nextSlotTime, prizeTitle, prizeImag
         {hasNextSlot ? (
           <>
             <p className="text-white/30 text-sm mb-4 tracking-widest uppercase">다음 경품까지</p>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="bg-surface-base/80 backdrop-blur border border-white/[0.06] rounded-2xl px-6 py-4 min-w-[100px] text-center">
-                <span className="text-6xl sm:text-7xl font-black text-white tabular-nums tracking-tight font-score">
+            <div className="flex items-center gap-2 mb-4">
+              {timeLeft.hours > 0 && (
+                <>
+                  <div className="bg-surface-base/80 backdrop-blur border border-white/[0.06] rounded-2xl px-4 py-3 min-w-[72px] text-center">
+                    <span className="text-4xl sm:text-5xl font-black text-white tabular-nums tracking-tight font-score">
+                      {pad(timeLeft.hours)}
+                    </span>
+                    <p className="text-white/20 text-[10px] mt-1">시간</p>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-neon-magenta animate-pulse" />
+                    <div className="w-2 h-2 rounded-full bg-neon-magenta animate-pulse" />
+                  </div>
+                </>
+              )}
+              <div className="bg-surface-base/80 backdrop-blur border border-white/[0.06] rounded-2xl px-4 py-3 min-w-[72px] text-center">
+                <span className={`font-black text-white tabular-nums tracking-tight font-score ${timeLeft.hours > 0 ? 'text-4xl sm:text-5xl' : 'text-6xl sm:text-7xl'}`}>
                   {pad(timeLeft.minutes)}
                 </span>
-                <p className="text-white/20 text-xs mt-1">분</p>
+                <p className="text-white/20 text-[10px] mt-1">분</p>
               </div>
-              <div className="flex flex-col gap-2">
-                <div className="w-3 h-3 rounded-full bg-neon-magenta animate-pulse" />
-                <div className="w-3 h-3 rounded-full bg-neon-magenta animate-pulse" />
+              <div className="flex flex-col gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-neon-magenta animate-pulse" />
+                <div className="w-2 h-2 rounded-full bg-neon-magenta animate-pulse" />
               </div>
-              <div className="bg-surface-base/80 backdrop-blur border border-white/[0.06] rounded-2xl px-6 py-4 min-w-[100px] text-center">
-                <span className="text-6xl sm:text-7xl font-black text-white tabular-nums tracking-tight font-score">
+              <div className="bg-surface-base/80 backdrop-blur border border-white/[0.06] rounded-2xl px-4 py-3 min-w-[72px] text-center">
+                <span className={`font-black text-white tabular-nums tracking-tight font-score ${timeLeft.hours > 0 ? 'text-4xl sm:text-5xl' : 'text-6xl sm:text-7xl'}`}>
                   {pad(timeLeft.seconds)}
                 </span>
-                <p className="text-white/20 text-xs mt-1">초</p>
+                <p className="text-white/20 text-[10px] mt-1">초</p>
               </div>
             </div>
             <div className="w-full max-w-xs h-2 bg-surface-base rounded-full overflow-hidden mb-4">
