@@ -13,7 +13,7 @@ interface Props {
   roomId: string;
 }
 
-const BET_OPTIONS = [10, 25, 50, 100];
+const BET_MULTIPLIER_OPTIONS = [1, 2, 3, 5, 10, 20];
 
 const DEFAULT_SEGMENTS = [
   { label: '×2', mult: 2, color: '#3b82f6' },
@@ -34,8 +34,8 @@ export default function BigRouletteGame({ roundData, round, timeLeft, onSubmit }
   const [spinning, setSpinning] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [rotation, setRotation] = useState(0);
-  const [result, setResult] = useState<{ label: string; mult: number; score: number } | null>(null);
-  const [betAmount, setBetAmount] = useState<number | null>(null);
+  const [result, setResult] = useState<{ label: string; wheelMult: number; betMult: number; score: number } | null>(null);
+  const [selectedBetMult, setSelectedBetMult] = useState<number | null>(null);
 
   const segments = DEFAULT_SEGMENTS;
   const targetIdx = (roundData?.targetSegmentIdx as number) ?? 0;
@@ -46,7 +46,7 @@ export default function BigRouletteGame({ roundData, round, timeLeft, onSubmit }
     setSubmitted(false);
     setResult(null);
     setRotation(0);
-    setBetAmount(null);
+    setSelectedBetMult(null);
   }, [round]);
 
   const conicGradient = useMemo(() => {
@@ -57,7 +57,7 @@ export default function BigRouletteGame({ roundData, round, timeLeft, onSubmit }
   }, [segments]);
 
   const handleSpin = () => {
-    if (spinning || submitted || betAmount === null) return;
+    if (spinning || submitted || selectedBetMult === null) return;
     setSpinning(true);
 
     const count = segments.length;
@@ -71,9 +71,9 @@ export default function BigRouletteGame({ roundData, round, timeLeft, onSubmit }
       setSpinning(false);
       setSubmitted(true);
       const seg = segments[targetIdx];
-      const sc = seg.mult * betAmount;
-      setResult({ label: seg.label, mult: seg.mult, score: sc });
-      onSubmit(sc, { segment: seg.label, mult: seg.mult, bet: betAmount });
+      const sc = Math.round(baseCoins * selectedBetMult * seg.mult);
+      setResult({ label: seg.label, wheelMult: seg.mult, betMult: selectedBetMult, score: sc });
+      onSubmit(sc, { segment: seg.label, wheelMult: seg.mult, betMult: selectedBetMult, baseCoins });
     }, 3500);
   };
 
@@ -86,46 +86,47 @@ export default function BigRouletteGame({ roundData, round, timeLeft, onSubmit }
 
   return (
     <div className="flex flex-col items-center gap-4">
-      {betAmount === null && !submitted && !spinning && (
+      {selectedBetMult === null && !submitted && !spinning && (
         <div className="w-full max-w-sm">
-          <p className="text-center text-white/50 text-sm mb-3">배팅할 코인을 선택하세요!</p>
+          <p className="text-center text-white/50 text-sm mb-2">배팅할 배수를 선택하세요!</p>
           <p className="text-center text-white/30 text-xs mb-4">
-            라운드 기본 코인: <span className="text-neon-amber font-bold">{baseCoins}</span>
+            기본 코인: <span className="text-neon-amber font-bold">{baseCoins}</span> × 선택 배수 × 룰렛 결과
           </p>
-          <div className="grid grid-cols-2 gap-3">
-            {BET_OPTIONS.map((amount) => {
-              const actualBet = Math.min(amount, baseCoins);
-              return (
-                <button
-                  key={amount}
-                  onClick={() => setBetAmount(actualBet)}
-                  className="flex flex-col items-center gap-1 py-5 px-4 rounded-2xl bg-surface-elevated border-2 border-white/10 hover:border-neon-amber/50 hover:bg-neon-amber/10 active:scale-95 transition-all"
-                >
-                  <span className="text-3xl font-black text-neon-amber tabular-nums font-score">
-                    {actualBet}
-                  </span>
-                  <span className="text-xs text-white/40">코인 배팅</span>
-                </button>
-              );
-            })}
+          <div className="grid grid-cols-3 gap-3">
+            {BET_MULTIPLIER_OPTIONS.map((mult) => (
+              <button
+                key={mult}
+                onClick={() => setSelectedBetMult(mult)}
+                className={`flex flex-col items-center gap-1 py-5 px-4 rounded-2xl border-2 transition-all active:scale-95 ${
+                  mult >= 10
+                    ? 'bg-gradient-to-b from-red-500/20 to-surface-elevated border-red-500/40 hover:border-red-400/60'
+                    : mult >= 5
+                    ? 'bg-gradient-to-b from-neon-amber/20 to-surface-elevated border-neon-amber/40 hover:border-neon-amber/60'
+                    : 'bg-surface-elevated border-white/10 hover:border-neon-cyan/40'
+                }`}
+              >
+                <span className={`text-3xl font-black tabular-nums font-score ${
+                  mult >= 10 ? 'text-red-400' : mult >= 5 ? 'text-neon-amber' : 'text-neon-cyan'
+                }`}>
+                  ×{mult}
+                </span>
+                <span className="text-xs text-white/40">
+                  {mult >= 10 ? '🔥 하이리스크' : mult >= 5 ? '⚡ 도전' : '안전'}
+                </span>
+              </button>
+            ))}
           </div>
-          <button
-            onClick={() => setBetAmount(baseCoins)}
-            className="w-full mt-3 py-4 rounded-2xl bg-gradient-to-r from-neon-amber/20 to-red-500/20 border-2 border-neon-amber/40 hover:border-neon-amber/60 active:scale-[0.98] transition-all"
-          >
-            <span className="text-2xl font-black text-neon-amber tabular-nums font-score">{baseCoins}</span>
-            <span className="text-sm font-bold text-neon-amber/80 ml-2">ALL IN! 🔥</span>
-          </button>
         </div>
       )}
 
-      {betAmount !== null && (
+      {selectedBetMult !== null && (
         <>
           <div className="bg-surface-elevated border-2 border-neon-amber/30 rounded-2xl px-6 py-3 text-center">
             <p className="text-xs text-white/40">내 배팅</p>
             <p className="text-3xl font-black text-neon-amber tabular-nums font-score">
-              {betAmount} <span className="text-lg">코인</span>
+              ×{selectedBetMult}
             </p>
+            <p className="text-xs text-white/30 mt-1">{baseCoins} × {selectedBetMult} × 룰렛결과</p>
           </div>
 
           <div className="text-neon-magenta text-2xl">▼</div>
@@ -166,12 +167,16 @@ export default function BigRouletteGame({ roundData, round, timeLeft, onSubmit }
         {spinning && <p className="text-neon-cyan animate-pulse font-bold text-lg">돌리는 중...</p>}
 
         {result && (
-          <div className="text-center space-y-2 bg-surface-elevated rounded-2xl px-6 py-4 border border-white/10">
-            <p className="text-3xl font-black text-white">{result.label}</p>
-            <p className="text-xs text-white/40">{betAmount} × {result.mult} =</p>
-            <p className="text-2xl font-black text-neon-amber">+{result.score}점</p>
-          </div>
-        )}
+            <div className="text-center space-y-2 bg-surface-elevated rounded-2xl px-6 py-4 border border-white/10">
+              <p className="text-3xl font-black text-white">{result.label}</p>
+              <p className="text-sm text-white/40">
+                {baseCoins} × {result.betMult} × {result.wheelMult} =
+              </p>
+              <p className={`text-2xl font-black ${result.score > 0 ? 'text-neon-amber' : 'text-red-400'}`}>
+                {result.score > 0 ? `+${result.score}점` : '💀 0점!'}
+              </p>
+            </div>
+          )}
         </>
       )}
     </div>

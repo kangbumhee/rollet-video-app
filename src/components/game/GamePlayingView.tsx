@@ -27,6 +27,8 @@ export default function GamePlayingView({ roomId }: Props) {
   const game = useGameRound(roomId);
   const [endCountdown, setEndCountdown] = useState(5);
   const [resetting, setResetting] = useState(false);
+  const [countdownDone, setCountdownDone] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const prevPhaseRef = useRef<string>('');
   const prevRoundRef = useRef<number>(0);
 
@@ -84,43 +86,71 @@ export default function GamePlayingView({ roomId }: Props) {
   useEffect(() => {
     if (game.phase !== 'final_result') {
       setEndCountdown(5);
+      setCountdownDone(false);
+      setDismissed(false);
       setResetting(false);
       return;
     }
     setEndCountdown(5);
+    setCountdownDone(false);
+    setDismissed(false);
     const t = setInterval(() => {
       setEndCountdown((prev) => {
-        if (prev <= 1) { clearInterval(t); return 0; }
+        if (prev <= 1) {
+          clearInterval(t);
+          setCountdownDone(true);
+          return 0;
+        }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(t);
   }, [game.phase]);
 
-  // ── 시상식 종료 후 게임 리셋 ──
+  const handleDismissAward = useCallback(async () => {
+    if (!countdownDone || resetting) return;
+    setDismissed(true);
+    setResetting(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (token) {
+        const res = await fetch(`/api/room/${roomId}/reset-game`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) console.error('dismiss reset failed:', res.status);
+      }
+    } catch (e) {
+      console.error('dismiss reset error:', e);
+    }
+  }, [countdownDone, resetting, roomId]);
+
+  // ── 모든 사람 나가면 자동 종료 ──
   useEffect(() => {
-    if (game.phase === 'final_result' && endCountdown <= 0 && !resetting) {
+    if (
+      game.phase === 'playing' &&
+      game.progress.online === 0 &&
+      game.progress.total > 0 &&
+      !resetting
+    ) {
       setResetting(true);
       (async () => {
         try {
           const token = await auth.currentUser?.getIdToken();
           if (token) {
-            const res = await fetch(`/api/room/${roomId}/reset-game`, {
+            await fetch(`/api/room/${roomId}/reset-game`, {
               method: 'POST',
               headers: { Authorization: `Bearer ${token}` },
             });
-            if (!res.ok) {
-              console.error('auto reset failed:', res.status);
-              setTimeout(() => setResetting(false), 3000);
-            }
           }
         } catch (e) {
-          console.error('auto reset failed:', e);
-          setTimeout(() => setResetting(false), 3000);
+          console.error('auto-end on empty room failed:', e);
+        } finally {
+          setResetting(false);
         }
       })();
     }
-  }, [game.phase, endCountdown, resetting, roomId]);
+  }, [game.phase, game.progress.online, game.progress.total, resetting, roomId]);
 
   // ── 강제 종료 ──
   const handleForceEnd = useCallback(async () => {
@@ -133,9 +163,7 @@ export default function GamePlayingView({ roomId }: Props) {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || '종료 실패');
-      }
+      if (!res.ok) alert(data.error || '종료 실패');
     } catch (e) {
       console.error('force end failed:', e);
       alert('종료 실패');
@@ -152,8 +180,10 @@ export default function GamePlayingView({ roomId }: Props) {
 
   const isStarter = game.startedBy === game.uid;
 
-  // ── 최종 결과 (시상식) ──
+  // ── 최종 결과 (시상식) — 5초 후 터치하면 닫기 ──
   if (game.phase === 'final_result') {
+    if (dismissed) return null;
+
     const sorted = Object.entries(game.scores).sort((a, b) => b[1] - a[1]);
     const myRank = sorted.findIndex(([uid]) => uid === game.uid) + 1;
     const winnerId = game.winnerId || sorted[0]?.[0];
@@ -161,14 +191,17 @@ export default function GamePlayingView({ roomId }: Props) {
     const winnerPhoto = winnerId && game.photoMap ? game.photoMap[winnerId] : null;
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-5 px-4 py-8">
-        {/* 카운트다운 */}
-        <div className="text-white/20 text-xs">{endCountdown > 0 ? `${endCountdown}초 후 자동 종료` : '종료 중...'}</div>
+      <div
+        className="flex flex-col items-center justify-center min-h-[60vh] gap-5 px-4 py-8 cursor-pointer"
+        onClick={countdownDone ? handleDismissAward : undefined}
+      >
+        <div className="text-white/30 text-xs">
+          {endCountdown > 0 ? `${endCountdown}초 후 닫을 수 있습니다` : '👆 화면을 터치하면 닫힙니다'}
+        </div>
 
         <div className="text-4xl">🏆</div>
         <h2 className="text-2xl font-black text-white">게임 종료!</h2>
 
-        {/* 1등 사진 + 이름 */}
         {winnerId && (
           <div className="flex flex-col items-center gap-2">
             {winnerPhoto ? (
@@ -187,7 +220,6 @@ export default function GamePlayingView({ roomId }: Props) {
           </div>
         )}
 
-        {/* 순위 */}
         <div className="w-full max-w-xs space-y-2">
           {sorted.slice(0, 10).map(([uid, score], i) => (
             <div key={uid} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${

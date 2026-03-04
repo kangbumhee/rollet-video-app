@@ -163,7 +163,7 @@ export default function SlitherBattleGame({ roundData, round, timeLeft, onSubmit
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <p className="text-white/30 text-xs">스와이프/화살표로 뱀을 조종하세요! 빨간 먹이를 먹어요</p>
+      <p className="text-white/30 text-xs">스와이프 또는 버튼으로 방향 조작!</p>
       <div className="text-neon-amber font-bold font-score text-lg">{score}점</div>
       <canvas
         ref={canvasRef}
@@ -174,19 +174,19 @@ export default function SlitherBattleGame({ roundData, round, timeLeft, onSubmit
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       />
-      <div className="grid grid-cols-3 gap-1 w-36 md:hidden">
+      <div className="grid grid-cols-3 gap-2 w-72 md:hidden">
         <div />
         <button onClick={() => { if (dirRef.current !== 'DOWN') dirRef.current = 'UP'; }}
-          className="py-2 bg-surface-elevated rounded text-white/60 active:bg-white/10 text-center">↑</button>
+          className="py-5 bg-surface-elevated rounded-xl text-white/70 active:bg-neon-cyan/20 text-center text-2xl font-bold select-none">▲</button>
         <div />
         <button onClick={() => { if (dirRef.current !== 'RIGHT') dirRef.current = 'LEFT'; }}
-          className="py-2 bg-surface-elevated rounded text-white/60 active:bg-white/10 text-center">←</button>
+          className="py-5 bg-surface-elevated rounded-xl text-white/70 active:bg-neon-cyan/20 text-center text-2xl font-bold select-none">◀</button>
         <div />
         <button onClick={() => { if (dirRef.current !== 'LEFT') dirRef.current = 'RIGHT'; }}
-          className="py-2 bg-surface-elevated rounded text-white/60 active:bg-white/10 text-center">→</button>
+          className="py-5 bg-surface-elevated rounded-xl text-white/70 active:bg-neon-cyan/20 text-center text-2xl font-bold select-none">▶</button>
         <div />
         <button onClick={() => { if (dirRef.current !== 'UP') dirRef.current = 'DOWN'; }}
-          className="py-2 bg-surface-elevated rounded text-white/60 active:bg-white/10 text-center">↓</button>
+          className="py-5 bg-surface-elevated rounded-xl text-white/70 active:bg-neon-cyan/20 text-center text-2xl font-bold select-none">▼</button>
         <div />
       </div>
     </div>

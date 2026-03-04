@@ -119,13 +119,17 @@ export default function RoomClient() {
 
   useEffect(() => { chatCollapsedRef.current = chatCollapsed; }, [chatCollapsed]);
 
+  const isGameActivePhase = useCallback((phase: string | undefined) => {
+    return !!phase && phase !== 'idle' && phase !== 'waiting';
+  }, []);
+
   useEffect(() => {
-    const hasActiveRegularGame =
+    const isPlayingPhase =
       activeGame && activeGame.phase &&
       activeGame.phase !== 'idle' && activeGame.phase !== 'final_result' && activeGame.phase !== 'waiting' &&
       REGULAR_GAMES.some((g) => g.id === activeGame.gameType);
 
-    if (hasActiveRegularGame) {
+    if (isPlayingPhase) {
       if (chatWasCollapsedRef.current === null) {
         chatWasCollapsedRef.current = chatCollapsedRef.current;
       }
@@ -209,12 +213,13 @@ export default function RoomClient() {
     setNextPrize({ title: cycle.currentPrizeTitle ?? null, imageURL: cycle.currentPrizeImage ?? null, nextSlot: cycle.nextSlot ?? null });
   }, [cycle]);
 
-  const isRegularGameActive =
-    activeGame && activeGame.phase &&
-    activeGame.phase !== 'idle' && activeGame.phase !== 'final_result' &&
+  const isRegularGamePlaying =
+    activeGame &&
+    activeGame.phase &&
+    ['playing', 'advancing', 'round_result', 'game_intro'].includes(activeGame.phase) &&
     REGULAR_GAMES.some((g) => g.id === activeGame.gameType);
   useGameSounds(
-    isRegularGameActive ? undefined : (cycle?.currentPhase ?? undefined),
+    isRegularGamePlaying ? undefined : (cycle?.currentPhase ?? undefined),
     activeGame?.gameType
   );
 
@@ -293,8 +298,8 @@ export default function RoomClient() {
     }
 
     const hasActiveRegularGame =
-      activeGame && activeGame.phase &&
-      activeGame.phase !== 'idle' && activeGame.phase !== 'final_result' && activeGame.phase !== 'waiting' &&
+      activeGame &&
+      isGameActivePhase(activeGame.phase) &&
       REGULAR_GAMES.some((g) => g.id === activeGame.gameType);
 
     if (hasActiveRegularGame && activeGame && user && profile) {
@@ -367,8 +372,8 @@ export default function RoomClient() {
   /* ── 커스텀방 콘텐츠 ── */
   const renderCustomRoomContent = () => {
     const hasActiveRegularGame =
-      activeGame && activeGame.phase &&
-      activeGame.phase !== 'idle' && activeGame.phase !== 'final_result' && activeGame.phase !== 'waiting' &&
+      activeGame &&
+      isGameActivePhase(activeGame.phase) &&
       REGULAR_GAMES.some((g) => g.id === activeGame.gameType);
 
     if (hasActiveRegularGame && activeGame && user && profile) {
