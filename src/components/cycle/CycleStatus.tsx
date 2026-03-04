@@ -17,17 +17,39 @@ export default function CycleStatus({ phase, nextSlotTime, prizeTitle, prizeImag
     if (!nextSlotTime) return;
 
     const parseTarget = () => {
-      // "2026-03-04 22:30 KST" 또는 "2026-03-04T22:30" 둘 다 처리
-      const cleaned = nextSlotTime!
+      const raw = nextSlotTime!;
+      console.log('[CycleStatus] nextSlotTime raw:', raw, typeof raw);
+
+      // 1) 숫자(Unix timestamp ms)인 경우
+      if (typeof raw === 'number' || /^\d{10,13}$/.test(String(raw).trim())) {
+        const ts = Number(raw);
+        return new Date(ts > 9999999999 ? ts : ts * 1000);
+      }
+
+      // 2) ISO 형식 "2026-03-04T20:00:00+09:00" 등
+      if (String(raw).includes('T') && (String(raw).includes('Z') || /[+-]\d{2}:\d{2}$/.test(String(raw)))) {
+        return new Date(String(raw));
+      }
+
+      // 3) "2026-03-04 20:00 KST" 또는 "2026-03-04T20:00" 형식
+      const cleaned = String(raw)
         .replace(' KST', '')
         .replace('T', ' ')
         .trim();
-      const [datePart, timePartRaw] = cleaned.split(' ');
-      const timePart = (timePartRaw || '00:00').slice(0, 5);
+      const parts = cleaned.split(' ');
+      const datePart = parts[0] || '';
+      const timePart = (parts[1] || '00:00').slice(0, 5);
       return new Date(`${datePart}T${timePart}:00+09:00`);
     };
 
     const target = parseTarget();
+
+    if (isNaN(target.getTime())) {
+      console.error('[CycleStatus] Invalid nextSlotTime:', nextSlotTime);
+      return;
+    }
+
+    console.log('[CycleStatus] target:', target.toISOString(), 'now:', new Date().toISOString(), 'diff:', Math.floor((target.getTime() - Date.now()) / 1000), 'sec');
 
     const update = () => {
       const now = new Date();
