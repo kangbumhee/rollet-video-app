@@ -270,7 +270,15 @@ export default function RoomClient() {
 
     return (
       <div className="flex flex-col flex-1 w-full min-h-0">
-        <CycleStatus phase={phase} nextSlotTime={nextSlotTime} prizeTitle={prizeTitle} prizeImageURL={prizeImageURL} />
+        <CycleStatus
+          phase={phase}
+          nextSlotTime={nextSlotTime}
+          prizeTitle={prizeTitle}
+          prizeImageURL={prizeImageURL}
+          onPrizeClick={() => {
+            if (prizeTitle) setShowPrizeDetail(true);
+          }}
+        />
 
         {isMainRoom && (isAutoWaiting || isAutoRecruiting) && (
           <div className="mt-4 mx-4 p-4 bg-surface-base rounded-xl border border-white/[0.06]">
@@ -510,8 +518,8 @@ export default function RoomClient() {
         </aside>
       </div>
 
-      {/* ── 미니게임 모달 ── */}
-      {showFreePlay && (
+      {/* ── 미니게임 모달 (커스텀방에서만) ── */}
+      {showFreePlay && !isMainRoom && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowFreePlay(false)}>
           <div className="bg-surface-elevated border border-white/[0.06] rounded-2xl max-w-lg w-full max-h-[90vh] overflow-auto p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">

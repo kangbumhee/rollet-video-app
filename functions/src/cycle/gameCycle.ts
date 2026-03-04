@@ -53,6 +53,30 @@ function calcNextSlot(nowMs: number): string {
   return `${y}-${moStr}-${dStr} ${hStr}:${mStr} KST`;
 }
 
+async function getNextFutureSlot(db: ReturnType<typeof getFirestore>, nowMs: number): Promise<string | null> {
+  const futureQuery = await db
+    .collection('scheduleSlots')
+    .where('status', '==', 'ASSIGNED')
+    .where('scheduledAt', '>', nowMs)
+    .orderBy('scheduledAt', 'asc')
+    .limit(1)
+    .get();
+
+  if (futureQuery.empty) return null;
+
+  const slotData = futureQuery.docs[0].data();
+  const scheduledAt = slotData.scheduledAt as number;
+
+  // UTC ms → KST 문자열
+  const kst = new Date(scheduledAt + 9 * 60 * 60 * 1000);
+  const y = kst.getUTCFullYear();
+  const mo = String(kst.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(kst.getUTCDate()).padStart(2, '0');
+  const h = String(kst.getUTCHours()).padStart(2, '0');
+  const m = String(kst.getUTCMinutes()).padStart(2, '0');
+  return `${y}-${mo}-${d} ${h}:${m} KST`;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -157,19 +181,27 @@ export const gameCycle = onSchedule(
         .get();
 
       if (slotQuery.empty) {
-        logger.info('No assigned slot found');
+        logger.info('No assigned slot found for now, checking future slots...');
+
+        const nextFutureSlot = await getNextFutureSlot(db, now);
+
+        const currentCycleSnap = await rtdb.ref('cycle/main').get();
+        const currentCycle = currentCycleSnap.exists() ? currentCycleSnap.val() : {};
+
         await rtdb.ref('cycle/main').set({
           currentPhase: 'IDLE',
           currentRoomId: null,
-          currentPrizeTitle: null,
-          currentPrizeImage: null,
+          currentPrizeTitle: nextFutureSlot ? (currentCycle.currentPrizeTitle ?? null) : null,
+          currentPrizeImage: nextFutureSlot ? (currentCycle.currentPrizeImage ?? null) : null,
           currentGameType: null,
           phaseStartedAt: now,
           phaseEndsAt: now,
-          nextSlot: calcNextSlot(now),
+          nextSlot: nextFutureSlot || calcNextSlot(now),
           winnerId: null,
           winnerName: null,
         });
+
+        logger.info(`Set nextSlot to: ${nextFutureSlot || calcNextSlot(now)}`);
         return;
       }
 
@@ -758,7 +790,7 @@ export const gameCycle = onSchedule(
         currentGameType: null,
         phaseStartedAt: Date.now(),
         phaseEndsAt: Date.now(),
-        nextSlot: calcNextSlot(Date.now()),
+        nextSlot: (await getNextFutureSlot(db, Date.now())) || calcNextSlot(Date.now()),
         winnerId: null,
         winnerName: null,
       });
