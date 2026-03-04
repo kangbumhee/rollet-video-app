@@ -9,6 +9,11 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        display: ['"Black Han Sans"', "sans-serif"],
+        body: ["Pretendard", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+        score: ['"JetBrains Mono"', "Courier New", "monospace"],
+      },
       colors: {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
@@ -50,8 +55,29 @@ const config: Config = {
           card: "#111118",
           border: "#1E1E2E",
         },
+        neon: {
+          magenta: "#FF2D78",
+          "magenta-dim": "rgba(255, 45, 120, 0.15)",
+          cyan: "#00E5FF",
+          "cyan-dim": "rgba(0, 229, 255, 0.15)",
+          amber: "#FFB800",
+          "amber-dim": "rgba(255, 184, 0, 0.15)",
+          violet: "#8B5CF6",
+          "violet-dim": "rgba(139, 92, 246, 0.15)",
+        },
+        surface: {
+          deep: "#0A0A12",
+          base: "#11111C",
+          elevated: "#1A1A2E",
+          overlay: "#22223A",
+        },
       },
       animation: {
+        "neon-pulse": "neon-pulse 3s ease-in-out infinite",
+        "neon-pulse-cyan": "neon-pulse-cyan 3s ease-in-out infinite",
+        "neon-pulse-amber": "neon-pulse-amber 3s ease-in-out infinite",
+        "neon-flicker": "neon-flicker 4s ease-in-out infinite",
+        "stage-reveal": "stageReveal 0.4s cubic-bezier(0.4,0,0.2,1) both",
         "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         "bounce-slow": "bounce 2s infinite",
         "spin-slow": "spin 3s linear infinite",

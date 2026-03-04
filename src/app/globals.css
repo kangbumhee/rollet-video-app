@@ -4,25 +4,42 @@
 
 @layer base {
   :root {
-    --background: 0 0% 4%;
-    --foreground: 0 0% 95%;
-    --card: 240 10% 6%;
-    --card-foreground: 0 0% 95%;
-    --popover: 240 10% 6%;
-    --popover-foreground: 0 0% 95%;
-    --primary: 45 100% 50%;
-    --primary-foreground: 0 0% 0%;
-    --secondary: 240 5% 15%;
-    --secondary-foreground: 0 0% 95%;
-    --muted: 240 5% 15%;
-    --muted-foreground: 240 5% 55%;
-    --accent: 240 5% 15%;
-    --accent-foreground: 0 0% 95%;
+    /* ── 아케이드 네온 팔레트 ── */
+    --bg-deep: 240 25% 4%;
+    --bg-surface: 240 20% 8%;
+    --bg-elevated: 240 18% 12%;
+
+    --neon-magenta: 340 100% 58%;
+    --neon-cyan: 187 100% 50%;
+    --neon-amber: 42 100% 50%;
+    --neon-violet: 258 90% 66%;
+
+    --text-primary: 240 10% 95%;
+    --text-secondary: 240 10% 58%;
+    --text-muted: 240 10% 38%;
+
+    --border-subtle: 240 10% 14%;
+
+    /* shadcn compat */
+    --background: var(--bg-deep);
+    --foreground: var(--text-primary);
+    --card: var(--bg-surface);
+    --card-foreground: var(--text-primary);
+    --popover: var(--bg-elevated);
+    --popover-foreground: var(--text-primary);
+    --primary: var(--neon-magenta);
+    --primary-foreground: 0 0% 100%;
+    --secondary: var(--bg-surface);
+    --secondary-foreground: var(--text-primary);
+    --muted: var(--bg-surface);
+    --muted-foreground: var(--text-secondary);
+    --accent: var(--neon-cyan);
+    --accent-foreground: 0 0% 0%;
     --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 95%;
-    --border: 240 5% 15%;
-    --input: 240 5% 15%;
-    --ring: 45 100% 50%;
+    --border: var(--border-subtle);
+    --input: var(--bg-surface);
+    --ring: var(--neon-cyan);
     --radius: 0.75rem;
   }
 }
@@ -32,12 +49,24 @@
     @apply border-border;
   }
   body {
-    @apply bg-[#0A0A0F] text-foreground;
+    @apply text-foreground;
+    background-color: hsl(240 25% 4%);
+    font-family: "Pretendard", -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
   }
 }
 
-/* 스크롤바 숨기기 (채팅창용) */
+/* ── 폰트 클래스 ── */
+.font-display {
+  font-family: "Black Han Sans", sans-serif;
+}
+.font-mono-score {
+  font-family: "JetBrains Mono", "Courier New", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 스크롤바 숨기기 ── */
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -46,31 +75,172 @@
   scrollbar-width: none;
 }
 
-/* LIVE 뱃지 깜빡임 */
+/* ══════════════════════════════════════
+   네온 글로우 시스템 (서명 요소)
+   ══════════════════════════════════════ */
+
+.neon-glow-magenta {
+  box-shadow:
+    0 0 8px rgba(255, 45, 120, 0.15),
+    0 0 24px rgba(255, 45, 120, 0.08);
+}
+.neon-glow-magenta-hover:hover {
+  box-shadow:
+    0 0 12px rgba(255, 45, 120, 0.3),
+    0 0 40px rgba(255, 45, 120, 0.15);
+}
+
+.neon-glow-cyan {
+  box-shadow:
+    0 0 8px rgba(0, 229, 255, 0.15),
+    0 0 24px rgba(0, 229, 255, 0.08);
+}
+.neon-glow-cyan-hover:hover {
+  box-shadow:
+    0 0 12px rgba(0, 229, 255, 0.3),
+    0 0 40px rgba(0, 229, 255, 0.15);
+}
+
+.neon-glow-amber {
+  box-shadow:
+    0 0 8px rgba(255, 184, 0, 0.15),
+    0 0 24px rgba(255, 184, 0, 0.08);
+}
+.neon-glow-amber-hover:hover {
+  box-shadow:
+    0 0 12px rgba(255, 184, 0, 0.3),
+    0 0 40px rgba(255, 184, 0, 0.15);
+}
+
+.neon-text-magenta {
+  color: #ff2d78;
+  text-shadow: 0 0 8px rgba(255, 45, 120, 0.5);
+}
+.neon-text-cyan {
+  color: #00e5ff;
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.5);
+}
+.neon-text-amber {
+  color: #ffb800;
+  text-shadow: 0 0 8px rgba(255, 184, 0, 0.5);
+}
+
+.neon-border-magenta {
+  border: 1px solid rgba(255, 45, 120, 0.25);
+}
+.neon-border-cyan {
+  border: 1px solid rgba(0, 229, 255, 0.25);
+}
+.neon-border-amber {
+  border: 1px solid rgba(255, 184, 0, 0.25);
+}
+
+@keyframes neon-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(255, 45, 120, 0.15), 0 0 24px rgba(255, 45, 120, 0.08);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(255, 45, 120, 0.25), 0 0 40px rgba(255, 45, 120, 0.12);
+  }
+}
+@keyframes neon-pulse-cyan {
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.15), 0 0 24px rgba(0, 229, 255, 0.08);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(0, 229, 255, 0.25), 0 0 40px rgba(0, 229, 255, 0.12);
+  }
+}
+@keyframes neon-pulse-amber {
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(255, 184, 0, 0.15), 0 0 24px rgba(255, 184, 0, 0.08);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(255, 184, 0, 0.25), 0 0 40px rgba(255, 184, 0, 0.12);
+  }
+}
+
+.animate-neon-pulse {
+  animation: neon-pulse 3s ease-in-out infinite;
+}
+.animate-neon-pulse-cyan {
+  animation: neon-pulse-cyan 3s ease-in-out infinite;
+}
+.animate-neon-pulse-amber {
+  animation: neon-pulse-amber 3s ease-in-out infinite;
+}
+
 @keyframes live-pulse {
   0%,
   100% {
     opacity: 1;
   }
   50% {
-    opacity: 0.5;
+    opacity: 0.4;
   }
 }
 .live-badge {
   animation: live-pulse 1.5s ease-in-out infinite;
 }
 
-/* 채팅 메시지 슬라이드 인 */
-.chat-enter {
-  animation: slideUp 0.2s ease-out;
+@keyframes neon-flicker {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  4% {
+    opacity: 0.8;
+  }
+  6% {
+    opacity: 1;
+  }
+  8% {
+    opacity: 0.6;
+  }
+  9% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 1;
+  }
+  52% {
+    opacity: 0.9;
+  }
+  53% {
+    opacity: 1;
+  }
+}
+.animate-neon-flicker {
+  animation: neon-flicker 4s ease-in-out infinite;
 }
 
-/* 그라데이션 텍스트 */
-.gradient-text {
-  @apply text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500;
+.card-arcade {
+  background: hsl(240 20% 8%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.card-arcade:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+}
+.card-arcade:active {
+  transform: translateY(0) scale(0.98);
 }
 
-/* 게임 관련 애니메이션 */
+.card-neon-top-magenta {
+  border-top: 2px solid rgba(255, 45, 120, 0.6);
+}
+.card-neon-top-cyan {
+  border-top: 2px solid rgba(0, 229, 255, 0.6);
+}
+.card-neon-top-amber {
+  border-top: 2px solid rgba(255, 184, 0, 0.6);
+}
+
 @keyframes countPop {
   0% {
     transform: scale(0.5);
@@ -85,6 +255,23 @@
     opacity: 1;
   }
 }
+.animate-ping-once {
+  animation: countPop 0.8s ease-out;
+}
+
+@keyframes slideUp {
+  0% {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.chat-enter {
+  animation: slideUp 0.2s ease-out;
+}
 
 @keyframes spin-slow {
   from {
@@ -94,20 +281,13 @@
     transform: rotate(360deg);
   }
 }
-
 .animate-spin-slow {
   animation: spin-slow 8s linear infinite;
 }
 
-.animate-ping-once {
-  animation: countPop 0.8s ease-out;
-}
-
-/* 가위바위보 선택 효과 */
 .rps-choice-enter {
   animation: rpsEnter 0.3s ease-out;
 }
-
 @keyframes rpsEnter {
   0% {
     transform: scale(0) rotate(-180deg);
@@ -119,22 +299,19 @@
   }
 }
 
-/* 승리 이펙트 */
 .winner-glow {
   animation: winnerGlow 1.5s ease-in-out infinite;
 }
-
 @keyframes winnerGlow {
   0%,
   100% {
-    box-shadow: 0 0 5px rgba(234, 179, 8, 0.3);
+    box-shadow: 0 0 8px rgba(255, 184, 0, 0.3);
   }
   50% {
-    box-shadow: 0 0 30px rgba(234, 179, 8, 0.6);
+    box-shadow: 0 0 30px rgba(255, 184, 0, 0.6), 0 0 60px rgba(255, 45, 120, 0.2);
   }
 }
 
-/* 공지 마퀴 */
 @keyframes marquee {
   0% {
     transform: translateX(0);
@@ -150,4 +327,39 @@
 }
 .animate-marquee:hover {
   animation-play-state: paused;
+}
+
+@keyframes stageReveal {
+  0% {
+    transform: translateY(16px) scale(0.96);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+.animate-stage-reveal {
+  animation: stageReveal 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.drag-ghost {
+  opacity: 0.5;
+  transform: scale(1.03);
+}
+.drag-over {
+  border-color: rgba(0, 229, 255, 0.4) !important;
+}
+
+.bg-noise {
+  position: relative;
+}
+.bg-noise::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
 }

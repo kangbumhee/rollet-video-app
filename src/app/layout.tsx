@@ -1,15 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import AuthProvider from "@/components/providers/AuthProvider";
 import { NotificationBanner } from "@/components/notifications/NotificationBanner";
 import InAppBrowserGuard from "@/components/InAppBrowserGuard";
 
-const inter = Inter({ subsets: ["latin"] });
-
 export const metadata: Metadata = {
-  title: "PrizeLive - 24시간 라이브 경품 게임",
-  description: "광고 보고 가위바위보로 경품 받자! 24시간 자동 운영 라이브 경품 게임",
+  title: "PartyPlay - 실시간 파티게임",
+  description: "친구들과 함께하는 실시간 파티 게임! 다양한 미니게임과 경품까지!",
   manifest: "/manifest.json",
 };
 
@@ -18,7 +15,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#0A0A0F",
+  themeColor: "#0A0A12",
 };
 
 export default function RootLayout({
@@ -28,7 +25,19 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko" className="dark">
-      <body className={`${inter.className} antialiased`}>
+      <head>
+        <link
+          rel="stylesheet"
+          as="style"
+          crossOrigin="anonymous"
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=JetBrains+Mono:wght@400;600&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="antialiased bg-noise">
         <InAppBrowserGuard>
           <AuthProvider>
             <NotificationBanner />
