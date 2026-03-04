@@ -97,10 +97,13 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
       }
     }
 
-    const { gameType } = (await req.json()) as { gameType?: string };
+    const { gameType, rounds: requestedRounds } = (await req.json()) as { gameType?: string; rounds?: number };
     if (!gameType || !VALID_GAMES.includes(gameType as MainGameType)) {
       return NextResponse.json({ error: "유효하지 않은 게임" }, { status: 400 });
     }
+
+    const validRounds = [3, 6, 9];
+    const TOTAL_ROUNDS = requestedRounds && validRounds.includes(requestedRounds) ? requestedRounds : 9;
 
     const presSnap = await adminRealtimeDb.ref(`rooms/${roomId}/presence`).get();
     const presData = presSnap.exists()
@@ -123,7 +126,6 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
     }
 
     const gameName = GAME_NAMES[gameType as MainGameType];
-    const TOTAL_ROUNDS = 10;
     const allPlayerIds = players.map((p) => p.uid);
     const scores: Record<string, number> = {};
     const nameMap: Record<string, string> = {};

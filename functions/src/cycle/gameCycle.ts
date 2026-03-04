@@ -402,7 +402,7 @@ export const gameCycle = onSchedule(
 
       const pickedGameType = GAME_TYPES[Math.floor(Math.random() * GAME_TYPES.length)];
       const allPlayers = participants.map((p) => p.uid);
-      const TOTAL_ROUNDS = 10;
+      const TOTAL_ROUNDS = 9;
       let totalRoundsForGame = TOTAL_ROUNDS;
       const scores: Record<string, number> = {};
       const nameMap: Record<string, string> = {};

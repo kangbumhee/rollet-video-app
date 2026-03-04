@@ -97,6 +97,7 @@ export default function RoomClient() {
   const [showFreePlay, setShowFreePlay] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [showGameLauncher, setShowGameLauncher] = useState(false);
+  const [selectedGameForLaunch, setSelectedGameForLaunch] = useState<string | null>(null);
   const [startingGame, setStartingGame] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeGame, setActiveGame] = useState<GameCurrent | null>(null);
@@ -200,17 +201,18 @@ export default function RoomClient() {
     } catch (e) { console.error(e); alert('강퇴 요청 실패'); }
   }, [roomId, profile]);
 
-  const handleStartRegularGame = useCallback(async (gameType: string) => {
+  const handleStartRegularGame = useCallback(async (gameType: string, rounds: number) => {
     if (!user || !roomId) return;
     setStartingGame(true);
     try {
       const token = await user.getIdToken();
       const res = await fetch(`/api/room/${roomId}/start-game`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ gameType }),
+        body: JSON.stringify({ gameType, rounds }),
       });
       const data = (await res.json()) as { error?: string };
-      if (!res.ok) alert(data.error || '게임 시작 실패'); else setShowGameLauncher(false);
+      if (!res.ok) alert(data.error || '게임 시작 실패');
+      else { setShowGameLauncher(false); setSelectedGameForLaunch(null); }
     } catch (e) { console.error(e); alert('게임 시작 요청 실패'); } finally { setStartingGame(false); }
   }, [user, roomId]);
 
@@ -536,21 +538,50 @@ export default function RoomClient() {
 
       {/* ── 정규게임 선택 모달 ── */}
       {showGameLauncher && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowGameLauncher(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => { setShowGameLauncher(false); setSelectedGameForLaunch(null); }}>
           <div className="bg-surface-elevated border border-white/[0.06] rounded-2xl max-w-lg w-full max-h-[90vh] overflow-auto p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">파티 게임 선택</h2>
-              <button onClick={() => setShowGameLauncher(false)} className="p-1 rounded hover:bg-white/[0.06] text-white/50">✕</button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {REGULAR_GAMES.map((g) => (
-                <button key={g.id} disabled={startingGame} onClick={() => handleStartRegularGame(g.id)}
-                  className="flex items-center gap-2 p-3 rounded-xl bg-surface-base border border-white/[0.06] hover:border-neon-cyan/30 hover:bg-surface-base/80 text-left transition-all disabled:opacity-40 active:scale-[0.98]">
-                  <span className="text-2xl">{g.emoji}</span>
-                  <span className="text-sm font-medium truncate">{g.name}</span>
-                </button>
-              ))}
-            </div>
+            {!selectedGameForLaunch ? (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold">파티 게임 선택</h2>
+                  <button onClick={() => setShowGameLauncher(false)} className="p-1 rounded hover:bg-white/[0.06] text-white/50">✕</button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {REGULAR_GAMES.map((g) => (
+                    <button key={g.id} onClick={() => setSelectedGameForLaunch(g.id)}
+                      className="flex items-center gap-2 p-3 rounded-xl bg-surface-base border border-white/[0.06] hover:border-neon-cyan/30 hover:bg-surface-base/80 text-left transition-all active:scale-[0.98]">
+                      <span className="text-2xl">{g.emoji}</span>
+                      <span className="text-sm font-medium truncate">{g.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <button onClick={() => setSelectedGameForLaunch(null)} className="p-1 rounded hover:bg-white/[0.06] text-white/50">←</button>
+                  <h2 className="text-lg font-bold">라운드 선택</h2>
+                  <button onClick={() => { setShowGameLauncher(false); setSelectedGameForLaunch(null); }} className="p-1 rounded hover:bg-white/[0.06] text-white/50">✕</button>
+                </div>
+                <p className="text-center text-white/40 text-sm mb-4">
+                  {REGULAR_GAMES.find(g => g.id === selectedGameForLaunch)?.emoji}{' '}
+                  {REGULAR_GAMES.find(g => g.id === selectedGameForLaunch)?.name}
+                </p>
+                <div className="flex justify-center gap-3">
+                  {[3, 6, 9].map((r) => (
+                    <button
+                      key={r}
+                      disabled={startingGame}
+                      onClick={() => handleStartRegularGame(selectedGameForLaunch, r)}
+                      className="flex flex-col items-center gap-1 px-6 py-4 rounded-xl bg-surface-base border border-white/[0.06] hover:border-neon-cyan/30 hover:bg-neon-cyan/5 transition-all disabled:opacity-40 active:scale-[0.98]"
+                    >
+                      <span className="text-2xl font-black text-neon-cyan">{r}</span>
+                      <span className="text-xs text-white/40">라운드</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

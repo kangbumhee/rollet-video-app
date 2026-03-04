@@ -23,6 +23,8 @@ interface RoundState {
   config: Record<string, unknown> | null;
   winnerId: string | null;
   winnerName: string | null;
+  startedBy: string | null;
+  photoMap: Record<string, string | null>;
 }
 
 export function useGameRound(roomId: string = 'main') {
@@ -47,6 +49,8 @@ export function useGameRound(roomId: string = 'main') {
     config: null,
     winnerId: null,
     winnerName: null,
+    startedBy: null,
+    photoMap: {},
   });
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -134,6 +138,8 @@ export function useGameRound(roomId: string = 'main') {
         winnerId: d.winnerId ?? null,
         winnerName: d.winnerName ?? null,
         progress: d.roundProgress ?? prev.progress,
+        startedBy: d.startedBy ?? null,
+        photoMap: d.photoMap ?? {},
       }));
     });
 
