@@ -454,14 +454,14 @@ export default function RoomClient() {
       )}
 
       {/* ── 메인 + 채팅 레이아웃 ── */}
-      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 flex flex-col md:flex-row min-h-0">
         <main className="flex-1 flex flex-col min-w-0 min-h-0 overflow-auto">
           {isMainRoom ? renderMainRoomContent() : renderCustomRoomContent()}
         </main>
 
-        {/* ── 채팅 사이드 ── */}
-        <aside className={`shrink-0 flex flex-col border-l border-white/[0.06] bg-surface-base/50 transition-all ${
-          chatCollapsed ? 'w-10' : 'w-72 sm:w-80'
+        {/* ── 채팅 ── */}
+        <aside className={`shrink-0 flex flex-col border-t md:border-t-0 md:border-l border-white/[0.06] bg-surface-base/50 transition-all ${
+          chatCollapsed ? 'h-10 md:h-auto md:w-10' : 'h-64 md:h-auto md:w-72 lg:w-80'
         }`}>
           {chatCollapsed ? (
             <div className="flex flex-col h-full">
