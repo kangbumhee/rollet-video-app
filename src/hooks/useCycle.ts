@@ -23,7 +23,39 @@ export function useCycle(roomId: string): UseCycleReturn {
     const cycleRef = ref(realtimeDb, 'cycle/main');
     onValue(cycleRef, (snap) => {
       if (snap.exists()) {
-        setCycle(snap.val() as CycleState);
+        const data = snap.val() as CycleState;
+
+        // nextSlot이 과거 시간이면 30분 뒤로 자동 보정
+        if (data.nextSlot && (data.currentPhase === 'IDLE' || data.currentPhase === 'COOLDOWN')) {
+          const cleaned = data.nextSlot.replace(' KST', '').replace('T', ' ').trim();
+          const [datePart, timePart] = cleaned.split(' ');
+          const tp = (timePart || '00:00').slice(0, 5);
+          const target = new Date(`${datePart}T${tp}:00+09:00`);
+
+          if (target.getTime() < Date.now()) {
+            // 현재 시각 기준으로 다음 30분 슬롯 계산
+            const now = new Date();
+            const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+            const m = kstNow.getUTCMinutes();
+            let slotH = kstNow.getUTCHours();
+            let slotM: number;
+            if (m < 30) { slotM = 30; } else { slotM = 0; slotH += 1; }
+
+            const y = kstNow.getUTCFullYear();
+            let mo = kstNow.getUTCMonth();
+            let d = kstNow.getUTCDate();
+            if (slotH >= 24) {
+              slotH -= 24;
+              const nextDay = new Date(Date.UTC(y, mo, d + 1));
+              mo = nextDay.getUTCMonth();
+              d = nextDay.getUTCDate();
+            }
+
+            data.nextSlot = `${y}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')} ${String(slotH).padStart(2, '0')}:${String(slotM).padStart(2, '0')} KST`;
+          }
+        }
+
+        setCycle(data);
       } else {
         setCycle(null);
       }

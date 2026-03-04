@@ -329,10 +329,14 @@ export default function RoomClient() {
       return (
         <div className="flex flex-col flex-1 min-h-0">
           <GameContainer roomId={roomId} uid={profile.uid} displayName={profile.displayName || '익명'} photoURL={profile.photoURL} level={profile.level} />
-          <div className="mt-4 flex justify-center gap-2">
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <button onClick={() => setShowFreePlay(true)}
+              className="px-4 py-2.5 bg-neon-magenta/15 border border-neon-magenta/25 text-neon-magenta font-bold rounded-xl hover:bg-neon-magenta/25 active:scale-[0.98] transition-all">
+              미니게임 하기
+            </button>
             <button onClick={() => setShowGameLauncher(true)}
               className="px-4 py-2.5 bg-neon-amber/15 border border-neon-amber/25 text-neon-amber font-bold rounded-xl hover:bg-neon-amber/25 active:scale-[0.98] transition-all">
-              정규 게임 시작
+              파티 게임 시작
             </button>
             {(profile.isAdmin || profile.isModerator || activeGame?.startedAt) && (
               <button onClick={() => handleResetGame()}
@@ -400,7 +404,7 @@ export default function RoomClient() {
 
   /* ── 메인 렌더 ── */
   return (
-    <div className="min-h-screen bg-[#0A0A12] text-white flex flex-col">
+    <div className="h-screen bg-[#0A0A12] text-white flex flex-col overflow-hidden">
       {/* ── 헤더 ── */}
       <header className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 border-b border-white/[0.06] bg-surface-base/80 backdrop-blur-sm">
         <div className="flex items-center gap-2 min-w-0">
@@ -509,7 +513,7 @@ export default function RoomClient() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowGameLauncher(false)}>
           <div className="bg-surface-elevated border border-white/[0.06] rounded-2xl max-w-lg w-full max-h-[90vh] overflow-auto p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">정규 게임 선택</h2>
+              <h2 className="text-lg font-bold">파티 게임 선택</h2>
               <button onClick={() => setShowGameLauncher(false)} className="p-1 rounded hover:bg-white/[0.06] text-white/50">✕</button>
             </div>
             <div className="grid grid-cols-2 gap-2">
