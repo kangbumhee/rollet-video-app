@@ -47,11 +47,11 @@ export function ChatWindow({ messages, onSend, onSendMessage, currentUid, disabl
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-900/50">
-      {/* 메시지 목록 - flex-1로 남은 공간 전부 차지 */}
+    <div className="flex flex-col h-full bg-surface-base/50">
+      {/* 메시지 목록 */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-1 min-h-0">
         {messages.length === 0 && (
-          <p className="text-gray-600 text-xs text-center mt-4">아직 채팅이 없어요. 첫 메시지를 보내보세요!</p>
+          <p className="text-white/15 text-xs text-center mt-4">아직 채팅이 없어요. 첫 메시지를 보내보세요!</p>
         )}
         {messages.map((msg) => (
           <ChatBubble
@@ -64,8 +64,8 @@ export function ChatWindow({ messages, onSend, onSendMessage, currentUid, disabl
         ))}
       </div>
 
-      {/* 입력창 - 하단 고정 */}
-      <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-t border-gray-800 bg-gray-900/80">
+      {/* 입력창 */}
+      <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-t border-white/[0.06] bg-surface-base/80">
         {profile ? (
           <>
             <input
@@ -76,17 +76,17 @@ export function ChatWindow({ messages, onSend, onSendMessage, currentUid, disabl
               placeholder="메시지를 입력하세요..."
               maxLength={200}
               disabled={disabled}
-              className="flex-1 bg-gray-800/50 border border-gray-700 rounded-xl
-                         px-3 py-2 text-sm text-white placeholder-gray-500
-                         focus:outline-none focus:border-yellow-500/50
-                         disabled:opacity-50"
+              className="flex-1 bg-surface-deep/50 border border-white/[0.06] rounded-xl
+                         px-3 py-2 text-sm text-white placeholder-white/20
+                         focus:outline-none focus:border-neon-cyan/40
+                         disabled:opacity-50 transition-colors"
             />
             <button
               onClick={handleSend}
               disabled={!input.trim() || disabled}
               className="w-9 h-9 flex items-center justify-center
-                         bg-yellow-500 rounded-xl text-black
-                         hover:bg-yellow-400 active:scale-95
+                         bg-neon-magenta/80 rounded-xl text-white
+                         hover:bg-neon-magenta active:scale-95
                          disabled:opacity-30 disabled:cursor-not-allowed
                          transition-all"
             >
@@ -96,9 +96,9 @@ export function ChatWindow({ messages, onSend, onSendMessage, currentUid, disabl
         ) : (
           <button
             onClick={() => (window.location.href = '/login')}
-            className="w-full py-2 text-sm text-gray-400 bg-gray-800/50
-                       border border-gray-700 rounded-xl
-                       hover:text-yellow-400 hover:border-yellow-500/30
+            className="w-full py-2 text-sm text-white/30 bg-surface-deep/50
+                       border border-white/[0.06] rounded-xl
+                       hover:text-neon-cyan hover:border-neon-cyan/30
                        transition-colors"
           >
             로그인하고 채팅에 참여하세요
