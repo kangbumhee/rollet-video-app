@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminFirestore, adminRealtimeDb } from "@/lib/firebase/admin";
 import {
-  generateOXQuizzes,
   generatePriceItems,
   generateDrawWords,
   generateTypingSentences,
@@ -9,19 +8,25 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-const GAME_NAMES: Record<string, string> = {
-  drawGuess: "🎨 그림 맞추기",
-  lineRunner: "✏️ 라인 러너",
-  bigRoulette: "🎰 빅 룰렛",
-  typingBattle: "⌨️ 타이핑 배틀",
-  weaponForge: "⚔️ 무기 강화 대전",
-  priceGuess: "💰 가격 맞추기",
-  oxSurvival: "⭕ OX 서바이벌",
-  destinyAuction: "🎰 운명의 경매",
-  nunchiGame: "👀 눈치 게임",
-  quickTouch: "🎯 순발력 터치",
+// ═══ 새 10종 게임 ═══
+type MainGameType =
+  | 'drawGuess' | 'flappyBattle' | 'bigRoulette' | 'typingBattle'
+  | 'priceGuess' | 'blindAuction' | 'bombSurvival' | 'tetrisBattle'
+  | 'memoryMatch' | 'slitherBattle';
+
+const GAME_NAMES: Record<MainGameType, string> = {
+  drawGuess: '🎨 그림 맞추기',
+  flappyBattle: '🐦 플래피 배틀',
+  bigRoulette: '🎰 빅 룰렛',
+  typingBattle: '⌨️ 타이핑 레이스',
+  priceGuess: '💰 가격을 맞춰라',
+  blindAuction: '📦 블라인드 경매',
+  bombSurvival: '💣 폭탄 해제',
+  tetrisBattle: '🧱 테트리스 배틀',
+  memoryMatch: '🃏 메모리 매치',
+  slitherBattle: '🐍 스네이크 서바이벌',
 };
-const VALID_GAMES = Object.keys(GAME_NAMES);
+const VALID_GAMES = Object.keys(GAME_NAMES) as MainGameType[];
 
 function getChestHint(chest: { type: string; points: number; special?: string }, round: number): string {
   const hints: Record<string, string[]> = {
@@ -39,6 +44,24 @@ function getChestHint(chest: { type: string; points: number; special?: string },
   const pool = hints[chest.type] || ["📦 상자"];
   if (round >= 8) return "❓ 알 수 없는 상자";
   return pool[Math.floor(Math.random() * pool.length)];
+}
+
+// bombSurvival 퀴즈 폴백 (서버측 gemini 없을 때)
+function getFallbackBombQuizzes(count: number) {
+  const pool = [
+    { q: '대한민국의 수도는?', a: '서울', acceptable: ['서울', '서울특별시'] },
+    { q: '1+1=?', a: '2', acceptable: ['2'] },
+    { q: '물의 화학식은?', a: 'H2O', acceptable: ['H2O', 'h2o'] },
+    { q: '태양계에서 가장 큰 행성은?', a: '목성', acceptable: ['목성', 'jupiter'] },
+    { q: '한국의 국화는?', a: '무궁화', acceptable: ['무궁화'] },
+    { q: '세계에서 가장 높은 산은?', a: '에베레스트', acceptable: ['에베레스트', '에베레스트산'] },
+    { q: '빛의 속도는 초속 약 몇 km?', a: '30만', acceptable: ['30만', '300000', '299792'] },
+    { q: 'CSS에서 글자 색을 바꾸는 속성은?', a: 'color', acceptable: ['color'] },
+    { q: '대한민국의 화폐 단위는?', a: '원', acceptable: ['원', 'KRW'] },
+    { q: '지구에서 달까지 거리는 약 몇 km?', a: '38만', acceptable: ['38만', '384400', '38만km'] },
+  ];
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
 }
 
 export async function POST(req: NextRequest, { params }: { params: { roomId: string } }) {
@@ -75,7 +98,7 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
     }
 
     const { gameType } = (await req.json()) as { gameType?: string };
-    if (!gameType || !VALID_GAMES.includes(gameType)) {
+    if (!gameType || !VALID_GAMES.includes(gameType as MainGameType)) {
       return NextResponse.json({ error: "유효하지 않은 게임" }, { status: 400 });
     }
 
@@ -99,7 +122,7 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
       }
     }
 
-    const gameName = GAME_NAMES[gameType];
+    const gameName = GAME_NAMES[gameType as MainGameType];
     const TOTAL_ROUNDS = 10;
     const allPlayerIds = players.map((p) => p.uid);
     const scores: Record<string, number> = {};
@@ -125,39 +148,24 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
         for (let r = 1; r <= TOTAL_ROUNDS; r++) {
           const drawerIdx = (r - 1) % shuffledPlayers.length;
           roundsData[`round${r}`] = {
-            round: r,
-            drawerId: shuffledPlayers[drawerIdx],
+            round: r, drawerId: shuffledPlayers[drawerIdx],
             drawerName: nameMap[shuffledPlayers[drawerIdx]],
             word: words[r - 1]?.word || "고양이",
             category: words[r - 1]?.category || "기본",
             difficulty: words[r - 1]?.difficulty || "easy",
-            timeLimit: 60,
-            guessed: false,
+            timeLimit: 60, guessed: false, gameType: 'drawGuess',
           };
         }
         gameConfig = { type: "drawGuess", needsCanvas: true };
         break;
       }
-      case "lineRunner": {
+      case "flappyBattle": {
         for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-          const obstacles: Array<{ x: number; y: number; w: number; h: number }> = [];
-          const gapBase = 200 - r * 10;
-          for (let i = 0; i < 15 + r * 3; i++) {
-            obstacles.push({
-              x: 300 + i * (gapBase + Math.floor(Math.random() * 80)),
-              y: Math.floor(Math.random() * 250) + 50,
-              w: 30 + Math.floor(Math.random() * 40),
-              h: 30 + Math.floor(Math.random() * 40),
-            });
-          }
           roundsData[`round${r}`] = {
-            round: r,
-            obstacles,
-            speedMultiplier: 1 + r * 0.15,
-            timeLimit: 30,
+            round: r, speedMultiplier: 1 + r * 0.15, timeLimit: 30, gameType: 'flappyBattle',
           };
         }
-        gameConfig = { type: "lineRunner", needsCanvas: true };
+        gameConfig = { type: "flappyBattle", needsCanvas: true };
         break;
       }
       case "bigRoulette": {
@@ -179,10 +187,8 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
         for (let r = 1; r <= TOTAL_ROUNDS; r++) {
           const targetIdx = Math.floor(Math.random() * SEGMENTS.length);
           roundsData[`round${r}`] = {
-            round: r,
-            targetSegmentIdx: targetIdx,
-            baseCoins: BASE_COINS[r - 1],
-            timeLimit: 15,
+            round: r, targetSegmentIdx: targetIdx, baseCoins: BASE_COINS[r - 1],
+            timeLimit: 15, gameType: 'bigRoulette',
           };
         }
         gameConfig = { type: "bigRoulette", segments: SEGMENTS, startingCoins: 500 };
@@ -195,59 +201,11 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
         const sentences = await generateTypingSentences(TOTAL_ROUNDS);
         for (let r = 1; r <= TOTAL_ROUNDS; r++) {
           roundsData[`round${r}`] = {
-            round: r,
-            sentence: sentences[r - 1] || `타이핑 테스트 문장 ${r}번입니다`,
-            timeLimit: 20,
+            round: r, sentence: sentences[r - 1] || `타이핑 테스트 문장 ${r}번입니다`,
+            timeLimit: 20, gameType: 'typingBattle',
           };
         }
         gameConfig = { type: "typingBattle" };
-        break;
-      }
-      case "weaponForge": {
-        const WEAPONS = [
-          { id: "longsword", name: "롱소드", emoji: "⚔️", rarity: "common" },
-          { id: "dagger", name: "단검", emoji: "🗡️", rarity: "common" },
-          { id: "knife", name: "칼", emoji: "🔪", rarity: "common" },
-          { id: "dualBlade", name: "이도류", emoji: "⚔️", rarity: "rare" },
-          { id: "greatsword", name: "대검", emoji: "🗡️", rarity: "rare" },
-          { id: "bow", name: "활", emoji: "🏹", rarity: "common" },
-          { id: "spear", name: "창", emoji: "🔱", rarity: "rare" },
-          { id: "battleaxe", name: "전투도끼", emoji: "⛏️", rarity: "rare" },
-          { id: "staff", name: "지팡이", emoji: "🪄", rarity: "epic" },
-          { id: "combatsword", name: "전투검", emoji: "🛡️", rarity: "common" },
-          { id: "crossbow", name: "쇠뇌", emoji: "🔫", rarity: "rare" },
-          { id: "halberd", name: "할버드", emoji: "🪓", rarity: "epic" },
-          { id: "demonsword", name: "마검", emoji: "💎", rarity: "legendary" },
-          { id: "moonblade", name: "월광검", emoji: "🌙", rarity: "legendary" },
-          { id: "meteorsword", name: "운석검", emoji: "☄️", rarity: "legendary" },
-        ];
-        const ROUND_MULTIPLIER = [1, 1, 1, 2, 2, 2, 3, 3, 3, 5];
-        const ENHANCE_TABLE = [
-          { success: 95, fail: 5, down: 0, destroy: 0 },
-          { success: 90, fail: 10, down: 0, destroy: 0 },
-          { success: 85, fail: 15, down: 0, destroy: 0 },
-          { success: 75, fail: 25, down: 0, destroy: 0 },
-          { success: 65, fail: 35, down: 0, destroy: 0 },
-          { success: 55, fail: 40, down: 5, destroy: 0 },
-          { success: 45, fail: 40, down: 15, destroy: 0 },
-          { success: 35, fail: 35, down: 25, destroy: 5 },
-          { success: 25, fail: 30, down: 30, destroy: 15 },
-          { success: 15, fail: 25, down: 35, destroy: 25 },
-        ];
-        const shuffledWeapons = [...WEAPONS].sort(() => Math.random() - 0.5);
-        for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-          const weapon = shuffledWeapons[(r - 1) % shuffledWeapons.length];
-          roundsData[`round${r}`] = {
-            round: r,
-            weapon,
-            enhanceTable: ENHANCE_TABLE,
-            multiplier: ROUND_MULTIPLIER[r - 1],
-            timeLimit: 15,
-            maxLevel: 10,
-            perfectBonus: 20,
-          };
-        }
-        gameConfig = { type: "weaponForge" };
         break;
       }
       case "priceGuess": {
@@ -255,33 +213,14 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
         for (let r = 1; r <= TOTAL_ROUNDS; r++) {
           const item = items[r - 1] || { name: `상품${r}`, price: 10000, hint: "📦", category: "기타" };
           roundsData[`round${r}`] = {
-            round: r,
-            itemName: item.name,
-            actualPrice: item.price,
-            hint: item.hint,
-            category: item.category,
-            timeLimit: 15,
+            round: r, itemName: item.name, actualPrice: item.price,
+            hint: item.hint, category: item.category, timeLimit: 15, gameType: 'priceGuess',
           };
         }
         gameConfig = { type: "priceGuess" };
         break;
       }
-      case "oxSurvival": {
-        const quizzes = await generateOXQuizzes(TOTAL_ROUNDS);
-        for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-          const quiz = quizzes[r - 1] || { q: `비상 퀴즈 ${r}`, a: true, explanation: "" };
-          roundsData[`round${r}`] = {
-            round: r,
-            question: quiz.q,
-            answer: quiz.a,
-            explanation: quiz.explanation,
-            timeLimit: 10,
-          };
-        }
-        gameConfig = { type: "oxSurvival", elimination: true };
-        break;
-      }
-      case "destinyAuction": {
+      case "blindAuction": {
         const CHEST_POOL = [
           { type: "gold", label: "💎 대박!", points: 30 },
           { type: "silver", label: "🪙 괜찮은 보상", points: 20 },
@@ -304,51 +243,72 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
                 : CHEST_POOL;
           const chest = pool[Math.floor(Math.random() * pool.length)];
           roundsData[`round${r}`] = {
-            round: r,
-            chest: { ...chest },
-            chestHint: getChestHint(chest, r),
-            timeLimit: 12,
-            minBid: 1,
-            maxBid: startingChips,
+            round: r, chest: { ...chest }, chestHint: getChestHint(chest, r),
+            timeLimit: 12, minBid: 1, maxBid: startingChips, gameType: 'blindAuction',
           };
         }
-        gameConfig = { type: "destinyAuction", startingChips };
+        gameConfig = { type: "blindAuction", startingChips };
         const chips: Record<string, number> = {};
-        for (const p of players) {
-          chips[p.uid] = startingChips;
-        }
+        for (const p of players) chips[p.uid] = startingChips;
         chipsToSet = chips;
         break;
       }
-      case "nunchiGame": {
+      case "bombSurvival": {
+        const quizzes = getFallbackBombQuizzes(TOTAL_ROUNDS);
         for (let r = 1; r <= TOTAL_ROUNDS; r++) {
+          const quiz = quizzes[r - 1] || { q: '1+1=?', a: '2', acceptable: ['2'] };
           roundsData[`round${r}`] = {
-            round: r,
-            maxNumber: Math.max(3, allPlayerIds.length - r + 1),
-            timeLimit: 15,
+            round: r, question: quiz.q, answer: quiz.a,
+            acceptable: quiz.acceptable, timeLimit: 12, gameType: 'bombSurvival',
           };
         }
-        gameConfig = { type: "nunchiGame", elimination: true };
+        gameConfig = { type: "bombSurvival" };
         break;
       }
-      case "quickTouch": {
+      case "tetrisBattle": {
         for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-          const targets: Array<{ x: number; y: number; delay: number; size: number }> = [];
-          for (let i = 0; i < 8 + r * 2; i++) {
-            targets.push({
-              x: Math.floor(Math.random() * 80) + 10,
-              y: Math.floor(Math.random() * 70) + 10,
-              delay: i * (800 - r * 30) + Math.floor(Math.random() * 300),
-              size: Math.max(20, 50 - r * 2),
+          roundsData[`round${r}`] = {
+            round: r, timeLimit: 30,
+            targetLines: 3 + Math.floor(r / 3),
+            speed: Math.max(200, 500 - r * 30),
+            gameType: 'tetrisBattle',
+          };
+        }
+        gameConfig = { type: "tetrisBattle" };
+        break;
+      }
+      case "memoryMatch": {
+        const EMOJI_POOL = ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐸','🐵','🐔','🐧','🦁','🐮','🐷','🐙'];
+        for (let r = 1; r <= TOTAL_ROUNDS; r++) {
+          const gridSize = r <= 5 ? 4 : 6;
+          const pairsNeeded = (gridSize * gridSize) / 2;
+          const shuffled = [...EMOJI_POOL].sort(() => Math.random() - 0.5).slice(0, pairsNeeded);
+          const cards = [...shuffled, ...shuffled].sort(() => Math.random() - 0.5);
+          roundsData[`round${r}`] = {
+            round: r, gridSize, cards,
+            timeLimit: gridSize === 4 ? 20 : 35,
+            gameType: 'memoryMatch',
+          };
+        }
+        gameConfig = { type: "memoryMatch" };
+        break;
+      }
+      case "slitherBattle": {
+        for (let r = 1; r <= TOTAL_ROUNDS; r++) {
+          const foods: Array<{ x: number; y: number }> = [];
+          const gridCells = 20;
+          for (let i = 0; i < 5 + r; i++) {
+            foods.push({
+              x: Math.floor(Math.random() * gridCells),
+              y: Math.floor(Math.random() * gridCells),
             });
           }
           roundsData[`round${r}`] = {
-            round: r,
-            targets,
-            duration: 15,
+            round: r, initialFoods: foods, timeLimit: 20,
+            gridSize: gridCells, gameType: 'slitherBattle',
           };
         }
-        gameConfig = { type: "quickTouch" };
+        gameConfig = { type: "slitherBattle" };
         break;
       }
     }
@@ -384,6 +344,32 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
     if (rouletteCoinsToSet) {
       await adminRealtimeDb.ref(`games/${roomId}/rouletteCoins`).set(rouletteCoinsToSet);
     }
+
+    // ── ★★★ 3초 후 1라운드 자동 시작 ★★★ ──
+    const firstRoundData = roundsData['round1'] as { timeLimit?: number } | undefined;
+    const firstTimeLimit = firstRoundData?.timeLimit ?? 15;
+
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const initialActions: Record<string, { done: boolean; score: number }> = {};
+    for (const pid of allPlayerIds) {
+      initialActions[pid] = { done: false, score: 0 };
+    }
+
+    const roundStartTime = Date.now();
+    await adminRealtimeDb.ref(`games/${roomId}/current`).update({
+      phase: 'playing',
+      round: 1,
+      roundStartedAt: roundStartTime,
+      roundEndsAt: roundStartTime + firstTimeLimit * 1000,
+    });
+    await adminRealtimeDb.ref(`games/${roomId}/roundActions/round1`).set(initialActions);
+
+    const gamePresenceInit: Record<string, { online: boolean; lastSeen: number; currentRound: number }> = {};
+    for (const pid of allPlayerIds) {
+      gamePresenceInit[pid] = { online: true, lastSeen: Date.now(), currentRound: 1 };
+    }
+    await adminRealtimeDb.ref(`games/${roomId}/presence`).set(gamePresenceInit);
 
     if (!isAdminOrMod) {
       const today = new Date().toISOString().slice(0, 10);

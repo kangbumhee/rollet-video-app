@@ -22,6 +22,15 @@ interface Props {
 export default function GamePlayingView({ roomId }: Props) {
   const game = useGameRound(roomId);
 
+  console.log('[GamePlayingView] state:', {
+    uid: game.uid,
+    phase: game.phase,
+    round: game.round,
+    gameType: game.gameType,
+    roundData: game.roundData ? Object.keys(game.roundData) : null,
+    submitted: game.submitted,
+  });
+
   if (!game.uid) {
     return <div className="flex items-center justify-center h-64 text-white/30">로딩 중...</div>;
   }
@@ -57,6 +66,26 @@ export default function GamePlayingView({ roomId }: Props) {
     );
   }
 
+  // ★ game_intro / countdown / lobby 등 대기 상태
+  if (game.phase === 'game_intro' || game.phase === 'countdown' || game.phase === 'lobby' || game.phase === 'waiting') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4 px-4">
+        <div className="text-5xl animate-bounce">🎮</div>
+        <h2 className="text-xl font-bold text-white">{game.gameName || '게임'}</h2>
+        <p className="text-white/40 text-sm animate-pulse">
+          {game.phase === 'game_intro' ? '게임 준비 중...' :
+           game.phase === 'countdown' ? '곧 시작합니다!' :
+           game.phase === 'lobby' ? '참가자 대기 중...' :
+           '대기 중...'}
+        </p>
+        <div className="flex items-center gap-2 text-white/20 text-xs">
+          <div className="w-2 h-2 rounded-full bg-neon-cyan animate-ping" />
+          <span>{Object.keys(game.scores).length}명 참가</span>
+        </div>
+      </div>
+    );
+  }
+
   const showTransition = game.phase === 'round_result';
   const showWaiting = game.phase === 'playing' && game.submitted;
 
@@ -72,11 +101,19 @@ export default function GamePlayingView({ roomId }: Props) {
   };
 
   const renderGame = () => {
-    if (!game.roundData || game.phase !== 'playing') {
-      return <div className="flex items-center justify-center h-40 text-white/20">라운드 준비 중...</div>;
+    // playing 상태인데 roundData가 아직 안 왔으면 대기
+    if (game.phase === 'playing' && !game.roundData) {
+      return <div className="flex items-center justify-center h-40 text-white/20 animate-pulse">라운드 데이터 로딩 중...</div>;
     }
+
+    // 제출 완료 → 대기 화면
     if (showWaiting) {
       return <WaitingForOthers progress={game.progress} myRoundScore={game.myRoundScore} />;
+    }
+
+    // phase가 playing이 아니면 (advancing 등) 잠깐 대기
+    if (game.phase !== 'playing') {
+      return <div className="flex items-center justify-center h-40 text-white/20">다음 라운드 준비 중...</div>;
     }
 
     const gameType = game.gameType || (game.config as Record<string, string>)?.type || '';
