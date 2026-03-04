@@ -246,6 +246,9 @@ export default function RoomClient() {
     const prizeTitle = cycle?.currentPrizeTitle ?? null;
     const prizeImageURL = cycle?.currentPrizeImage ?? null;
 
+    // ★ 디버그: cycle 전체 데이터 확인
+    console.log('[RoomClient] cycle raw data:', JSON.stringify(cycle));
+
     if (cycleLoading) {
       return (
         <div className="flex items-center justify-center flex-1 min-h-[200px]">
