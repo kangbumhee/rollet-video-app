@@ -121,23 +121,26 @@ export default function RoomClient() {
 
   useEffect(() => {
     const hasActiveRegularGame =
-      activeGame && activeGame.phase && activeGame.phase !== 'idle' && activeGame.phase !== 'final_result' &&
+      activeGame && activeGame.phase &&
+      activeGame.phase !== 'idle' && activeGame.phase !== 'final_result' && activeGame.phase !== 'waiting' &&
       REGULAR_GAMES.some((g) => g.id === activeGame.gameType);
 
     if (hasActiveRegularGame) {
       if (chatWasCollapsedRef.current === null) {
-        chatWasCollapsedRef.current = chatCollapsed;
+        chatWasCollapsedRef.current = chatCollapsedRef.current;
       }
-      if (!chatCollapsed) {
+      if (!chatCollapsedRef.current) {
         setChatCollapsed(true);
       }
     } else if (chatWasCollapsedRef.current !== null) {
-      if (chatWasCollapsedRef.current === false && chatCollapsed) {
+      const shouldRestore = chatWasCollapsedRef.current === false;
+      chatWasCollapsedRef.current = null;
+      if (shouldRestore) {
         setChatCollapsed(false);
       }
-      chatWasCollapsedRef.current = null;
     }
-  }, [activeGame, chatCollapsed]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeGame?.phase, activeGame?.gameType]);
 
   useEffect(() => {
     if (chatCollapsed && messages.length > lastMessageCountRef.current) {
@@ -206,7 +209,14 @@ export default function RoomClient() {
     setNextPrize({ title: cycle.currentPrizeTitle ?? null, imageURL: cycle.currentPrizeImage ?? null, nextSlot: cycle.nextSlot ?? null });
   }, [cycle]);
 
-  useGameSounds(cycle?.currentPhase ?? undefined, activeGame?.gameType);
+  const isRegularGameActive =
+    activeGame && activeGame.phase &&
+    activeGame.phase !== 'idle' && activeGame.phase !== 'final_result' &&
+    REGULAR_GAMES.some((g) => g.id === activeGame.gameType);
+  useGameSounds(
+    isRegularGameActive ? undefined : (cycle?.currentPhase ?? undefined),
+    activeGame?.gameType
+  );
 
   const handleKick = useCallback(async (uid: string, displayName: string) => {
     if (!profile?.uid || (!profile.isAdmin && !profile.isModerator)) return;
@@ -283,7 +293,8 @@ export default function RoomClient() {
     }
 
     const hasActiveRegularGame =
-      activeGame && activeGame.phase && activeGame.phase !== 'idle' && activeGame.phase !== 'final_result' &&
+      activeGame && activeGame.phase &&
+      activeGame.phase !== 'idle' && activeGame.phase !== 'final_result' && activeGame.phase !== 'waiting' &&
       REGULAR_GAMES.some((g) => g.id === activeGame.gameType);
 
     if (hasActiveRegularGame && activeGame && user && profile) {
@@ -356,7 +367,8 @@ export default function RoomClient() {
   /* ── 커스텀방 콘텐츠 ── */
   const renderCustomRoomContent = () => {
     const hasActiveRegularGame =
-      activeGame && activeGame.phase && activeGame.phase !== 'idle' && activeGame.phase !== 'final_result' &&
+      activeGame && activeGame.phase &&
+      activeGame.phase !== 'idle' && activeGame.phase !== 'final_result' && activeGame.phase !== 'waiting' &&
       REGULAR_GAMES.some((g) => g.id === activeGame.gameType);
 
     if (hasActiveRegularGame && activeGame && user && profile) {

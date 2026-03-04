@@ -43,6 +43,7 @@ export default function GamePlayingView({ roomId }: Props) {
         soundManager.playBGM('bgm-battle');
         break;
       case 'playing':
+        soundManager.playBGM('bgm-battle');
         if (prev === 'round_result' || prev === 'advancing' || prev === 'game_intro') {
           soundManager.play('whoosh');
         }
@@ -50,10 +51,16 @@ export default function GamePlayingView({ roomId }: Props) {
       case 'round_result':
         soundManager.play('correct');
         break;
+      case 'advancing':
+        break;
       case 'final_result':
         soundManager.stopBGM();
         soundManager.play('win-fanfare');
         soundManager.playBGM('bgm-winner');
+        break;
+      case 'idle':
+        soundManager.stopBGM();
+        soundManager.playBGM('bgm-lobby');
         break;
     }
   }, [game.phase]);
@@ -98,13 +105,18 @@ export default function GamePlayingView({ roomId }: Props) {
         try {
           const token = await auth.currentUser?.getIdToken();
           if (token) {
-            await fetch(`/api/room/${roomId}/reset-game`, {
+            const res = await fetch(`/api/room/${roomId}/reset-game`, {
               method: 'POST',
               headers: { Authorization: `Bearer ${token}` },
             });
+            if (!res.ok) {
+              console.error('auto reset failed:', res.status);
+              setTimeout(() => setResetting(false), 3000);
+            }
           }
         } catch (e) {
           console.error('auto reset failed:', e);
+          setTimeout(() => setResetting(false), 3000);
         }
       })();
     }
@@ -132,6 +144,10 @@ export default function GamePlayingView({ roomId }: Props) {
 
   if (!game.uid) {
     return <div className="flex items-center justify-center h-64 text-white/30">로딩 중...</div>;
+  }
+
+  if (game.phase === 'idle' || game.phase === 'waiting') {
+    return null;
   }
 
   const isStarter = game.startedBy === game.uid;
@@ -269,33 +285,40 @@ export default function GamePlayingView({ roomId }: Props) {
         gameName={game.gameName}
       />
 
-      {game.phase === 'playing' && game.round > 1 && (
-        <div className="absolute top-2 left-3 z-30 px-2 py-1 text-[10px] rounded-lg bg-neon-amber/10 border border-neon-amber/20 text-neon-amber font-bold">
-          ×{roundMultiplier.toFixed(1)} 배수
-        </div>
-      )}
-
       {/* ★ 강제 종료 버튼 (게임 시작한 사람만) */}
       {isStarter && game.phase !== 'final_result' && (
         <button
           onClick={handleForceEnd}
-          className="absolute top-2 right-3 z-30 px-3 py-1.5 text-xs rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 active:scale-95 transition-all"
+          className="fixed top-14 right-3 z-[60] px-3 py-1.5 text-xs rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 active:scale-95 transition-all"
         >
           게임 종료
         </button>
       )}
 
-      {showTransition && (
-        <RoundTransition
-          round={game.round}
-          totalRounds={game.totalRounds}
-          phase={game.phase}
-          scores={game.scores}
-          myUid={game.uid}
-          myRoundScore={game.myRoundScore}
-        />
-      )}
       <div className="pt-24 pb-8 px-4">
+        {game.phase === 'playing' && game.round > 1 && (
+          <div className="flex justify-center mb-4">
+            <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-neon-amber/20 to-neon-magenta/20 border-2 border-neon-amber/40 shadow-lg shadow-neon-amber/10">
+              <span className="text-2xl">🔥</span>
+              <span className="text-2xl font-black text-neon-amber tabular-nums font-score">
+                ×{roundMultiplier.toFixed(1)}
+              </span>
+              <span className="text-base font-bold text-neon-amber/80">배수</span>
+            </div>
+          </div>
+        )}
+
+        {showTransition && (
+          <RoundTransition
+            round={game.round}
+            totalRounds={game.totalRounds}
+            phase={game.phase}
+            scores={game.scores}
+            myUid={game.uid}
+            myRoundScore={game.myRoundScore}
+          />
+        )}
+
         {renderGame()}
       </div>
     </div>

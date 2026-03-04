@@ -27,38 +27,47 @@ interface RoundState {
   photoMap: Record<string, string | null>;
 }
 
+const INITIAL_STATE: RoundState = {
+  round: 0,
+  totalRounds: 10,
+  phase: 'idle',
+  gameType: '',
+  gameName: '',
+  roundEndsAt: 0,
+  timeLeft: 0,
+  myRoundScore: 0,
+  totalScore: 0,
+  submitted: false,
+  scores: {},
+  nameMap: {},
+  progress: { total: 0, done: 0, online: 0, onlineDone: 0 },
+  roundData: null,
+  config: null,
+  winnerId: null,
+  winnerName: null,
+  startedBy: null,
+  photoMap: {},
+};
+
 export function useGameRound(roomId: string = 'main') {
   const user = useAuthStore((s) => s.user);
   const uid = user?.uid || null;
 
-  const [state, setState] = useState<RoundState>({
-    round: 0,
-    totalRounds: 10,
-    phase: 'waiting',
-    gameType: '',
-    gameName: '',
-    roundEndsAt: 0,
-    timeLeft: 0,
-    myRoundScore: 0,
-    totalScore: 0,
-    submitted: false,
-    scores: {},
-    nameMap: {},
-    progress: { total: 0, done: 0, online: 0, onlineDone: 0 },
-    roundData: null,
-    config: null,
-    winnerId: null,
-    winnerName: null,
-    startedBy: null,
-    photoMap: {},
-  });
+  const [state, setState] = useState<RoundState>({ ...INITIAL_STATE });
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const disconnectRef = useRef<ReturnType<typeof onDisconnect> | null>(null);
   const autoSubmittedRoundRef = useRef<number>(0);
   const advanceCalledRoundRef = useRef<number>(0);
+  const submittedRef = useRef(false);
 
-  // ── advance-round API 호출 ──
+  useEffect(() => {
+    setState({ ...INITIAL_STATE });
+    autoSubmittedRoundRef.current = 0;
+    advanceCalledRoundRef.current = 0;
+    submittedRef.current = false;
+  }, [roomId]);
+
   const callAdvanceRound = useCallback(async (round: number) => {
     if (advanceCalledRoundRef.current === round) return;
     advanceCalledRoundRef.current = round;
@@ -67,13 +76,14 @@ export function useGameRound(roomId: string = 'main') {
       const token = await auth.currentUser?.getIdToken();
       if (!token) return;
 
-      console.log('[useGameRound] calling advance-round for round', round);
       const res = await fetch(`/api/room/${roomId}/advance-round`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
-      console.log('[useGameRound] advance-round response:', data);
+      if (!res.ok) {
+        console.error('[useGameRound] advance-round HTTP', res.status);
+        advanceCalledRoundRef.current = 0;
+      }
     } catch (e) {
       console.error('[useGameRound] advance-round failed:', e);
       advanceCalledRoundRef.current = 0;
@@ -89,8 +99,8 @@ export function useGameRound(roomId: string = 'main') {
       disconnectRef.current.cancel();
     }
 
-    set(presRef, { online: true, lastSeen: Date.now(), currentRound: state.round })
-      .catch((e) => console.warn('[useGameRound] presence set failed:', e.message));
+    set(presRef, { online: true, lastSeen: Date.now(), currentRound: 0 })
+      .catch(() => {});
 
     const dc = onDisconnect(presRef);
     dc.update({ online: false, lastSeen: Date.now() });
@@ -100,34 +110,41 @@ export function useGameRound(roomId: string = 'main') {
       if (document.hidden) {
         update(presRef, { online: false, lastSeen: Date.now() }).catch(() => {});
       } else {
-        update(presRef, { online: true, lastSeen: Date.now(), currentRound: state.round }).catch(() => {});
+        update(presRef, { online: true, lastSeen: Date.now() }).catch(() => {});
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibility);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
+      update(presRef, { online: false, lastSeen: Date.now() }).catch(() => {});
       if (disconnectRef.current) {
         disconnectRef.current.cancel();
         disconnectRef.current = null;
       }
     };
-  }, [uid, state.round, roomId]);
+  }, [uid, roomId]);
 
-  // ── current 구독 ──
+  // ── current 구독 — snap 없으면 idle로 리셋 ──
   useEffect(() => {
     if (!uid) return;
     const currentRef = ref(realtimeDb, `games/${roomId}/current`);
 
-    onValue(currentRef, (snap) => {
-      if (!snap.exists()) return;
+    const unsub = onValue(currentRef, (snap) => {
+      if (!snap.exists()) {
+        setState({ ...INITIAL_STATE });
+        submittedRef.current = false;
+        autoSubmittedRoundRef.current = 0;
+        advanceCalledRoundRef.current = 0;
+        return;
+      }
       const d = snap.val();
 
       setState((prev) => ({
         ...prev,
         round: d.round ?? 0,
         totalRounds: d.totalRounds ?? 10,
-        phase: d.phase ?? 'waiting',
+        phase: d.phase ?? 'idle',
         gameType: d.gameType ?? d.config?.type ?? '',
         gameName: d.gameName ?? '',
         roundEndsAt: d.roundEndsAt ?? 0,
@@ -143,37 +160,44 @@ export function useGameRound(roomId: string = 'main') {
       }));
     });
 
-    return () => { off(currentRef); };
+    return () => { unsub(); off(currentRef); };
   }, [uid, roomId]);
 
   // ── 라운드 데이터 + 내 액션 구독 ──
   useEffect(() => {
     if (!uid || state.round === 0) return;
 
+    submittedRef.current = false;
     autoSubmittedRoundRef.current = 0;
     advanceCalledRoundRef.current = 0;
 
     const roundRef = ref(realtimeDb, `games/${roomId}/rounds/round${state.round}`);
     const actionRef = ref(realtimeDb, `games/${roomId}/roundActions/round${state.round}/${uid}`);
 
-    onValue(roundRef, (snap) => {
+    const unsubRound = onValue(roundRef, (snap) => {
       if (snap.exists()) setState((prev) => ({ ...prev, roundData: snap.val() }));
     });
 
-    onValue(actionRef, (snap) => {
+    const unsubAction = onValue(actionRef, (snap) => {
       if (snap.exists()) {
         const a = snap.val();
+        const done = a?.done === true;
+        submittedRef.current = done;
         setState((prev) => ({
           ...prev,
-          submitted: a?.done === true,
+          submitted: done,
           myRoundScore: a?.score ?? 0,
         }));
       } else {
+        submittedRef.current = false;
         setState((prev) => ({ ...prev, submitted: false, myRoundScore: 0 }));
       }
     });
 
-    return () => { off(roundRef); off(actionRef); };
+    return () => {
+      unsubRound(); off(roundRef);
+      unsubAction(); off(actionRef);
+    };
   }, [uid, state.round, roomId]);
 
   // ── 제출 완료 감지 → advance-round 호출 ──
@@ -184,7 +208,12 @@ export function useGameRound(roomId: string = 'main') {
       callAdvanceRound(state.round);
     }, 1000);
 
-    return () => clearTimeout(timer);
+    const retryTimer = setTimeout(() => {
+      advanceCalledRoundRef.current = 0;
+      callAdvanceRound(state.round);
+    }, 6000);
+
+    return () => { clearTimeout(timer); clearTimeout(retryTimer); };
   }, [state.submitted, state.phase, state.round, callAdvanceRound]);
 
   // ── 타임아웃 후에도 advance 호출 (안전장치) ──
@@ -193,11 +222,13 @@ export function useGameRound(roomId: string = 'main') {
 
     const timeoutMs = state.roundEndsAt - Date.now() + 5000;
     if (timeoutMs <= 0) {
+      advanceCalledRoundRef.current = 0;
       callAdvanceRound(state.round);
       return;
     }
 
     const timer = setTimeout(() => {
+      advanceCalledRoundRef.current = 0;
       callAdvanceRound(state.round);
     }, timeoutMs);
 
@@ -232,25 +263,19 @@ export function useGameRound(roomId: string = 'main') {
           timerRef.current = null;
         }
 
-        // ★ 이 라운드에서 이미 자동 제출했으면 스킵
         if (autoSubmittedRoundRef.current === state.round) return;
+        if (submittedRef.current) return;
 
-        setState((prev) => {
-          if (!prev.submitted && uid && prev.round > 0) {
-            autoSubmittedRoundRef.current = prev.round;
-            console.log('[useGameRound] auto-submitting for round', prev.round);
-            set(ref(realtimeDb, `games/${roomId}/roundActions/round${prev.round}/${uid}`), {
-              done: true,
-              score: 0,
-              submittedAt: Date.now(),
-              timedOut: true,
-            }).then(() => {
-              console.log('[useGameRound] auto-submit SUCCESS');
-            }).catch((e) => {
-              console.error('[useGameRound] auto-submit FAILED:', e.message, (e as { code?: string }).code);
-            });
-          }
-          return prev;
+        autoSubmittedRoundRef.current = state.round;
+        submittedRef.current = true;
+
+        set(ref(realtimeDb, `games/${roomId}/roundActions/round${state.round}/${uid}`), {
+          done: true,
+          score: 0,
+          submittedAt: Date.now(),
+          timedOut: true,
+        }).catch((e) => {
+          console.error('[useGameRound] auto-submit FAILED:', e);
         });
       }
     };
@@ -269,8 +294,8 @@ export function useGameRound(roomId: string = 'main') {
   // ── 제출 함수 ──
   const submitAction = useCallback(
     async (score: number, extraData?: Record<string, unknown>) => {
-      if (!uid || state.submitted) return;
-      console.log('[useGameRound] submitAction round:', state.round, 'score:', score);
+      if (!uid || state.round === 0 || submittedRef.current) return;
+      submittedRef.current = true;
       try {
         await set(ref(realtimeDb, `games/${roomId}/roundActions/round${state.round}/${uid}`), {
           done: true,
@@ -279,13 +304,13 @@ export function useGameRound(roomId: string = 'main') {
           timedOut: false,
           ...(extraData ?? {}),
         });
-        console.log('[useGameRound] submitAction SUCCESS');
       } catch (e: unknown) {
         const err = e as { message?: string; code?: string };
         console.error('[useGameRound] submitAction FAILED:', err.message, err.code);
+        submittedRef.current = false;
       }
     },
-    [uid, state.round, state.submitted, roomId]
+    [uid, state.round, roomId]
   );
 
   return { ...state, submitAction, uid };
