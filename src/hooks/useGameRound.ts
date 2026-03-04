@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { ref, onValue, set, update, onDisconnect, off } from 'firebase/database';
-import { realtimeDb } from '@/lib/firebase/config';
+import { realtimeDb, auth } from '@/lib/firebase/config';
 import { useAuthStore } from '@/stores/authStore';
 
 interface RoundState {
@@ -51,8 +51,30 @@ export function useGameRound(roomId: string = 'main') {
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const disconnectRef = useRef<ReturnType<typeof onDisconnect> | null>(null);
-  // ★ 이미 자동 제출한 라운드를 추적하여 중복 제출 방지
   const autoSubmittedRoundRef = useRef<number>(0);
+  const advanceCalledRoundRef = useRef<number>(0);
+
+  // ── advance-round API 호출 ──
+  const callAdvanceRound = useCallback(async (round: number) => {
+    if (advanceCalledRoundRef.current === round) return;
+    advanceCalledRoundRef.current = round;
+
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) return;
+
+      console.log('[useGameRound] calling advance-round for round', round);
+      const res = await fetch(`/api/room/${roomId}/advance-round`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      console.log('[useGameRound] advance-round response:', data);
+    } catch (e) {
+      console.error('[useGameRound] advance-round failed:', e);
+      advanceCalledRoundRef.current = 0;
+    }
+  }, [roomId]);
 
   // ── Presence 관리 ──
   useEffect(() => {
@@ -122,8 +144,8 @@ export function useGameRound(roomId: string = 'main') {
   useEffect(() => {
     if (!uid || state.round === 0) return;
 
-    // 라운드가 변경되면 자동 제출 추적 초기화
     autoSubmittedRoundRef.current = 0;
+    advanceCalledRoundRef.current = 0;
 
     const roundRef = ref(realtimeDb, `games/${roomId}/rounds/round${state.round}`);
     const actionRef = ref(realtimeDb, `games/${roomId}/roundActions/round${state.round}/${uid}`);
@@ -147,6 +169,34 @@ export function useGameRound(roomId: string = 'main') {
 
     return () => { off(roundRef); off(actionRef); };
   }, [uid, state.round, roomId]);
+
+  // ── 제출 완료 감지 → advance-round 호출 ──
+  useEffect(() => {
+    if (!state.submitted || state.phase !== 'playing' || state.round === 0) return;
+
+    const timer = setTimeout(() => {
+      callAdvanceRound(state.round);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [state.submitted, state.phase, state.round, callAdvanceRound]);
+
+  // ── 타임아웃 후에도 advance 호출 (안전장치) ──
+  useEffect(() => {
+    if (state.phase !== 'playing' || !state.roundEndsAt || state.roundEndsAt < 1000000000000) return;
+
+    const timeoutMs = state.roundEndsAt - Date.now() + 5000;
+    if (timeoutMs <= 0) {
+      callAdvanceRound(state.round);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      callAdvanceRound(state.round);
+    }, timeoutMs);
+
+    return () => clearTimeout(timer);
+  }, [state.phase, state.roundEndsAt, state.round, callAdvanceRound]);
 
   // ── 타이머 ──
   useEffect(() => {
@@ -189,7 +239,7 @@ export function useGameRound(roomId: string = 'main') {
               submittedAt: Date.now(),
               timedOut: true,
             }).then(() => {
-              console.log('[useGameRound] auto-submit SUCCESS for round', prev.round);
+              console.log('[useGameRound] auto-submit SUCCESS');
             }).catch((e) => {
               console.error('[useGameRound] auto-submit FAILED:', e.message, (e as { code?: string }).code);
             });
@@ -214,7 +264,7 @@ export function useGameRound(roomId: string = 'main') {
   const submitAction = useCallback(
     async (score: number, extraData?: Record<string, unknown>) => {
       if (!uid || state.submitted) return;
-      console.log('[useGameRound] submitAction called, round:', state.round, 'score:', score);
+      console.log('[useGameRound] submitAction round:', state.round, 'score:', score);
       try {
         await set(ref(realtimeDb, `games/${roomId}/roundActions/round${state.round}/${uid}`), {
           done: true,
