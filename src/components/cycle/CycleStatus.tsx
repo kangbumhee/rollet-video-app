@@ -17,7 +17,6 @@ export default function CycleStatus({ phase, nextSlotTime, prizeTitle, prizeImag
     if (!nextSlotTime) return;
 
     const parseTarget = () => {
-      // "2026-03-02 21:30 KST" 또는 "2026-03-02T21:30" 대응
       const cleaned = nextSlotTime.replace(' KST', '').replace('T', ' ');
       const [datePart, timePartRaw] = cleaned.split(' ');
       const timePart = (timePartRaw || '00:00').slice(0, 5);
@@ -53,35 +52,35 @@ export default function CycleStatus({ phase, nextSlotTime, prizeTitle, prizeImag
       <div className="flex flex-col items-center justify-center flex-1 w-full px-4">
         {hasNextSlot ? (
           <>
-            <p className="text-gray-400 text-sm mb-4 tracking-widest uppercase">다음 경품까지</p>
+            <p className="text-white/30 text-sm mb-4 tracking-widest uppercase">다음 경품까지</p>
             <div className="flex items-center gap-3 mb-4">
-              <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-2xl px-6 py-4 min-w-[100px] text-center">
-                <span className="text-6xl sm:text-7xl font-black text-white tabular-nums tracking-tight">
+              <div className="bg-surface-base/80 backdrop-blur border border-white/[0.06] rounded-2xl px-6 py-4 min-w-[100px] text-center">
+                <span className="text-6xl sm:text-7xl font-black text-white tabular-nums tracking-tight font-score">
                   {pad(timeLeft.minutes)}
                 </span>
-                <p className="text-gray-500 text-xs mt-1">분</p>
+                <p className="text-white/20 text-xs mt-1">분</p>
               </div>
               <div className="flex flex-col gap-2">
-                <div className="w-3 h-3 rounded-full bg-purple-500 animate-pulse" />
-                <div className="w-3 h-3 rounded-full bg-purple-500 animate-pulse" />
+                <div className="w-3 h-3 rounded-full bg-neon-magenta animate-pulse" />
+                <div className="w-3 h-3 rounded-full bg-neon-magenta animate-pulse" />
               </div>
-              <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-2xl px-6 py-4 min-w-[100px] text-center">
-                <span className="text-6xl sm:text-7xl font-black text-white tabular-nums tracking-tight">
+              <div className="bg-surface-base/80 backdrop-blur border border-white/[0.06] rounded-2xl px-6 py-4 min-w-[100px] text-center">
+                <span className="text-6xl sm:text-7xl font-black text-white tabular-nums tracking-tight font-score">
                   {pad(timeLeft.seconds)}
                 </span>
-                <p className="text-gray-500 text-xs mt-1">초</p>
+                <p className="text-white/20 text-xs mt-1">초</p>
               </div>
             </div>
-            <div className="w-full max-w-xs h-2 bg-gray-800 rounded-full overflow-hidden mb-4">
+            <div className="w-full max-w-xs h-2 bg-surface-base rounded-full overflow-hidden mb-4">
               <div
-                className="h-full bg-gradient-to-r from-purple-600 to-pink-500 rounded-full transition-all duration-1000"
+                className="h-full bg-gradient-to-r from-neon-magenta to-neon-cyan rounded-full transition-all duration-1000"
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="text-purple-400 text-sm font-mono">{nextSlotTime}</p>
+            <p className="text-neon-amber text-sm font-score">{nextSlotTime}</p>
           </>
         ) : (
-          <p className="text-gray-500 text-sm">예정된 경품 게임이 없습니다</p>
+          <p className="text-white/20 text-sm">예정된 경품 게임이 없습니다</p>
         )}
 
         {prizeTitle && String(prizeTitle).length > 0 && (
@@ -90,11 +89,11 @@ export default function CycleStatus({ phase, nextSlotTime, prizeTitle, prizeImag
               <img
                 src={prizeImageURL}
                 alt={prizeTitle}
-                className="w-20 h-20 rounded-xl object-cover border-2 border-purple-500/30"
+                className="w-20 h-20 rounded-xl object-cover border-2 border-neon-amber/30 neon-glow-amber"
               />
             )}
             <p className="text-white font-semibold text-lg">{prizeTitle}</p>
-            <span className="px-3 py-1 bg-purple-600/20 text-purple-300 rounded-full text-xs">곧 시작!</span>
+            <span className="px-3 py-1 bg-neon-magenta/15 text-neon-magenta rounded-full text-xs neon-border-magenta">곧 시작!</span>
           </div>
         )}
       </div>
@@ -102,10 +101,10 @@ export default function CycleStatus({ phase, nextSlotTime, prizeTitle, prizeImag
   }
 
   return (
-    <div className="w-full px-4 py-2 bg-gray-800/60 backdrop-blur rounded-xl flex items-center justify-between">
+    <div className="w-full px-4 py-2 bg-surface-base/60 backdrop-blur rounded-xl border border-white/[0.06] flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-        <span className="text-green-400 text-sm font-semibold">{phase}</span>
+        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="text-emerald-400 text-sm font-semibold">{phase}</span>
       </div>
       {prizeTitle && String(prizeTitle).length > 0 && <span className="text-white text-sm">{prizeTitle}</span>}
     </div>

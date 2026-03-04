@@ -128,23 +128,23 @@ export default function FreeBoard() {
     <div className="w-full">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-gray-800/50 border border-gray-700/50 rounded-xl hover:bg-gray-800 transition"
+        className="w-full flex items-center justify-between px-4 py-3 bg-surface-base/50 border border-white/[0.06] rounded-xl hover:bg-surface-base transition"
       >
         <span className="text-white font-bold text-sm">💬 자유게시판</span>
-        <span className="text-gray-400 text-xs">{expanded ? '접기 ▲' : '펼치기 ▼'}</span>
+        <span className="text-white/30 text-xs">{expanded ? '접기 ▲' : '펼치기 ▼'}</span>
       </button>
 
       {expanded && (
-        <div className="mt-2 bg-gray-900/50 border border-gray-700/50 rounded-xl overflow-hidden">
+        <div className="mt-2 bg-surface-base/50 border border-white/[0.06] rounded-xl overflow-hidden">
           {user ? (
-            <div className="p-3 border-b border-gray-700/30">
+            <div className="p-3 border-b border-white/[0.06]">
               <div className="flex gap-2">
                 <input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="자유롭게 소통하세요..."
                   maxLength={200}
-                  className="flex-1 bg-gray-800 text-white text-sm rounded-lg px-3 py-2 border border-gray-700 outline-none focus:border-purple-500"
+                  className="flex-1 bg-surface-deep text-white text-sm rounded-lg px-3 py-2 border border-white/[0.06] outline-none focus:border-neon-cyan/40 transition-colors placeholder-white/20"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') void handlePost();
                   }}
@@ -152,45 +152,45 @@ export default function FreeBoard() {
                 <button
                   onClick={() => void handlePost()}
                   disabled={posting || !input.trim()}
-                  className="px-4 py-2 bg-purple-600 text-white text-sm font-bold rounded-lg hover:bg-purple-500 disabled:opacity-40 transition shrink-0"
+                  className="px-4 py-2 bg-neon-magenta/15 border border-neon-magenta/25 text-neon-magenta text-sm font-bold rounded-lg hover:bg-neon-magenta/25 disabled:opacity-40 transition-all shrink-0"
                 >
                   {posting ? '...' : '등록'}
                 </button>
               </div>
-              <p className="text-[10px] text-gray-500 mt-1 text-right">{input.length}/200</p>
+              <p className="text-[10px] text-white/15 mt-1 text-right">{input.length}/200</p>
             </div>
           ) : (
-            <div className="p-3 text-center text-gray-500 text-sm border-b border-gray-700/30">
+            <div className="p-3 text-center text-white/30 text-sm border-b border-white/[0.06]">
               로그인 후 글을 쓸 수 있습니다
             </div>
           )}
 
           <div className="max-h-[400px] overflow-y-auto">
             {posts.length === 0 ? (
-              <p className="text-center text-gray-500 text-sm py-8">아직 글이 없어요. 첫 글을 남겨보세요!</p>
+              <p className="text-center text-white/20 text-sm py-8">아직 글이 없어요. 첫 글을 남겨보세요!</p>
             ) : (
               posts.map((post) => (
                 <div
                   key={post.id}
-                  className="px-3 py-2.5 border-b border-gray-800/50 hover:bg-gray-800/30 transition"
+                  className="px-3 py-2.5 border-b border-white/[0.04] hover:bg-white/[0.02] transition"
                 >
                   <div className="flex items-start gap-2">
                     <img
                       src={post.authorPhoto || '/default-avatar.png'}
                       alt=""
-                      className="w-7 h-7 rounded-full shrink-0 mt-0.5"
+                      className="w-7 h-7 rounded-full shrink-0 mt-0.5 ring-1 ring-white/10"
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-white text-xs font-bold truncate">{post.authorName}</span>
-                        <span className="text-gray-500 text-[10px] shrink-0">{timeAgo(post.createdAt)}</span>
+                        <span className="text-white/15 text-[10px] shrink-0">{timeAgo(post.createdAt)}</span>
                       </div>
-                      <p className="text-gray-300 text-sm mt-0.5 break-words">{post.content}</p>
+                      <p className="text-white/60 text-sm mt-0.5 break-words">{post.content}</p>
                     </div>
                     {(user?.uid === post.authorUid || isAdmin) && (
                       <button
                         onClick={() => void handleDelete(post.id)}
-                        className="shrink-0 text-gray-600 hover:text-red-400 text-xs mt-1 transition"
+                        className="shrink-0 text-white/10 hover:text-red-400 text-xs mt-1 transition-colors"
                         title="삭제"
                       >
                         ✕
@@ -204,7 +204,7 @@ export default function FreeBoard() {
               <button
                 onClick={() => void loadMore()}
                 disabled={loadingMore}
-                className="w-full py-3 text-sm text-gray-400 hover:text-white transition"
+                className="w-full py-3 text-sm text-white/30 hover:text-white/60 transition-colors"
               >
                 {loadingMore ? '로딩 중...' : '더보기'}
               </button>
