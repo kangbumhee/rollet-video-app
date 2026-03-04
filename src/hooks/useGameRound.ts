@@ -51,13 +51,14 @@ export function useGameRound(roomId: string = 'main') {
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const disconnectRef = useRef<ReturnType<typeof onDisconnect> | null>(null);
+  // ★ 이미 자동 제출한 라운드를 추적하여 중복 제출 방지
+  const autoSubmittedRoundRef = useRef<number>(0);
 
-  // ── Presence 관리 (round 변경 시 onDisconnect 정리) ──
+  // ── Presence 관리 ──
   useEffect(() => {
     if (!uid) return;
     const presRef = ref(realtimeDb, `games/${roomId}/presence/${uid}`);
 
-    // 이전 onDisconnect 취소
     if (disconnectRef.current) {
       disconnectRef.current.cancel();
     }
@@ -113,12 +114,15 @@ export function useGameRound(roomId: string = 'main') {
       }));
     });
 
-    return () => off(currentRef);
+    return () => { off(currentRef); };
   }, [uid, roomId]);
 
   // ── 라운드 데이터 + 내 액션 구독 ──
   useEffect(() => {
     if (!uid || state.round === 0) return;
+
+    // 라운드가 변경되면 자동 제출 추적 초기화
+    autoSubmittedRoundRef.current = 0;
 
     const roundRef = ref(realtimeDb, `games/${roomId}/rounds/round${state.round}`);
     const actionRef = ref(realtimeDb, `games/${roomId}/roundActions/round${state.round}/${uid}`);
@@ -145,19 +149,39 @@ export function useGameRound(roomId: string = 'main') {
 
   // ── 타이머 ──
   useEffect(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
     if (state.phase !== 'playing' || !uid) return;
 
+    // ★ roundEndsAt가 유효하지 않으면 (0이거나 너무 과거) 타이머를 시작하지 않음
+    // 서버가 아직 roundEndsAt를 세팅하지 않은 상태
+    if (!state.roundEndsAt || state.roundEndsAt < 1000000000000) {
+      // timestamp가 너무 작으면 (밀리초 기준 2001년 이전) 유효하지 않음
+      return;
+    }
+
     const tick = () => {
-      const left = Math.max(0, Math.floor((state.roundEndsAt - Date.now()) / 1000));
+      const now = Date.now();
+      const left = Math.max(0, Math.floor((state.roundEndsAt - now) / 1000));
       setState((prev) => ({ ...prev, timeLeft: left }));
 
       // 클라이언트 자동 제출 (타임아웃)
       if (left <= 0) {
-        if (timerRef.current) clearInterval(timerRef.current);
-        timerRef.current = null;
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+
+        // ★ 이 라운드에서 이미 자동 제출했으면 스킵
+        if (autoSubmittedRoundRef.current === state.round) return;
+
         setState((prev) => {
-          if (!prev.submitted && uid) {
+          if (!prev.submitted && uid && prev.round > 0) {
+            // ★ 중복 방지: 이 라운드를 자동 제출 완료로 표시
+            autoSubmittedRoundRef.current = prev.round;
             set(ref(realtimeDb, `games/${roomId}/roundActions/round${prev.round}/${uid}`), {
               done: true,
               score: 0,
@@ -170,13 +194,16 @@ export function useGameRound(roomId: string = 'main') {
       }
     };
 
-    tick(); // 즉시 한 번 실행
+    tick();
     timerRef.current = setInterval(tick, 200);
 
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     };
-  }, [state.phase, state.roundEndsAt, uid, roomId]);
+  }, [state.phase, state.roundEndsAt, state.round, uid, roomId]);
 
   // ── 제출 함수 ──
   const submitAction = useCallback(
