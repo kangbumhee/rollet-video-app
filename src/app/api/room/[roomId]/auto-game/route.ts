@@ -1,25 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminFirestore, adminRealtimeDb, verifyAuth } from "@/lib/firebase/admin";
 import {
-  generateOXQuizzes,
   generatePriceItems,
   generateDrawWords,
   generateTypingSentences,
+  generateBombQuizzes,
 } from "@/lib/gemini/gameQuiz";
 
 export const dynamic = 'force-dynamic';
 
 const GAME_LIST = [
   { id: "drawGuess", name: "🎨 그림 맞추기" },
+  { id: "flappyBattle", name: "🐦 플래피 배틀" },
   { id: "bigRoulette", name: "🎰 빅 룰렛" },
-  { id: "typingBattle", name: "⌨️ 타이핑 배틀" },
-  { id: "weaponForge", name: "⚔️ 무기 강화 대전" },
-  { id: "priceGuess", name: "💰 가격 맞추기" },
-  { id: "oxSurvival", name: "⭕ OX 서바이벌" },
-  { id: "destinyAuction", name: "🎰 운명의 경매" },
-  { id: "nunchiGame", name: "👀 눈치 게임" },
-  { id: "quickTouch", name: "🎯 순발력 터치" },
-  { id: "lineRunner", name: "✏️ 라인 러너" },
+  { id: "typingBattle", name: "⌨️ 타이핑 레이스" },
+  { id: "priceGuess", name: "💰 가격을 맞춰라" },
+  { id: "blindAuction", name: "📦 블라인드 경매" },
+  { id: "bombSurvival", name: "💣 폭탄 해제" },
+  { id: "tetrisBattle", name: "🧱 테트리스 배틀" },
+  { id: "memoryMatch", name: "🃏 메모리 매치" },
+  { id: "slitherBattle", name: "🐍 스네이크 서바이벌" },
 ];
 
 function getChestHint(
@@ -191,7 +191,7 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
       const players = playerEntries.map(([uid, d]) => ({ uid, displayName: d.displayName, level: 1 }));
       const allPlayerIds = players.map((p) => p.uid);
 
-      const SOLO_FRIENDLY_GAMES = ["oxSurvival", "typingBattle", "priceGuess", "quickTouch", "destinyAuction", "lineRunner"];
+      const SOLO_FRIENDLY_GAMES = ["typingBattle", "priceGuess", "bombSurvival", "tetrisBattle", "memoryMatch", "slitherBattle", "flappyBattle"];
       let finalGameType = autoData?.nextGameType ?? GAME_LIST[0].id;
       let finalGameName = autoData?.nextGameName ?? GAME_LIST[0].name;
       if (players.length === 1 && !SOLO_FRIENDLY_GAMES.includes(finalGameType)) {
@@ -251,20 +251,11 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
         gameConfig = { type: "drawGuess", needsCanvas: true };
         break;
       }
-      case "lineRunner": {
+      case "flappyBattle": {
         for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-          const obstacles: Array<{ x: number; y: number; w: number; h: number }> = [];
-          for (let i = 0; i < 15 + r * 3; i++) {
-            obstacles.push({
-              x: 300 + i * (200 - r * 10 + Math.floor(Math.random() * 80)),
-              y: Math.floor(Math.random() * 250) + 50,
-              w: 30 + Math.floor(Math.random() * 40),
-              h: 30 + Math.floor(Math.random() * 40),
-            });
-          }
-          roundsData[`round${r}`] = { round: r, obstacles, speedMultiplier: 1 + r * 0.15, timeLimit: 30 };
+          roundsData[`round${r}`] = { round: r, speedMultiplier: 1 + r * 0.15, timeLimit: 30 };
         }
-        gameConfig = { type: "lineRunner", needsCanvas: true };
+        gameConfig = { type: "flappyBattle", needsCanvas: true };
         break;
       }
       case "bigRoulette": {
@@ -305,53 +296,6 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
         gameConfig = { type: "typingBattle" };
         break;
       }
-      case "weaponForge": {
-        const WEAPONS = [
-          { id: "longsword", name: "롱소드", emoji: "⚔️", rarity: "common" },
-          { id: "dagger", name: "단검", emoji: "🗡️", rarity: "common" },
-          { id: "knife", name: "칼", emoji: "🔪", rarity: "common" },
-          { id: "dualBlade", name: "이도류", emoji: "⚔️", rarity: "rare" },
-          { id: "greatsword", name: "대검", emoji: "🗡️", rarity: "rare" },
-          { id: "bow", name: "활", emoji: "🏹", rarity: "common" },
-          { id: "spear", name: "창", emoji: "🔱", rarity: "rare" },
-          { id: "battleaxe", name: "전투도끼", emoji: "⛏️", rarity: "rare" },
-          { id: "staff", name: "지팡이", emoji: "🪄", rarity: "epic" },
-          { id: "combatsword", name: "전투검", emoji: "🛡️", rarity: "common" },
-          { id: "crossbow", name: "쇠뇌", emoji: "🔫", rarity: "rare" },
-          { id: "halberd", name: "할버드", emoji: "🪓", rarity: "epic" },
-          { id: "demonsword", name: "마검", emoji: "💎", rarity: "legendary" },
-          { id: "moonblade", name: "월광검", emoji: "🌙", rarity: "legendary" },
-          { id: "meteorsword", name: "운석검", emoji: "☄️", rarity: "legendary" },
-        ];
-        const ROUND_MULTIPLIER = [1, 1, 1, 2, 2, 2, 3, 3, 3, 5];
-        const ENHANCE_TABLE = [
-          { success: 95, fail: 5, down: 0, destroy: 0 },
-          { success: 90, fail: 10, down: 0, destroy: 0 },
-          { success: 85, fail: 15, down: 0, destroy: 0 },
-          { success: 75, fail: 25, down: 0, destroy: 0 },
-          { success: 65, fail: 35, down: 0, destroy: 0 },
-          { success: 55, fail: 40, down: 5, destroy: 0 },
-          { success: 45, fail: 40, down: 15, destroy: 0 },
-          { success: 35, fail: 35, down: 25, destroy: 5 },
-          { success: 25, fail: 30, down: 30, destroy: 15 },
-          { success: 15, fail: 25, down: 35, destroy: 25 },
-        ];
-        const shuffledWeapons = [...WEAPONS].sort(() => Math.random() - 0.5);
-        for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-          const weapon = shuffledWeapons[(r - 1) % shuffledWeapons.length];
-          roundsData[`round${r}`] = {
-            round: r,
-            weapon,
-            enhanceTable: ENHANCE_TABLE,
-            multiplier: ROUND_MULTIPLIER[r - 1],
-            timeLimit: 15,
-            maxLevel: 10,
-            perfectBonus: 20,
-          };
-        }
-        gameConfig = { type: "weaponForge" };
-        break;
-      }
       case "priceGuess": {
         const items = await generatePriceItems(TOTAL_ROUNDS);
         for (let r = 1; r <= TOTAL_ROUNDS; r++) {
@@ -361,16 +305,7 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
         gameConfig = { type: "priceGuess" };
         break;
       }
-      case "oxSurvival": {
-        const quizzes = await generateOXQuizzes(TOTAL_ROUNDS);
-        for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-          const quiz = quizzes[r - 1] || { q: `퀴즈 ${r}`, a: true, explanation: "" };
-          roundsData[`round${r}`] = { round: r, question: quiz.q, answer: quiz.a, explanation: quiz.explanation, timeLimit: 10 };
-        }
-        gameConfig = { type: "oxSurvival", elimination: true };
-        break;
-      }
-      case "destinyAuction": {
+      case "blindAuction": {
         const CHEST_POOL = [
           { type: "gold", label: "💎 대박!", points: 30 },
           { type: "silver", label: "🪙 괜찮은 보상", points: 20 },
@@ -401,7 +336,7 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
             maxBid: startingChips,
           };
         }
-        gameConfig = { type: "destinyAuction", startingChips };
+        gameConfig = { type: "blindAuction", startingChips };
         const chips: Record<string, number> = {};
         for (const p of players) {
           chips[p.uid] = startingChips;
@@ -409,27 +344,68 @@ export async function POST(req: NextRequest, { params }: { params: { roomId: str
         chipsToSet = chips;
         break;
       }
-      case "nunchiGame": {
+      case "bombSurvival": {
+        const bombQuizzes = await generateBombQuizzes(TOTAL_ROUNDS);
         for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-          roundsData[`round${r}`] = { round: r, maxNumber: Math.max(3, allPlayerIds.length - r + 1), timeLimit: 15 };
+          const quiz = bombQuizzes[r - 1] || { q: "1+1=?", a: "2", acceptable: ["2"] };
+          roundsData[`round${r}`] = {
+            round: r,
+            question: quiz.q,
+            answer: quiz.a,
+            acceptable: quiz.acceptable,
+            timeLimit: 12,
+          };
         }
-        gameConfig = { type: "nunchiGame", elimination: true };
+        gameConfig = { type: "bombSurvival" };
         break;
       }
-      case "quickTouch": {
+      case "tetrisBattle": {
         for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-          const targets: Array<{ x: number; y: number; delay: number; size: number }> = [];
-          for (let i = 0; i < 8 + r * 2; i++) {
-            targets.push({
-              x: Math.floor(Math.random() * 80) + 10,
-              y: Math.floor(Math.random() * 70) + 10,
-              delay: i * (800 - r * 30) + Math.floor(Math.random() * 300),
-              size: Math.max(20, 50 - r * 2),
+          roundsData[`round${r}`] = {
+            round: r,
+            timeLimit: 30,
+            targetLines: 3 + Math.floor(r / 3),
+            speed: Math.max(200, 500 - r * 30),
+          };
+        }
+        gameConfig = { type: "tetrisBattle" };
+        break;
+      }
+      case "memoryMatch": {
+        const EMOJI_POOL = ["🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐸","🐵","🐔","🐧","🦁","🐮","🐷","🐙"];
+        for (let r = 1; r <= TOTAL_ROUNDS; r++) {
+          const gridSize = r <= 5 ? 4 : 6;
+          const pairsNeeded = (gridSize * gridSize) / 2;
+          const shuffled = [...EMOJI_POOL].sort(() => Math.random() - 0.5).slice(0, pairsNeeded);
+          const cards = [...shuffled, ...shuffled].sort(() => Math.random() - 0.5);
+          roundsData[`round${r}`] = {
+            round: r,
+            gridSize,
+            cards,
+            timeLimit: gridSize === 4 ? 20 : 35,
+          };
+        }
+        gameConfig = { type: "memoryMatch" };
+        break;
+      }
+      case "slitherBattle": {
+        for (let r = 1; r <= TOTAL_ROUNDS; r++) {
+          const foods: Array<{ x: number; y: number }> = [];
+          const gridCells = 20;
+          for (let i = 0; i < 5 + r; i++) {
+            foods.push({
+              x: Math.floor(Math.random() * gridCells),
+              y: Math.floor(Math.random() * gridCells),
             });
           }
-          roundsData[`round${r}`] = { round: r, targets, duration: 15 };
+          roundsData[`round${r}`] = {
+            round: r,
+            initialFoods: foods,
+            timeLimit: 20,
+            gridSize: gridCells,
+          };
         }
-        gameConfig = { type: "quickTouch" };
+        gameConfig = { type: "slitherBattle" };
         break;
       }
     }

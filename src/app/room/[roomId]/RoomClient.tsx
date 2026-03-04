@@ -17,7 +17,8 @@ import LiveBadge from '@/components/room/LiveBadge';
 import { LevelBadge } from '@/components/user/LevelBadge';
 import CycleStatus from '@/components/cycle/CycleStatus';
 import { GameContainer } from '@/components/game/GameContainer';
-import RegularGamePlayer from '@/components/game/RegularGamePlayer';
+import RegularGamePlayer from '@/components/game/RegularGamePlayer'; // eslint-disable-line @typescript-eslint/no-unused-vars -- STEP 2 이후 제거 예정
+import GamePlayingView from '@/components/game/GamePlayingView';
 import FreePlayLobby from '@/components/game/FreePlayLobby';
 import { PointShop } from '@/components/shop/PointShop';
 import { Badge } from '@/components/ui/badge';
@@ -27,15 +28,15 @@ import type { OnlineUser } from '@/hooks/usePresence';
 
 const REGULAR_GAMES = [
   { id: 'drawGuess', name: '그림 맞추기', emoji: '🎨' },
-  { id: 'lineRunner', name: '라인 러너', emoji: '✏️' },
+  { id: 'flappyBattle', name: '플래피 배틀', emoji: '🐦' },
   { id: 'bigRoulette', name: '빅 룰렛', emoji: '🎰' },
-  { id: 'typingBattle', name: '타이핑 배틀', emoji: '⌨️' },
-  { id: 'weaponForge', name: '무기 강화 대전', emoji: '⚔️' },
-  { id: 'priceGuess', name: '가격 맞추기', emoji: '💰' },
-  { id: 'oxSurvival', name: 'OX 서바이벌', emoji: '⭕' },
-  { id: 'destinyAuction', name: '운명의 경매', emoji: '🎰' },
-  { id: 'nunchiGame', name: '눈치 게임', emoji: '👀' },
-  { id: 'quickTouch', name: '순발력 터치', emoji: '🎯' },
+  { id: 'typingBattle', name: '타이핑 레이스', emoji: '⌨️' },
+  { id: 'priceGuess', name: '가격을 맞춰라', emoji: '💰' },
+  { id: 'blindAuction', name: '블라인드 경매', emoji: '📦' },
+  { id: 'bombSurvival', name: '폭탄 해제', emoji: '💣' },
+  { id: 'tetrisBattle', name: '테트리스 배틀', emoji: '🧱' },
+  { id: 'memoryMatch', name: '메모리 매치', emoji: '🃏' },
+  { id: 'slitherBattle', name: '스네이크 서바이벌', emoji: '🐍' },
 ] as const;
 
 interface GameCurrent {
@@ -262,7 +263,7 @@ export default function RoomClient() {
       REGULAR_GAMES.some((g) => g.id === activeGame.gameType);
 
     if (hasActiveRegularGame && activeGame && user && profile) {
-      return <RegularGamePlayer roomId={roomId} uid={profile.uid} displayName={profile.displayName || '익명'} />;
+      return <GamePlayingView roomId={roomId} />;
     }
 
     const isAutoRecruiting = autoGame?.phase === 'recruiting' &&
@@ -335,7 +336,7 @@ export default function RoomClient() {
       REGULAR_GAMES.some((g) => g.id === activeGame.gameType);
 
     if (hasActiveRegularGame && activeGame && user && profile) {
-      return <RegularGamePlayer roomId={roomId} uid={profile.uid} displayName={profile.displayName || '익명'} />;
+      return <GamePlayingView roomId={roomId} />;
     }
 
     if (user && profile) {

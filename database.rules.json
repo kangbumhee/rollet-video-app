@@ -55,8 +55,35 @@
     },
     "games": {
       ".read": true,
-      "$sessionId": {
-        ".write": "auth != null"
+      "$roomId": {
+        "roundActions": {
+          "$roundKey": {
+            "$uid": {
+              ".write": "auth != null && auth.uid === $uid",
+              ".validate": "newData.hasChild('done') && newData.hasChild('score')"
+            }
+          }
+        },
+        "presence": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        },
+        "drawing": {
+          "$roundKey": {
+            ".write": "auth != null",
+            ".read": true
+          }
+        },
+        "current": {
+          ".write": false
+        },
+        "participants": {
+          ".write": false
+        },
+        "rounds": {
+          ".write": false
+        }
       }
     },
     "miniGameRecords": {

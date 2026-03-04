@@ -5,10 +5,10 @@ import { getDatabase } from 'firebase-admin/database';
 import { getAuth } from 'firebase-admin/auth';
 import { logger } from 'firebase-functions';
 import {
-  generateOXQuizzes,
   generatePriceItems,
   generateDrawWords,
   generateTypingSentences,
+  generateBombQuizzes,
 } from '../lib/geminiGameQuiz';
 
 const PHASES = [
@@ -369,25 +369,27 @@ export const gameCycle = onSchedule(
       // 새 정규 게임 10종 (커스텀방과 동일, Gemini API 연동)
       // ═══════════════════════════════════════════════════
       type MainGameType =
-        | 'drawGuess' | 'lineRunner' | 'bigRoulette' | 'typingBattle' | 'weaponForge'
-        | 'priceGuess' | 'oxSurvival' | 'destinyAuction' | 'nunchiGame' | 'quickTouch';
+        | 'drawGuess' | 'flappyBattle' | 'bigRoulette' | 'typingBattle'
+        | 'priceGuess' | 'blindAuction' | 'bombSurvival' | 'tetrisBattle'
+        | 'memoryMatch' | 'slitherBattle';
 
       const GAME_TYPES: MainGameType[] = [
-        'drawGuess', 'lineRunner', 'bigRoulette', 'typingBattle', 'weaponForge',
-        'priceGuess', 'oxSurvival', 'destinyAuction', 'nunchiGame', 'quickTouch',
+        'drawGuess', 'flappyBattle', 'bigRoulette', 'typingBattle',
+        'priceGuess', 'blindAuction', 'bombSurvival', 'tetrisBattle',
+        'memoryMatch', 'slitherBattle',
       ];
 
       const GAME_NAMES: Record<MainGameType, string> = {
         drawGuess: '🎨 그림 맞추기',
-        lineRunner: '✏️ 라인 러너',
+        flappyBattle: '🐦 플래피 배틀',
         bigRoulette: '🎰 빅 룰렛',
-        typingBattle: '⌨️ 타이핑 배틀',
-        weaponForge: '⚔️ 무기 강화 대전',
-        priceGuess: '💰 가격 맞추기',
-        oxSurvival: '⭕ OX 서바이벌',
-        destinyAuction: '🎰 운명의 경매',
-        nunchiGame: '👀 눈치 게임',
-        quickTouch: '🎯 순발력 터치',
+        typingBattle: '⌨️ 타이핑 레이스',
+        priceGuess: '💰 가격을 맞춰라',
+        blindAuction: '📦 블라인드 경매',
+        bombSurvival: '💣 폭탄 해제',
+        tetrisBattle: '🧱 테트리스 배틀',
+        memoryMatch: '🃏 메모리 매치',
+        slitherBattle: '🐍 스네이크 서바이벌',
       };
 
       const LIAR_WORDS = [
@@ -431,25 +433,17 @@ export const gameCycle = onSchedule(
               difficulty: words[r - 1]?.difficulty || 'easy',
               timeLimit: 60,
               guessed: false,
+              gameType: 'drawGuess',
             };
           }
           gameConfig = { type: 'drawGuess', needsCanvas: true };
           break;
         }
-        case 'lineRunner': {
+        case 'flappyBattle': {
           for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-            const obstacles: Array<{ x: number; y: number; w: number; h: number }> = [];
-            for (let i = 0; i < 15 + r * 3; i++) {
-              obstacles.push({
-                x: 300 + i * (200 - r * 10 + Math.floor(Math.random() * 80)),
-                y: Math.floor(Math.random() * 250) + 50,
-                w: 30 + Math.floor(Math.random() * 40),
-                h: 30 + Math.floor(Math.random() * 40),
-              });
-            }
-            roundsData[`round${r}`] = { round: r, obstacles, speedMultiplier: 1 + r * 0.15, timeLimit: 30 };
+            roundsData[`round${r}`] = { round: r, speedMultiplier: 1 + r * 0.15, timeLimit: 30, gameType: 'flappyBattle' };
           }
-          gameConfig = { type: 'lineRunner', needsCanvas: true };
+          gameConfig = { type: 'flappyBattle', needsCanvas: true };
           break;
         }
         case 'bigRoulette': {
@@ -475,6 +469,7 @@ export const gameCycle = onSchedule(
               targetSegmentIdx: targetIdx,
               baseCoins: BASE_COINS[r - 1],
               timeLimit: 15,
+              gameType: 'bigRoulette',
             };
           }
           gameConfig = { type: 'bigRoulette', segments: SEGMENTS, startingCoins: 500 };
@@ -486,77 +481,21 @@ export const gameCycle = onSchedule(
         case 'typingBattle': {
           const sentences = await generateTypingSentences(TOTAL_ROUNDS);
           for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-            roundsData[`round${r}`] = { round: r, sentence: sentences[r - 1] || `타이핑 테스트 ${r}`, timeLimit: 20 };
+            roundsData[`round${r}`] = { round: r, sentence: sentences[r - 1] || `타이핑 테스트 ${r}`, timeLimit: 20, gameType: 'typingBattle' };
           }
           gameConfig = { type: 'typingBattle' };
-          break;
-        }
-        case 'weaponForge': {
-          const WEAPONS = [
-            { id: 'longsword', name: '롱소드', emoji: '⚔️', rarity: 'common' },
-            { id: 'dagger', name: '단검', emoji: '🗡️', rarity: 'common' },
-            { id: 'knife', name: '칼', emoji: '🔪', rarity: 'common' },
-            { id: 'dualBlade', name: '이도류', emoji: '⚔️', rarity: 'rare' },
-            { id: 'greatsword', name: '대검', emoji: '🗡️', rarity: 'rare' },
-            { id: 'bow', name: '활', emoji: '🏹', rarity: 'common' },
-            { id: 'spear', name: '창', emoji: '🔱', rarity: 'rare' },
-            { id: 'battleaxe', name: '전투도끼', emoji: '⛏️', rarity: 'rare' },
-            { id: 'staff', name: '지팡이', emoji: '🪄', rarity: 'epic' },
-            { id: 'combatsword', name: '전투검', emoji: '🛡️', rarity: 'common' },
-            { id: 'crossbow', name: '쇠뇌', emoji: '🔫', rarity: 'rare' },
-            { id: 'halberd', name: '할버드', emoji: '🪓', rarity: 'epic' },
-            { id: 'demonsword', name: '마검', emoji: '💎', rarity: 'legendary' },
-            { id: 'moonblade', name: '월광검', emoji: '🌙', rarity: 'legendary' },
-            { id: 'meteorsword', name: '운석검', emoji: '☄️', rarity: 'legendary' },
-          ];
-          const ROUND_MULTIPLIER = [1, 1, 1, 2, 2, 2, 3, 3, 3, 5];
-          const ENHANCE_TABLE = [
-            { success: 95, fail: 5, down: 0, destroy: 0 },
-            { success: 90, fail: 10, down: 0, destroy: 0 },
-            { success: 85, fail: 15, down: 0, destroy: 0 },
-            { success: 75, fail: 25, down: 0, destroy: 0 },
-            { success: 65, fail: 35, down: 0, destroy: 0 },
-            { success: 55, fail: 40, down: 5, destroy: 0 },
-            { success: 45, fail: 40, down: 15, destroy: 0 },
-            { success: 35, fail: 35, down: 25, destroy: 5 },
-            { success: 25, fail: 30, down: 30, destroy: 15 },
-            { success: 15, fail: 25, down: 35, destroy: 25 },
-          ];
-          const shuffledWeapons = [...WEAPONS].sort(() => Math.random() - 0.5);
-          for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-            const weapon = shuffledWeapons[(r - 1) % shuffledWeapons.length];
-            roundsData[`round${r}`] = {
-              round: r,
-              weapon,
-              enhanceTable: ENHANCE_TABLE,
-              multiplier: ROUND_MULTIPLIER[r - 1],
-              timeLimit: 15,
-              maxLevel: 10,
-              perfectBonus: 20,
-            };
-          }
-          gameConfig = { type: 'weaponForge' };
           break;
         }
         case 'priceGuess': {
           const items = await generatePriceItems(TOTAL_ROUNDS);
           for (let r = 1; r <= TOTAL_ROUNDS; r++) {
             const item = items[r - 1] || { name: `상품${r}`, price: 10000, hint: '📦', category: '기타' };
-            roundsData[`round${r}`] = { round: r, itemName: item.name, actualPrice: item.price, hint: item.hint, category: item.category, timeLimit: 15 };
+            roundsData[`round${r}`] = { round: r, itemName: item.name, actualPrice: item.price, hint: item.hint, category: item.category, timeLimit: 15, gameType: 'priceGuess' };
           }
           gameConfig = { type: 'priceGuess' };
           break;
         }
-        case 'oxSurvival': {
-          const quizzes = await generateOXQuizzes(TOTAL_ROUNDS);
-          for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-            const quiz = quizzes[r - 1] || { q: `비상 퀴즈 ${r}`, a: true, explanation: '' };
-            roundsData[`round${r}`] = { round: r, question: quiz.q, answer: quiz.a, explanation: quiz.explanation, timeLimit: 10 };
-          }
-          gameConfig = { type: 'oxSurvival', elimination: true };
-          break;
-        }
-        case 'destinyAuction': {
+        case 'blindAuction': {
           const CHEST_POOL = [
             { type: 'gold', label: '💎 대박!', points: 30 },
             { type: 'silver', label: '🪙 괜찮은 보상', points: 20 },
@@ -584,9 +523,10 @@ export const gameCycle = onSchedule(
               timeLimit: 12,
               minBid: 1,
               maxBid: startingChips,
+              gameType: 'blindAuction',
             };
           }
-          gameConfig = { type: 'destinyAuction', startingChips };
+          gameConfig = { type: 'blindAuction', startingChips };
           const chips: Record<string, number> = {};
           for (const pid of allPlayers) {
             chips[pid] = startingChips;
@@ -594,27 +534,72 @@ export const gameCycle = onSchedule(
           mainChipsRef = chips;
           break;
         }
-        case 'nunchiGame': {
+        case 'bombSurvival': {
+          const quizzes = await generateBombQuizzes(TOTAL_ROUNDS);
           for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-            roundsData[`round${r}`] = { round: r, maxNumber: Math.max(3, allPlayers.length - r + 1), timeLimit: 15 };
+            const quiz = quizzes[r - 1] || { q: '1+1=?', a: '2', acceptable: ['2'] };
+            roundsData[`round${r}`] = {
+              round: r,
+              question: quiz.q,
+              answer: quiz.a,
+              acceptable: quiz.acceptable,
+              timeLimit: 12,
+              gameType: 'bombSurvival',
+            };
           }
-          gameConfig = { type: 'nunchiGame', elimination: true };
+          gameConfig = { type: 'bombSurvival' };
           break;
         }
-        case 'quickTouch': {
+        case 'tetrisBattle': {
           for (let r = 1; r <= TOTAL_ROUNDS; r++) {
-            const targets: Array<{ x: number; y: number; delay: number; size: number }> = [];
-            for (let i = 0; i < 8 + r * 2; i++) {
-              targets.push({
-                x: Math.floor(Math.random() * 80) + 10,
-                y: Math.floor(Math.random() * 70) + 10,
-                delay: i * (800 - r * 30) + Math.floor(Math.random() * 300),
-                size: Math.max(20, 50 - r * 2),
+            roundsData[`round${r}`] = {
+              round: r,
+              timeLimit: 30,
+              targetLines: 3 + Math.floor(r / 3),
+              speed: Math.max(200, 500 - r * 30),
+              gameType: 'tetrisBattle',
+            };
+          }
+          gameConfig = { type: 'tetrisBattle' };
+          break;
+        }
+        case 'memoryMatch': {
+          const EMOJI_POOL = ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐸','🐵','🐔','🐧','🦁','🐮','🐷','🐙'];
+          for (let r = 1; r <= TOTAL_ROUNDS; r++) {
+            const gridSize = r <= 5 ? 4 : 6;
+            const pairsNeeded = (gridSize * gridSize) / 2;
+            const shuffled = [...EMOJI_POOL].sort(() => Math.random() - 0.5).slice(0, pairsNeeded);
+            const cards = [...shuffled, ...shuffled].sort(() => Math.random() - 0.5);
+            roundsData[`round${r}`] = {
+              round: r,
+              gridSize,
+              cards,
+              timeLimit: gridSize === 4 ? 20 : 35,
+              gameType: 'memoryMatch',
+            };
+          }
+          gameConfig = { type: 'memoryMatch' };
+          break;
+        }
+        case 'slitherBattle': {
+          for (let r = 1; r <= TOTAL_ROUNDS; r++) {
+            const foods: Array<{ x: number; y: number }> = [];
+            const gridCells = 20;
+            for (let i = 0; i < 5 + r; i++) {
+              foods.push({
+                x: Math.floor(Math.random() * gridCells),
+                y: Math.floor(Math.random() * gridCells),
               });
             }
-            roundsData[`round${r}`] = { round: r, targets, duration: 15 };
+            roundsData[`round${r}`] = {
+              round: r,
+              initialFoods: foods,
+              timeLimit: 20,
+              gridSize: gridCells,
+              gameType: 'slitherBattle',
+            };
           }
-          gameConfig = { type: 'quickTouch' };
+          gameConfig = { type: 'slitherBattle' };
           break;
         }
       }
@@ -654,8 +639,60 @@ export const gameCycle = onSchedule(
 
       await sendBotChat(rtdb, 'main', `🎮 ${GAME_NAMES[pickedGameType]} 시작! ${allPlayers.length}명 참가! ${totalRoundsForGame}라운드!`);
 
-      // ── 클라이언트가 게임을 진행하는 동안 대기 (5분) ──
-      await sleep(PHASES[3].duration * 1000);
+      // ── 1라운드 초기화 (라운드 기반 진행) ──
+      const firstRoundData = roundsData['round1'] as { timeLimit?: number } | undefined;
+      const firstTimeLimit = firstRoundData?.timeLimit ?? 15;
+
+      const initialActions: Record<string, { done: boolean; score: number }> = {};
+      for (const pid of allPlayers) {
+        initialActions[pid] = { done: false, score: 0 };
+      }
+
+      const roundStartTime = Date.now();
+      await rtdb.ref('games/main/current').update({
+        phase: 'playing',
+        round: 1,
+        roundStartedAt: roundStartTime,
+        roundEndsAt: roundStartTime + firstTimeLimit * 1000,
+      });
+      await rtdb.ref('games/main/roundActions/round1').set(initialActions);
+
+      // Presence 초기화
+      const gamePresenceInit: Record<string, { online: boolean; lastSeen: number; currentRound: number }> = {};
+      for (const pid of allPlayers) {
+        gamePresenceInit[pid] = { online: true, lastSeen: Date.now(), currentRound: 1 };
+      }
+      await rtdb.ref('games/main/presence').set(gamePresenceInit);
+
+      // ── 게임이 끝날 때까지 폴링 대기 ──
+      const maxWait = totalRoundsForGame * 40 * 1000 + 120000; // 넉넉하게
+      const gameStart = Date.now();
+      let gameFinished = false;
+
+      while (!gameFinished && (Date.now() - gameStart) < maxWait) {
+        await sleep(5000); // 5초마다 체크
+        const phaseSnap = await rtdb.ref('games/main/current/phase').get();
+        const phaseVal = phaseSnap.exists() ? phaseSnap.val() : null;
+        if (phaseVal === 'final_result') {
+          gameFinished = true;
+        }
+      }
+
+      // 시간 초과 시 강제 종료
+      if (!gameFinished) {
+        logger.warn('Game timed out, forcing final result');
+        const forcedScoresSnap = await rtdb.ref('games/main/current/scores').get();
+        const forcedScores = forcedScoresSnap.exists() ? forcedScoresSnap.val() : scores;
+        const forcedSorted = Object.entries(forcedScores as Record<string, number>).sort((a, b) => b[1] - a[1]);
+        const forcedWinner = forcedSorted[0]?.[0] || allPlayers[0] || null;
+        await rtdb.ref('games/main/current').update({
+          phase: 'final_result',
+          winnerId: forcedWinner,
+          winnerName: forcedWinner ? (nameMap[forcedWinner] || forcedWinner) : null,
+          finalScores: forcedScores,
+          completedAt: Date.now(),
+        });
+      }
 
       // ── 게임 끝난 후 최종 스코어 읽기 ──
       const finalSnap = await rtdb.ref('games/main/current/scores').get();
