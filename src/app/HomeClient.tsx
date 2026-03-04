@@ -47,6 +47,7 @@ export default function HomeClient() {
   const [newMax, setNewMax] = useState(50);
   const [newPassword, setNewPassword] = useState("");
   const [creating, setCreating] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
@@ -55,6 +56,17 @@ export default function HomeClient() {
   const isAdmin = !!(profile?.isAdmin || profile?.isModerator);
   const roomIds = useMemo(() => rooms.map((r) => r.id), [rooms]);
   const roomIdsKey = useMemo(() => roomIds.join(","), [roomIds]);
+
+  // ★ 마운트 감지
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // ★ 마운트 후에만 BGM
+  useEffect(() => {
+    if (!mounted) return;
+    soundManager.playBGM('bgm-lobby');
+  }, [mounted]);
 
   useEffect(() => {
     const q = query(
@@ -99,10 +111,6 @@ export default function HomeClient() {
       setMainRoomCount(s.exists() ? Object.keys(s.val()).length : 0);
     });
     return () => unsub();
-  }, []);
-
-  useEffect(() => {
-    soundManager.playBGM('bgm-lobby');
   }, []);
 
   const handleCreate = async () => {
@@ -214,25 +222,29 @@ export default function HomeClient() {
         </div>
         <div className="flex items-center gap-2">
           <SoundToggle size="sm" />
-          {profile ? (
-            <button
-              onClick={() => router.push("/mypage")}
-              className="flex items-center gap-2 bg-surface-base rounded-full pl-3 pr-1.5 py-1 border border-white/[0.06] hover:border-white/[0.1] transition-colors"
-            >
-              <span className="text-xs text-white/70">{profile.displayName}</span>
-              <img
-                src={profile.photoURL || "/default-avatar.png"}
-                className="w-7 h-7 rounded-full ring-1 ring-white/10"
-                alt=""
-              />
-            </button>
+          {mounted ? (
+            profile ? (
+              <button
+                onClick={() => router.push("/mypage")}
+                className="flex items-center gap-2 bg-surface-base rounded-full pl-3 pr-1.5 py-1 border border-white/[0.06] hover:border-white/[0.1] transition-colors"
+              >
+                <span className="text-xs text-white/70">{profile.displayName}</span>
+                <img
+                  src={profile.photoURL || "/default-avatar.png"}
+                  className="w-7 h-7 rounded-full ring-1 ring-white/10"
+                  alt=""
+                />
+              </button>
+            ) : (
+              <button
+                onClick={() => router.push("/login")}
+                className="text-sm neon-text-cyan bg-neon-cyan/10 neon-border-cyan rounded-full px-4 py-1.5 hover:bg-neon-cyan/20 transition-colors"
+              >
+                로그인
+              </button>
+            )
           ) : (
-            <button
-              onClick={() => router.push("/login")}
-              className="text-sm neon-text-cyan bg-neon-cyan/10 neon-border-cyan rounded-full px-4 py-1.5 hover:bg-neon-cyan/20 transition-colors"
-            >
-              로그인
-            </button>
+            <div className="w-16 h-8" />
           )}
         </div>
       </header>
