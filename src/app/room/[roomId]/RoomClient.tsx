@@ -112,6 +112,7 @@ export default function RoomClient() {
   });
   const [showPrizeDetail, setShowPrizeDetail] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [todayVisitors, setTodayVisitors] = useState<number | null>(null);
 
   const chatCollapsedRef = useRef(false);
   const lastMessageCountRef = useRef(0);
@@ -152,6 +153,38 @@ export default function RoomClient() {
     }
     lastMessageCountRef.current = messages.length;
   }, [messages.length, chatCollapsed]);
+
+  useEffect(() => {
+    if (!profile?.isAdmin) return;
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).getTime();
+
+    const fetchVisitors = async () => {
+      try {
+        const { collection, query, where, getCountFromServer } = await import('firebase/firestore');
+        const usersRef = collection(firestore, 'users');
+        const q = query(usersRef, where('lastVisit', '>=', todayStart));
+        const snapshot = await getCountFromServer(q);
+        setTodayVisitors(snapshot.data().count);
+      } catch (e) {
+        console.error('Failed to fetch today visitors:', e);
+        try {
+          const { collection, query, where, getDocs } = await import('firebase/firestore');
+          const usersRef = collection(firestore, 'users');
+          const q = query(usersRef, where('lastVisit', '>=', todayStart));
+          const snap = await getDocs(q);
+          setTodayVisitors(snap.size);
+        } catch (e2) {
+          console.error('Fallback visitor count also failed:', e2);
+        }
+      }
+    };
+
+    fetchVisitors();
+    const interval = setInterval(fetchVisitors, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [profile?.isAdmin]);
 
   useEffect(() => {
     if (!roomId) return;
@@ -467,6 +500,11 @@ export default function RoomClient() {
             <ArrowLeft size={20} />
           </button>
           <span className="font-bold text-sm truncate">{roomName}</span>
+          {profile?.isAdmin && todayVisitors !== null && (
+            <span className="px-2 py-0.5 rounded-md bg-neon-cyan/10 border border-neon-cyan/20 text-neon-cyan text-[11px] font-score font-medium whitespace-nowrap">
+              오늘 {todayVisitors}명
+            </span>
+          )}
           {isLive && <LiveBadge />}
           <button onClick={() => setShowUserList((v) => !v)}
             className="flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-elevated text-white/50 text-xs">

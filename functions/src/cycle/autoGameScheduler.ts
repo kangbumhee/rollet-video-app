@@ -135,7 +135,7 @@ export const autoGameScheduler = onSchedule(
             // start API 호출
             logger.info(`${playerCount} players joined, calling start API`);
             const AUTO_GAME_SECRET = process.env.AUTO_GAME_SECRET || 'auto-game-secret-key';
-            const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://prizelive.vercel.app';
+            const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://cp1.co.kr';
             try {
               const res = await fetch(`${appUrl}/api/room/${roomId}/auto-game`, {
                 method: 'POST',
