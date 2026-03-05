@@ -7,30 +7,30 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: "/",
+        allow: ["/", "/games", "/games/", "/guide"],
         disallow: ["/api/", "/admin/", "/room/"],
       },
       {
         userAgent: "GPTBot",
-        allow: ["/", "/llms.txt"],
+        allow: ["/", "/llms.txt", "/games"],
         disallow: ["/api/", "/room/"],
       },
       {
         userAgent: "ChatGPT-User",
-        allow: ["/", "/llms.txt"],
+        allow: ["/", "/llms.txt", "/games"],
         disallow: ["/api/", "/room/"],
       },
       {
         userAgent: "anthropic-ai",
-        allow: ["/", "/llms.txt"],
+        allow: ["/", "/llms.txt", "/games"],
         disallow: ["/api/", "/room/"],
       },
       {
         userAgent: "PerplexityBot",
-        allow: ["/", "/llms.txt"],
+        allow: ["/", "/llms.txt", "/games"],
         disallow: ["/api/", "/room/"],
       },
     ],
-    sitemap: `${SITE_URL}/sitemap.xml`,
+    sitemap: "https://cp1.co.kr/sitemap.xml",
   };
 }
