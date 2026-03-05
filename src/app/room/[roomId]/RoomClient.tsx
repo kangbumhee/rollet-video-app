@@ -113,6 +113,14 @@ export default function RoomClient() {
   const [showPrizeDetail, setShowPrizeDetail] = useState(false);
   const [loading, setLoading] = useState(true);
   const [todayVisitors, setTodayVisitors] = useState<number | null>(null);
+  const [showVisitorDetail, setShowVisitorDetail] = useState(false);
+  const [visitorList, setVisitorList] = useState<Array<{
+    uid: string;
+    displayName: string;
+    photoURL: string;
+    lastVisit: number;
+    email: string;
+  }>>([]);
 
   const chatCollapsedRef = useRef(false);
   const lastMessageCountRef = useRef(0);
@@ -162,22 +170,29 @@ export default function RoomClient() {
 
     const fetchVisitors = async () => {
       try {
-        const { collection, query, where, getCountFromServer } = await import('firebase/firestore');
+        const { collection, query, where, getDocs, orderBy } = await import('firebase/firestore');
         const usersRef = collection(firestore, 'users');
-        const q = query(usersRef, where('lastVisit', '>=', todayStart));
-        const snapshot = await getCountFromServer(q);
-        setTodayVisitors(snapshot.data().count);
+        const q = query(
+          usersRef,
+          where('lastVisit', '>=', todayStart),
+          orderBy('lastVisit', 'desc')
+        );
+        const snap = await getDocs(q);
+        setTodayVisitors(snap.size);
+
+        const list = snap.docs.map((docSnap) => {
+          const d = docSnap.data();
+          return {
+            uid: d.uid || docSnap.id,
+            displayName: d.displayName || '익명',
+            photoURL: d.photoURL || '',
+            lastVisit: d.lastVisit || 0,
+            email: d.email || '',
+          };
+        });
+        setVisitorList(list);
       } catch (e) {
         console.error('Failed to fetch today visitors:', e);
-        try {
-          const { collection, query, where, getDocs } = await import('firebase/firestore');
-          const usersRef = collection(firestore, 'users');
-          const q = query(usersRef, where('lastVisit', '>=', todayStart));
-          const snap = await getDocs(q);
-          setTodayVisitors(snap.size);
-        } catch (e2) {
-          console.error('Fallback visitor count also failed:', e2);
-        }
       }
     };
 
@@ -501,9 +516,12 @@ export default function RoomClient() {
           </button>
           <span className="font-bold text-sm truncate">{roomName}</span>
           {profile?.isAdmin && todayVisitors !== null && (
-            <span className="px-2 py-0.5 rounded-md bg-neon-cyan/10 border border-neon-cyan/20 text-neon-cyan text-[11px] font-score font-medium whitespace-nowrap">
+            <button
+              onClick={() => setShowVisitorDetail(true)}
+              className="px-2 py-0.5 rounded-md bg-neon-cyan/10 border border-neon-cyan/20 text-neon-cyan text-[11px] font-score font-medium whitespace-nowrap hover:bg-neon-cyan/20 active:scale-[0.96] transition-all"
+            >
               오늘 {todayVisitors}명
-            </span>
+            </button>
           )}
           {isLive && <LiveBadge />}
           <button onClick={() => setShowUserList((v) => !v)}
@@ -677,6 +695,93 @@ export default function RoomClient() {
               className="mt-4 w-full py-2.5 bg-surface-base border border-white/[0.06] hover:bg-white/[0.04] rounded-xl text-white/60 transition-all">
               닫기
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 오늘 방문자 상세 모달 (관리자 전용) */}
+      {showVisitorDetail && profile?.isAdmin && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setShowVisitorDetail(false)}
+        >
+          <div
+            className="bg-surface-elevated border border-white/[0.06] rounded-2xl max-w-md w-full max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+              <div>
+                <h2 className="text-base font-bold text-white">오늘 방문자</h2>
+                <p className="text-neon-cyan text-xs font-score mt-0.5">
+                  총 {visitorList.length}명 · {new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowVisitorDetail(false)}
+                className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/50 text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-3 py-2">
+              {visitorList.length === 0 ? (
+                <p className="text-white/30 text-sm text-center py-8">방문자 없음</p>
+              ) : (
+                <ul className="space-y-1">
+                  {visitorList.map((v, i) => {
+                    const visitDate = new Date(v.lastVisit);
+                    const timeStr = visitDate.toLocaleTimeString('ko-KR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: false,
+                    });
+                    return (
+                      <li
+                        key={v.uid}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.03] transition-colors"
+                      >
+                        <span className="text-white/20 text-xs font-score w-5 text-right shrink-0">
+                          {i + 1}
+                        </span>
+                        {v.photoURL ? (
+                          <img
+                            src={v.photoURL}
+                            alt=""
+                            className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-surface-base flex items-center justify-center shrink-0">
+                            <span className="text-white/30 text-xs">?</span>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-sm font-medium truncate">
+                            {v.displayName}
+                          </p>
+                          <p className="text-white/30 text-[11px] truncate">
+                            {v.email || v.uid.slice(0, 12) + '...'}
+                          </p>
+                        </div>
+                        <span className="text-white/40 text-[11px] font-score whitespace-nowrap shrink-0">
+                          {timeStr}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
+            <div className="shrink-0 px-5 py-3 border-t border-white/[0.06]">
+              <button
+                onClick={() => setShowVisitorDetail(false)}
+                className="w-full py-2.5 bg-surface-base border border-white/[0.06] hover:bg-white/[0.04] rounded-xl text-white/60 text-sm transition-all"
+              >
+                닫기
+              </button>
+            </div>
           </div>
         </div>
       )}
