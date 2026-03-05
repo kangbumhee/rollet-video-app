@@ -17,7 +17,6 @@ const GAMES = [
 ] as const;
 
 const SLUGS = GAMES.map((g) => g.slug);
-type Slug = (typeof SLUGS)[number];
 
 function getGame(slug: string) {
   return GAMES.find((g) => g.slug === slug);
