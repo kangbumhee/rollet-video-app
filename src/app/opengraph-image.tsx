@@ -1,11 +1,12 @@
 import { ImageResponse } from "next/og";
 
-export const runtime = "edge";
-export const alt = "PartyPlay - 실시간 파티게임 플랫폼";
+export const alt = "PartyPlay - 무료 파티게임 어플 | 모바일 보드게임 온라인 대전";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default async function OgImage() {
+const EMOJIS = ["🎰", "🎨", "⌨️", "🐍", "🐦", "💣", "🧱", "🃏", "📦", "💰", "⚔️"];
+
+export default async function Image() {
   return new ImageResponse(
     (
       <div
@@ -13,77 +14,85 @@ export default async function OgImage() {
           width: "100%",
           height: "100%",
           display: "flex",
-          flexDirection: "column",
+          flexDirection: "row",
           alignItems: "center",
-          justifyContent: "center",
-          background:
-            "linear-gradient(135deg, #0A0A12 0%, #1A1A2E 50%, #0A0A12 100%)",
-          position: "relative",
+          justifyContent: "space-between",
+          backgroundColor: "#0A0A12",
+          padding: 80,
         }}
       >
+        {/* 왼쪽: 텍스트 */}
         <div
           style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            width: "500px",
-            height: "500px",
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(255,45,120,0.15) 0%, rgba(0,229,255,0.08) 50%, transparent 70%)",
-          }}
-        />
-        <div style={{ fontSize: 80, marginBottom: 16 }}>🎮</div>
-        <div
-          style={{
-            fontSize: 72,
-            fontWeight: 900,
-            color: "#FF2D78",
-            textShadow: "0 0 40px rgba(255,45,120,0.5)",
-            marginBottom: 8,
-            letterSpacing: "-2px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 24,
+            flex: 1,
           }}
         >
-          PartyPlay
+          <div
+            style={{
+              fontSize: 60,
+              fontWeight: 700,
+              color: "#FF2D78",
+            }}
+          >
+            PartyPlay
+          </div>
+          <div
+            style={{
+              fontSize: 32,
+              color: "white",
+            }}
+          >
+            무료 파티게임 어플
+          </div>
+          <div
+            style={{
+              fontSize: 20,
+              color: "rgba(255, 255, 255, 0.5)",
+            }}
+          >
+            모바일 보드게임 온라인 대전
+          </div>
+          <div
+            style={{
+              fontSize: 24,
+              color: "#00E5FF",
+            }}
+          >
+            cp1.co.kr
+          </div>
         </div>
+
+        {/* 오른쪽: 이모지 격자 */}
         <div
           style={{
-            fontSize: 28,
-            color: "rgba(255,255,255,0.7)",
-            marginBottom: 32,
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 24,
+            width: 320,
+            justifyContent: "center",
+            alignItems: "center",
           }}
         >
-          실시간 파티게임 플랫폼
-        </div>
-        <div style={{ display: "flex", gap: "12px" }}>
-          {["🎲 30+ 미니게임", "🏆 실시간 대전", "🎁 경품 이벤트"].map(
-            (tag) => (
-              <div
-                key={tag}
-                style={{
-                  background: "rgba(255,255,255,0.08)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  borderRadius: "24px",
-                  padding: "8px 20px",
-                  fontSize: 18,
-                  color: "rgba(255,255,255,0.8)",
-                }}
-              >
-                {tag}
-              </div>
-            )
-          )}
-        </div>
-        <div
-          style={{
-            position: "absolute",
-            bottom: 32,
-            fontSize: 16,
-            color: "rgba(0,229,255,0.6)",
-          }}
-        >
-          partyplay.kr
+          {EMOJIS.map((emoji, i) => (
+            <div
+              key={i}
+              style={{
+                width: 72,
+                height: 72,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 48,
+                backgroundColor: "rgba(255, 255, 255, 0.06)",
+                borderRadius: 16,
+              }}
+            >
+              {emoji}
+            </div>
+          ))}
         </div>
       </div>
     ),
