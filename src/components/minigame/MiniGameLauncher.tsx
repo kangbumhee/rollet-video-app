@@ -117,7 +117,7 @@ interface MiniGameLauncherProps {
 export default function MiniGameLauncher({ roomId = 'main' }: MiniGameLauncherProps) {
   const { user, profile } = useAuthStore();
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [records, setRecords] = useState<Record<string, { score: number; holder: string; scoreLabel?: string }>>({});
 
   useEffect(() => {

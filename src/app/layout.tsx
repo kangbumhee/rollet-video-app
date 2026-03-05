@@ -5,6 +5,7 @@ import { NotificationBanner } from "@/components/notifications/NotificationBanne
 import InAppBrowserGuard from "@/components/InAppBrowserGuard";
 
 const SITE_URL = "https://cp1.co.kr";
+const IMAGE_URL = "https://www.genspark.ai/api/files/s/I6ymrE3S";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -51,6 +52,12 @@ export const metadata: Metadata = {
     canonical: "/",
   },
 
+  icons: {
+    icon: [{ url: IMAGE_URL, type: "image/png" }],
+    apple: [{ url: IMAGE_URL }],
+    shortcut: [{ url: IMAGE_URL }],
+  },
+
   openGraph: {
     type: "website",
     locale: "ko_KR",
@@ -60,7 +67,12 @@ export const metadata: Metadata = {
     description:
       "앱 설치 없이 모바일에서 바로! 친구들과 빅 룰렛, 그림 맞추기, 타이핑 배틀 등 11종 파티게임을 무료로 즐기고 경품도 받아가세요.",
     images: [
-      { url: "/og-image.png", width: 1200, height: 630, alt: "PartyPlay - 모바일 파티게임 어플" },
+      {
+        url: IMAGE_URL,
+        width: 1200,
+        height: 630,
+        alt: "PartyPlay - 모바일 파티게임 어플",
+      },
     ],
   },
 
@@ -68,7 +80,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "PartyPlay - 무료 파티게임 어플",
     description: "친구들과 모바일로 실시간 보드게임! 앱 설치 없이 무료 플레이.",
-    images: ["/og-image.png"],
+    images: [IMAGE_URL],
   },
 
   robots: {
