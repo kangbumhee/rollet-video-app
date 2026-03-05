@@ -3,6 +3,7 @@ import { ImageResponse } from "next/og";
 export const alt = "PartyPlay - 무료 파티게임 어플 | 모바일 보드게임 온라인 대전";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
+export const dynamic = "force-dynamic";
 
 const EMOJIS = ["🎰", "🎨", "⌨️", "🐍", "🐦", "💣", "🧱", "🃏", "📦", "💰", "⚔️"];
 

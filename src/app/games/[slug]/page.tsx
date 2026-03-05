@@ -18,19 +18,25 @@ const GAMES = [
 
 const SLUGS = GAMES.map((g) => g.slug);
 
-type Game = (typeof GAMES)[number];
+type Game = {
+  slug: string;
+  emoji: string;
+  name: string;
+  desc: string;
+  players: string;
+  time: string;
+  metaTitle?: string;
+  metaDesc?: string;
+};
 function getGame(slug: string): Game | undefined {
-  return GAMES.find((g) => g.slug === slug);
+  return GAMES.find((g) => g.slug === slug) as Game | undefined;
 }
 
 export function generateStaticParams() {
   return SLUGS.map((slug) => ({ slug }));
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const { slug } = await params;
-  const game = getGame(slug);
-  if (!game) return { title: "게임을 찾을 수 없습니다" };
+function metadataForGame(game: Game): Metadata {
   const title = game.metaTitle ?? `${game.name} - PartyPlay 파티게임`;
   const description = game.metaDesc ?? game.desc;
   return {
@@ -43,6 +49,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       images: [{ url: "/og-image.png" }],
     },
   };
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const game = getGame(slug);
+  if (!game) return { title: "게임을 찾을 수 없습니다" };
+  return metadataForGame(game);
 }
 
 export default async function GameSlugPage({ params }: { params: Promise<{ slug: string }> }) {
