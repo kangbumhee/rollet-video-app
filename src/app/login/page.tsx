@@ -6,19 +6,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || "/";
   const { profile, loading, signInWithGoogle } = useAuthStore();
   const [isKakaoInApp, setIsKakaoInApp] = useState(false);
 
   useEffect(() => {
     if (profile && !loading) {
-      router.push("/");
+      router.push(redirectTo);
     }
-  }, [profile, loading, router]);
+  }, [profile, loading, router, redirectTo]);
 
   useEffect(() => {
     const ua = navigator.userAgent;
@@ -44,7 +46,7 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     try {
       await signInWithGoogle();
-      router.push("/");
+      router.push(redirectTo);
     } catch (error) {
       console.error("로그인 실패:", error);
     }
